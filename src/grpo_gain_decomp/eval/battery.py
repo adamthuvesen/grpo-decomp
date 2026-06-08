@@ -158,6 +158,29 @@ def lenient_counts_by_problem(
     return counts, n
 
 
+def cot_counts_by_problem(
+    problems: ProblemSet, completions_by_id: Mapping[str, Sequence[str]]
+) -> tuple[list[int], int]:
+    """Per-problem count of CoT-gated-correct completions (problem order), plus the uniform n.
+
+    The CoT twin of `lenient_counts_by_problem`: a completion counts only when its lenient
+    answer is correct AND its chain is valid (>=1 ``<<a op b=c>>`` step, all steps compute) —
+    the stricter bar the CoT-Pass@K critique argues for. Always <= the lenient count per
+    problem, so CoT-gated pass@k <= vanilla. Reuses the same extraction + verifier + chain
+    check as `run_battery`, so these per-problem counts match its `cot_gated` pass@k exactly.
+    """
+    n = _uniform_sample_count(problems, completions_by_id)
+    check = verifier_for(problems.source)
+    counts: list[int] = []
+    for problem in problems:
+        correct = sum(
+            check(extract_lenient(completion), problem.gold_answer) and chain_is_valid(completion)
+            for completion in completions_by_id[problem.id]
+        )
+        counts.append(int(correct))
+    return counts, n
+
+
 _EXTRACTORS = {"strict": extract_strict, "lenient": extract_lenient}
 
 

@@ -33,7 +33,10 @@ significant gain. But it is mostly elicitation, not new reasoning: base pass@8 (
 (propagated CI [−0.4, +1.9]: consistent with zero once the base anchor's own ±1.1 pp sampling
 CI is folded in). RL made the model more *reliable* at problems the base could already solve. Two
 confident single-seed numbers settled under aggregation: the placebo "+6.1 pp, p=3e-9" → +3.9 pp
-[2.3, 5.6], and the pass@8 panel's "+1.7 pp" → +0.7 pp [−0.4, +1.9].
+[2.3, 5.6], and the pass@8 panel's "+1.7 pp" → +0.7 pp [−0.4, +1.9]. We also apply the CoT-gated
+yardstick the last critique recommends: it has **0.0% verifiable-chain coverage** on these Qwen
+completions (they reason in code, not `<<a op b=c>>` annotations), so it cannot discriminate base
+from RL here — a proxy limitation we report in [FINDINGS](results/FINDINGS.md), not quietly drop.
 
 | The confirmatory test | The elicitation finding |
 | --- | --- |

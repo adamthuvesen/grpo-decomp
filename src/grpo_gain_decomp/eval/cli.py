@@ -335,6 +335,7 @@ def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
         f"# Multi-seed pass@{panel.k} coverage - {args.task_set}",
         "",
         panel.headline(),
+        panel.cot_headline(),
         "",
         f"| seed | correct pass@1 | correct pass@{panel.k} |",
         "| --- | --- | --- |",
@@ -350,6 +351,8 @@ def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
         f"base pass@1 {panel.base_pass1 * 100:.1f}% · base pass@{panel.k} "
         f"{panel.base_passk * 100:.1f}% "
         f"[{panel.base_passk_ci_low * 100:.1f}, {panel.base_passk_ci_high * 100:.1f}]",
+        f"base CoT-gated pass@{panel.k} {panel.base_cot_passk * 100:.1f}% "
+        f"[{panel.base_cot_passk_ci_low * 100:.1f}, {panel.base_cot_passk_ci_high * 100:.1f}]",
     ]
     if args.out is not None:
         out = Path(args.out)

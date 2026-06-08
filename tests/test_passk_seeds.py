@@ -18,6 +18,8 @@ from grpo_gain_decomp.schemas import DatasetRef, Problem
 
 _REF = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="rev")
 _C7, _C9, _WRONG = r"\boxed{7}", r"\boxed{9}", r"\boxed{0}"
+# Correct AND carrying a valid <<a op b=c>> chain -> counts toward CoT-gated pass@k too.
+_CHAIN7, _CHAIN9 = r"<<3+4=7>> so \boxed{7}", r"<<4+5=9>> so \boxed{9}"
 
 
 def _cset(samples_by_id: dict[str, list[str]], n: int) -> CompletionSet:
@@ -75,6 +77,31 @@ def test_aggregate_passk_seeds_t_ci_and_delta() -> None:
     # than the seed-level interval (base p@1 over [0.5, 0.0] has real problem-sampling spread).
     assert panel.delta_propagated_ci_low < panel.delta_ci_low
     assert panel.delta_propagated_ci_high > panel.delta_ci_high
+    # These fixtures carry no <<...>> chains, so every CoT-gated metric is 0 (unverifiable),
+    # and the cot <= vanilla invariant holds trivially.
+    assert panel.base_cot_passk == 0.0
+    assert panel.mean_correct_cot_passk == 0.0
+    assert panel.cot_delta == 0.0
+    assert panel.base_chain_coverage == 0.0  # zero parseable <<a op b=c>> steps
+
+
+def test_aggregate_passk_seeds_cot_gated_is_a_subset_of_vanilla() -> None:
+    # p0 mixes a chained solve with a bare-boxed solve; CoT-gating drops the latter, so the
+    # CoT-gated level sits strictly below vanilla while obeying the same CI structure.
+    base = _cset({"p0": [_CHAIN7, _C7], "p1": [_WRONG, _WRONG]}, n=2)
+    seed_a = _cset({"p0": [_CHAIN7, _C7], "p1": [_WRONG, _WRONG]}, n=2)
+    seed_b = _cset({"p0": [_CHAIN7, _CHAIN7], "p1": [_CHAIN9, _WRONG]}, n=2)
+    panel = aggregate_passk_seeds(base, [(0, seed_a), (1, seed_b)], task="gsm8k-test", k=1)
+
+    # base p0 lenient=2 (both boxed 7) but cot=1 (only the <<3+4=7>> sample) -> 0.25 < 0.50.
+    assert panel.base_passk == pytest.approx(0.5)
+    assert panel.base_cot_passk == pytest.approx(0.25)
+    assert panel.base_cot_passk < panel.base_passk
+    assert panel.mean_correct_cot_passk <= panel.mean_correct_passk
+    assert panel.base_chain_coverage == pytest.approx(0.25)  # 1 of 4 base completions has a chain
+    # The CoT twin carries the same propagated-widening structure as the vanilla interval.
+    assert panel.cot_delta_propagated_ci_low <= panel.cot_delta_ci_low
+    assert panel.cot_delta_propagated_ci_high >= panel.cot_delta_ci_high
 
 
 def test_below_min_seeds_is_preliminary() -> None:

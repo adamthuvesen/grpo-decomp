@@ -140,6 +140,24 @@ _CLAIMS: list[tuple[str, str, str]] = [
         _FIND_C,
         f"{_pct(_GP['base_passk'])} {_ARROW} {_pct(_GP['mean_correct_passk'])}",
     ),
+    # -- CoT-gated pass@k: chain coverage 0 -> uninformative (pass8-multiseed.json) --
+    (
+        "cot.gsm-chain-coverage",
+        _FIND_G,
+        f"chain coverage is {_pct(_GP['base_chain_coverage'])}%",
+    ),
+    ("cot.gsm-cot-passk", _FIND_G, f"is {_pct(_GP['base_cot_passk'])}% for base and correct"),
+    (
+        "cot.readme-coverage",
+        _README,
+        f"{_pct(_GP['base_chain_coverage'])}% verifiable-chain coverage",
+    ),
+    (
+        "cot.cd-chain-coverage",
+        _FIND_C,
+        f"chain coverage is {_pct(_CP8['base_chain_coverage'])}%",
+    ),
+    ("cot.cd-cot-passk", _FIND_C, f"CoT-gated pass@8 is {_pct(_CP8['base_cot_passk'])}% for both"),
     # -- Countdown placebo (countdown/seed-placebo-comparison.json) --
     (
         "countdown.placebo",

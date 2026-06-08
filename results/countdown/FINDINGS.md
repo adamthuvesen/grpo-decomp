@@ -86,3 +86,7 @@ pass@8 panels seed-level, not seed-0 draws.
   non-correctness-driven gain, not a cross-family verdict (a Llama arm is the follow-up).
 - **Narrow task**: Countdown certifies that the *instrument* detects expansion; it does not
   claim broad reasoning transfer. It is the control, not a marquee capability result.
+- **CoT-gated pass@k is uninformative here too**: chain coverage is 0.0% (Countdown completions
+  do not emit `<<a op b = c>>` calculator steps either), so CoT-gated pass@8 is 0.0% for both
+  arms — the same `<<>>`-proxy coverage limit as GSM8K, not a reasoning verdict. See
+  `pass8-multiseed.json` (`base_chain_coverage`) and the GSM8K findings' CoT-gated section.

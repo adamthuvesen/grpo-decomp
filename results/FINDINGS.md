@@ -77,6 +77,22 @@ panel's +1.7 pp was the seed-0 high.
   single-seed artifact (alongside the +6.1 pp placebo high) that regresses under seeds.
 - `elicitation.json` is retained as the historical seed-0 panel.
 
+### CoT-gated pass@k: the verifiable-chain yardstick reads 0 here (coverage limit, not verdict)
+
+The pass@k critique this study cites ([CoT-Pass@K, 2506.14245](https://arxiv.org/abs/2506.14245))
+argues pass@k can reward a lucky final answer, so a solve should be gated on a *verified*
+reasoning chain. We compute CoT-gated pass@k with the standard non-neural check — a sample
+counts only with >=1 valid `<<a op b = c>>` calculator step — and it is **0.0%** for base and
+correct alike, because **chain coverage is 0.0%**: not one base completion (16 per problem)
+emits a parseable `<<...>>` step. Qwen2.5-Math reasons in *code* (code-reasoning 85.4%), not
+GSM8K's calculator-annotation format, so the `<<>>` proxy never fires. CoT-gating is therefore
+**uninformative on these models** — a coverage limit of the verifiable proxy (an LLM judge is
+ruled out to keep the battery verifiable-only), not an invalid-reasoning verdict. We surface it
+(`base_chain_coverage` / `mean_correct_chain_coverage` in `pass8-multiseed.json`) rather than
+quietly drop a yardstick the README invokes. What it does establish: there is no hidden
+valid-`<<>>`-chain coverage for RL to have moved — on this base x dataset the reliability gain
+is the whole story.
+
 ## 3. Controls (seed 0, descriptive: marginal CIs, not family-wise corrected)
 
 Gain survives adversarial perturbation (gsm-plus +4.9), cleaned labels (platinum +4.8),
