@@ -1,0 +1,41 @@
+{
+  "base_code_reasoning_freq": 0.083984375,
+  "base_pass1": 0.10970052083333333,
+  "base_passk": 0.5357893842268843,
+  "base_passk_ci_high": 0.5889680458430459,
+  "base_passk_ci_low": 0.4838564733877234,
+  "ci_kind": "seed-level t, df=2",
+  "correct_passk_ci_high": 0.97311360249588,
+  "correct_passk_ci_low": 0.9192475086152314,
+  "delta": 0.4103911713286714,
+  "delta_ci_high": 0.43732421826899576,
+  "delta_ci_low": 0.3834581243883471,
+  "k": 8,
+  "mean_correct_pass1": 0.5802951388888888,
+  "mean_correct_passk": 0.9461805555555557,
+  "n_base": 16,
+  "n_correct": 8,
+  "n_seeds": 3,
+  "per_seed_code_reasoning_freq": [
+    0.0,
+    0.005208333333333333,
+    0.01953125
+  ],
+  "per_seed_correct_pass1": [
+    0.6041666666666666,
+    0.5944010416666666,
+    0.5423177083333334
+  ],
+  "per_seed_correct_passk": [
+    0.9427083333333334,
+    0.9583333333333334,
+    0.9375
+  ],
+  "preliminary": false,
+  "seeds": [
+    "0",
+    "1",
+    "2"
+  ],
+  "task": "countdown-test"
+}

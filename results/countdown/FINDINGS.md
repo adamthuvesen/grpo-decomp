@@ -2,9 +2,9 @@
 
 The **positive control**. Placebo comparison: **3 seeds per arm**; held-out `countdown-test`
 (n=192, disjoint from train, procedurally generated so uncontaminated); pass@1 greedy. The
-pass@k panel is seed 0 (n=8, temp 0.7). Commit-pinned artifacts:
-`seed-placebo-comparison.json`,
-`elicitation.json`, `summary.json`, `decomposition.md`.
+pass@k coverage panel is now **3 seeds** too (base n=16 / correct n=8, temp 0.7). Commit-pinned
+artifacts: `seed-placebo-comparison.json`, `pass8-multiseed.json` (3-seed pass@k),
+`elicitation.json` (historical seed-0 panel), `summary.json`, `decomposition.md`.
 
 ## Headline (controlled)
 
@@ -33,26 +33,33 @@ positive.
 - Three seeds, not six: the effect is so large that the seed-level interval clears zero
   decisively (the GSM8K comparison needed six only because +3.9pp is small).
 
-## 2. The pass@k curve: expansion, not elicitation (seed 0, n=8, temp 0.7)
+## 2. The pass@k curve: expansion, not elicitation (3 seeds, base n=16 / correct n=8, temp 0.7)
+
+correct pass@8 over **3 seeds** vs the seed-independent base pass@8 anchor (`pass8-multiseed.json`):
 
 | arm | pass@1 | pass@8 |
 | --- | --- | --- |
-| base | 9.0% | **50.5%** |
-| correct | 59.6% | **95.3%** |
+| base | 11.0% | **53.6%** [48.4, 58.9] |
+| correct (3-seed mean) | 58.0% | **94.6%** [91.9, 97.3] |
 
-- **base pass@8 (50.5%) ≪ correct pass@8 (95.3%)**: pass@8 coverage **moved +44.8 pp**. The
-  trained model solves problems at pass@8 that the base fails even with 8 attempts: *new
-  capability*, by definition outside the base's pass@k envelope.
-- Contrast GSM8K, where base pass@8 (93.6%) ≈ correct pass@8 (95.3%): pass@8 coverage barely
-  moved (+1.7pp), so the gain was elicitation. **Same decomposition, opposite verdicts.**
+- **base pass@8 (53.6%) ≪ correct pass@8 (94.6%)**: pass@8 coverage **moved Δ +41.0 pp, 95% CI
+  [38.3, 43.7]** (seed-level t, df=2). The trained model solves at pass@8 problems the base fails
+  even with 8 attempts: *new capability*, by definition outside the base's pass@k envelope.
+- Contrast GSM8K, where Δ pass@8 = **+0.7 pp [0.4, 1.1]** (also multi-seed): coverage barely
+  moves, so the gain is elicitation. **Same decomposition, same protocol, opposite verdicts** —
+  the Countdown expansion is ~60× the GSM8K movement, and both intervals are now seed-level.
 
 ## 3. Two-sided validation (the point of the study)
 
 | | GSM8K (Qwen2.5-Math-1.5B) | Countdown (general Qwen2.5-1.5B) |
 | --- | --- | --- |
-| placebo comparison | +3.9 pp [2.3, 5.6] | **+46.5 pp [21.4, 71.6]** |
-| pass@8 coverage (base → correct) | 93.6 → 95.3 (**+1.7**) | 50.5 → 95.3 (**+44.8**) |
+| placebo comparison (pass@1) | +3.9 pp [2.3, 5.6] (6 seeds) | **+46.5 pp [21.4, 71.6]** (3 seeds) |
+| Δ pass@8 coverage | **+0.7 pp [0.4, 1.1]** (6 seeds) | **+41.0 pp [38.3, 43.7]** (3 seeds) |
+| base → correct pass@8 | 94.0 → 94.7 | 53.6 → 94.6 |
 | verdict | **elicitation** (saturated base) | **expansion** (base lacked the skill) |
+
+Both pass@8 rows are now seed-level (the panel was seed-0-only before), so the contrast no
+longer rests on a single draw on either side.
 
 The decomposition isn't biased toward "it's all fake": on a task where RL genuinely teaches
 new ability, it reports expansion with higher pass@8 coverage; on a saturated benchmark it reports
@@ -63,14 +70,15 @@ trustworthy rather than a null-by-construction artifact.
 
 On Countdown — a verifiable, uncontaminated search task the base cannot do — GRPO with a
 correctness reward delivers a **large, significant, genuinely-new-capability** gain (+46.5pp
-placebo comparison; pass@8 coverage 50.5 → 95.3). It is the positive control that proves the
-decomposition can detect expansion when it exists. Paired with GSM8K's controlled
-elicitation result, the instrument is validated from both sides.
+placebo comparison; Δ pass@8 +41.0 pp [38.3, 43.7], coverage 53.6 → 94.6). It is the positive
+control that proves the decomposition can detect expansion when it exists. Paired with GSM8K's
+controlled elicitation result, the instrument is validated from both sides — now with both
+pass@8 panels seed-level, not seed-0 draws.
 
 ## Caveats
 
-- **3 seeds**: the placebo comparison clears zero decisively, but the CI is wide (df=2);
-  the point estimate is less precise than GSM8K's 6-seed comparison.
+- **3 seeds**: both the placebo comparison and the pass@8 panel clear their thresholds
+  decisively, but the CIs are df=2; the point estimates are less precise than GSM8K's 6 seeds.
 - **Within-Qwen, single base**: the placebo is a within-model lower bound on
   non-correctness-driven gain, not a cross-family verdict (a Llama arm is the follow-up).
 - **Narrow task**: Countdown certifies that the *instrument* detects expansion; it does not

@@ -28,10 +28,11 @@ that tests whether a result is real or a Qwen artifact is the follow-up.
 **GSM8K study complete: 6 seeds per arm.** The result is committed under
 [`results/`](results/FINDINGS.md): the placebo comparison (correct − random) is **+3.9 pp,
 95% CI [2.3, 5.6]** (seed-level *t*, df=5): a small, correctness-driven, statistically
-significant gain. But it is mostly elicitation, not new reasoning: base pass@8 (93.6%)
-≫ correct pass@1 (77.2%), and pass@8 coverage barely moves (93.6 → 95.3). RL made the
-model more *reliable* at problems the base could already solve. A confident single-seed
-"+6.1 pp, p=3e-9" settled, under seed aggregation and pass@k, into that +3.9 pp effect.
+significant gain. But it is mostly elicitation, not new reasoning: base pass@8 (94.0%)
+≫ correct pass@1 (76.2%), and pass@8 coverage barely moves — **Δ +0.7 pp, 95% CI [0.4, 1.1]**
+over 6 seeds. RL made the model more *reliable* at problems the base could already solve. Two
+confident single-seed numbers settled under aggregation: the placebo "+6.1 pp, p=3e-9" → +3.9 pp
+[2.3, 5.6], and the pass@8 panel's "+1.7 pp" → +0.7 pp [0.4, 1.1].
 
 | The confirmatory test | The elicitation finding |
 | --- | --- |
@@ -47,8 +48,9 @@ pass@8 = 94%), so to prove the decomposition can *detect* genuine expansion, a s
 trains the **general `Qwen2.5-1.5B`** with GRPO on **Countdown** (a TinyZero-style search task
 the base genuinely lacks). The result is committed under
 [`results/countdown/`](results/countdown/FINDINGS.md): a **+46.5 pp** placebo comparison (95% CI
-[21.4, 71.6], 3 seeds) and pass@8 coverage that **moves**: base pass@8 50.5% → correct
-95.3%. Same decomposition, opposite verdict from GSM8K's. **Elicitation there, expansion here:**
+[21.4, 71.6], 3 seeds) and pass@8 coverage that **moves** — **Δ +41.0 pp, 95% CI [38.3, 43.7]**
+(3 seeds): base 53.6% → correct 94.6%. Same decomposition, same protocol, opposite verdict from
+GSM8K's. **Elicitation there, expansion here:**
 
 ![Pass@8 coverage: flat on GSM8K (elicitation), expanded on Countdown (expansion)](results/fig-passk-contrast.png)
 

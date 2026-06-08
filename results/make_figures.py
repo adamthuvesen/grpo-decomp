@@ -1,9 +1,9 @@
 """Render the two headline figures from the committed result JSON.
 
 Reads `seed-placebo-comparison.json` (the seed-aggregated placebo comparison) and
-`elicitation.json` (the pass@k panel) and writes the headline PNGs next to them. matplotlib
-is intentionally NOT a project dependency, so run this with an
-ephemeral install:
+`pass8-multiseed.json` (the multi-seed pass@k coverage panel, with CIs) and writes the
+headline PNGs next to them. matplotlib is intentionally NOT a project dependency, so run
+this with an ephemeral install:
 
     uv run --with matplotlib python results/make_figures.py
 
@@ -83,14 +83,23 @@ def _placebo_comparison_figure(placebo: dict) -> None:
     plt.close(fig)
 
 
-def _passk_curve_figure(elicit: dict) -> None:
+def _passk_curve_figure(panel: dict) -> None:
     """Grouped bars showing RL lifts pass@1 but barely moves pass@8 coverage — the
-    visual signature of elicitation rather than capability expansion.
+    visual signature of elicitation rather than capability expansion. pass@8 carries its
+    uncertainty: the base anchor's problem-bootstrap CI and correct's seed-level t CI.
     """
-    base, correct = elicit["base"], elicit["correct"]
     groups = ["pass@1", "pass@8"]
-    base_v = [base["pass@1"] * PP, base["pass@8"] * PP]
-    rl_v = [correct["pass@1"] * PP, correct["pass@8"] * PP]
+    base_v = [panel["base_pass1"] * PP, panel["base_passk"] * PP]
+    rl_v = [panel["mean_correct_pass1"] * PP, panel["mean_correct_passk"] * PP]
+    # Asymmetric error bars on pass@8 only — the coverage metric the verdict rests on.
+    base_err = [
+        [(panel["base_passk"] - panel["base_passk_ci_low"]) * PP],
+        [(panel["base_passk_ci_high"] - panel["base_passk"]) * PP],
+    ]
+    rl_err = [
+        [(panel["mean_correct_passk"] - panel["correct_passk_ci_low"]) * PP],
+        [(panel["correct_passk_ci_high"] - panel["mean_correct_passk"]) * PP],
+    ]
 
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     _clean(ax, grid_axis="y")
@@ -100,9 +109,15 @@ def _passk_curve_figure(elicit: dict) -> None:
         bx, rx = cx - width / 2 - 0.03, cx + width / 2 + 0.03
         ax.bar(bx, base_v[i], width, color=BASE_C, zorder=3)
         ax.bar(rx, rl_v[i], width, color=RL_C, zorder=3)
+        label_b, label_r = base_v[i], rl_v[i]
+        if i == 1:  # pass@8: draw the CIs and lift the value labels above the whiskers
+            ax.errorbar(bx, base_v[i], yerr=base_err, fmt="none", ecolor=MUTED, capsize=4, zorder=5)
+            ax.errorbar(rx, rl_v[i], yerr=rl_err, fmt="none", ecolor="#0b2a8a", capsize=4, zorder=5)
+            label_b += base_err[1][0]
+            label_r += rl_err[1][0]
         ax.text(
             bx,
-            base_v[i] + 1.5,
+            label_b + 1.5,
             f"{base_v[i]:.1f}",
             ha="center",
             va="bottom",
@@ -111,7 +126,7 @@ def _passk_curve_figure(elicit: dict) -> None:
         )
         ax.text(
             rx,
-            rl_v[i] + 1.5,
+            label_r + 1.5,
             f"{rl_v[i]:.1f}",
             ha="center",
             va="bottom",
@@ -167,8 +182,9 @@ def _contrast_figure(gsm8k: dict, countdown: dict) -> None:
     base_color, rl_color, expand, flat = "#c7d2e8", "#1d4ed8", "#15803d", "#94a3b8"
     tasks = ["GSM8K", "Countdown"]
     subtitles = ["base already near-saturated", "base lacks the skill"]
-    base_p8 = [gsm8k["base"]["pass@8"] * PP, countdown["base"]["pass@8"] * PP]
-    rl_p8 = [gsm8k["correct"]["pass@8"] * PP, countdown["correct"]["pass@8"] * PP]
+    panels = [gsm8k, countdown]
+    base_p8 = [gsm8k["base_passk"] * PP, countdown["base_passk"] * PP]
+    rl_p8 = [gsm8k["mean_correct_passk"] * PP, countdown["mean_correct_passk"] * PP]
 
     fig, ax = plt.subplots(figsize=(8.2, 5.2))
     ax.set_axisbelow(True)
@@ -180,6 +196,18 @@ def _contrast_figure(gsm8k: dict, countdown: dict) -> None:
         lift = expand if delta >= 10 else flat
         ax.bar(bx, base_p8[i], width, color=base_color, zorder=3)
         ax.bar(rx, rl_p8[i], width, color=rl_color, zorder=3)
+        # pass@8 uncertainty: base anchor's problem-bootstrap CI, correct's seed-level t CI.
+        panel = panels[i]
+        base_err = [
+            [(panel["base_passk"] - panel["base_passk_ci_low"]) * PP],
+            [(panel["base_passk_ci_high"] - panel["base_passk"]) * PP],
+        ]
+        rl_err = [
+            [(panel["mean_correct_passk"] - panel["correct_passk_ci_low"]) * PP],
+            [(panel["correct_passk_ci_high"] - panel["mean_correct_passk"]) * PP],
+        ]
+        ax.errorbar(bx, base_p8[i], yerr=base_err, fmt="none", ecolor=MUTED, capsize=4, zorder=6)
+        ax.errorbar(rx, rl_p8[i], yerr=rl_err, fmt="none", ecolor="#0b2a8a", capsize=4, zorder=6)
         ax.text(
             bx,
             base_p8[i] - 4,
@@ -256,11 +284,13 @@ def _contrast_figure(gsm8k: dict, countdown: dict) -> None:
 
 def main() -> None:
     placebo = json.loads((HERE / "seed-placebo-comparison.json").read_text(encoding="utf-8"))
-    elicit = json.loads((HERE / "elicitation.json").read_text(encoding="utf-8"))
+    panel = json.loads((HERE / "pass8-multiseed.json").read_text(encoding="utf-8"))
+    countdown = json.loads(
+        (HERE / "countdown" / "pass8-multiseed.json").read_text(encoding="utf-8")
+    )
     _placebo_comparison_figure(placebo)
-    _passk_curve_figure(elicit)
-    countdown = json.loads((HERE / "countdown" / "elicitation.json").read_text(encoding="utf-8"))
-    _contrast_figure(elicit, countdown)
+    _passk_curve_figure(panel)
+    _contrast_figure(panel, countdown)
     print("wrote fig-placebo-comparison.png, fig-passk-curve.png, fig-passk-contrast.png")
 
 
