@@ -75,6 +75,12 @@ panel's +1.7 pp was the seed-0 high.
   (84% → 63%) was a seed-0 idiosyncrasy: across six seeds correct code-reasoning is **83.1%**
   (per-seed 63–91%) vs base 85.4% — essentially no shift, with only seed 0 at 63%. A second
   single-seed artifact (alongside the +6.1 pp placebo high) that regresses under seeds.
+- **Decontaminated — the envelope is not memorization.** Re-running this panel on **renumbered**
+  problems (GSM-Symbolic) and **cleaned labels** (GSM8K-Platinum) leaves base pass@8 high
+  (**90.8%** / **95.6%**) and far above correct pass@1, and Δ pass@8 small (**+1.8** / **+0.8**
+  pp). Renumbering craters base pass@1 (memorization) but barely touches the pass@8 envelope the
+  verdict rests on, so "base already solves it at pass@8" is genuine capability, not leaked
+  answers. Full panel in [`decontam/FINDINGS.md`](decontam/FINDINGS.md).
 - `elicitation.json` is retained as the historical seed-0 panel.
 
 ### CoT-gated pass@k: the verifiable-chain yardstick reads 0 here (coverage limit, not verdict)

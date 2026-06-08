@@ -57,6 +57,8 @@ _CPL = _load("results/countdown/seed-placebo-comparison.json")  # Countdown plac
 _SUM = _load("results/summary.json")  # GSM8K seed-0 controls (plan #3 replaces these)
 _MECH = _load("results/mechanism.json")  # GSM8K per-problem migration + length shift
 _MECH_CD = _load("results/countdown/mechanism.json")
+_SYM = _load("results/decontam/pass8-symbolic.json")  # renumbered (GSM-Symbolic)
+_PLAT = _load("results/decontam/pass8-platinum.json")  # cleaned labels (GSM8K-Platinum)
 
 
 def _ctrl(needle: str) -> dict:
@@ -69,6 +71,7 @@ def _ctrl(needle: str) -> dict:
 
 _FIND_G = "results/FINDINGS.md"
 _FIND_C = "results/countdown/FINDINGS.md"
+_FIND_D = "results/decontam/FINDINGS.md"
 _README = "README.md"
 
 _crf_mean = statistics.fmean(_GP["per_seed_code_reasoning_freq"])
@@ -196,6 +199,45 @@ _CLAIMS: list[tuple[str, str, str]] = [
         f"{_pct(_MECH['frac_new_capability'])}% of the GSM8K gain is new capability",
     ),
     ("mech.readme-cd-new", _README, f"{_pct(_MECH_CD['frac_new_capability'])}% on Countdown"),
+    # -- Decontamination (decontam/pass8-{symbolic,platinum}.json) --
+    (
+        "decontam.test-base-pass8",  # the gsm8k-test reference row traces to the published panel
+        _FIND_D,
+        f"{_pct(_GP['base_passk'])}% "
+        f"[{_pct(_GP['base_passk_ci_low'])}, {_pct(_GP['base_passk_ci_high'])}]",
+    ),
+    (
+        "decontam.sym-base-pass8",
+        _FIND_D,
+        f"{_pct(_SYM['base_passk'])}% "
+        f"[{_pct(_SYM['base_passk_ci_low'])}, {_pct(_SYM['base_passk_ci_high'])}]",
+    ),
+    ("decontam.sym-base-pass1", _FIND_D, f"| {_pct(_SYM['base_pass1'])}% |"),
+    ("decontam.sym-correct-pass1", _FIND_D, f"| {_pct(_SYM['mean_correct_pass1'])}% |"),
+    (
+        "decontam.sym-delta",
+        _FIND_D,
+        f"{_pct(_SYM['delta'], sign=True)} "
+        f"[{_pct(_SYM['delta_propagated_ci_low'], sign=True)}, "
+        f"{_pct(_SYM['delta_propagated_ci_high'], sign=True)}]",
+    ),
+    (
+        "decontam.plat-base-pass8",
+        _FIND_D,
+        f"{_pct(_PLAT['base_passk'])}% "
+        f"[{_pct(_PLAT['base_passk_ci_low'])}, {_pct(_PLAT['base_passk_ci_high'])}]",
+    ),
+    (
+        "decontam.plat-delta",
+        _FIND_D,
+        f"{_pct(_PLAT['delta'], sign=True)} "
+        f"[{_pct(_PLAT['delta_propagated_ci_low'], sign=True)}, "
+        f"{_pct(_PLAT['delta_propagated_ci_high'], sign=True)}]",
+    ),
+    # the main FINDINGS section-2 decontam bullet quotes both pass@8 envelopes
+    ("decontam.gsm-sym-envelope", _FIND_G, f"{_pct(_SYM['base_passk'])}%"),
+    ("decontam.gsm-plat-envelope", _FIND_G, f"{_pct(_PLAT['base_passk'])}%"),
+    ("decontam.readme-envelope", _README, f"base pass@8 holds at {_pct(_SYM['base_passk'])}%"),
     # -- Countdown placebo (countdown/seed-placebo-comparison.json) --
     (
         "countdown.placebo",

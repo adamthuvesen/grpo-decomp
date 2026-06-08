@@ -34,6 +34,8 @@ significant gain. But it is mostly elicitation, not new reasoning: base pass@8 (
 CI is folded in). RL made the model more *reliable* at problems the base could already solve —
 per problem, **0.0% of the GSM8K gain is new capability** (every problem the trained model newly
 solves first-try is within the base's pass@8 reach; 10.9% on Countdown, the expansion signature).
+And the envelope survives decontamination: on **renumbered** problems (GSM-Symbolic) base pass@8
+holds at **90.8%**, so it is latent capability, not memorized GSM8K ([`results/decontam/`](results/decontam/FINDINGS.md)).
 Two confident single-seed numbers settled under aggregation: the placebo "+6.1 pp, p=3e-9" → +3.9 pp
 [2.3, 5.6], and the pass@8 panel's "+1.7 pp" → +0.7 pp [−0.4, +1.9]. We also apply the CoT-gated
 yardstick the last critique recommends: it has **0.0% verifiable-chain coverage** on these Qwen

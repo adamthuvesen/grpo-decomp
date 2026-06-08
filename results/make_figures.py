@@ -347,6 +347,90 @@ def _mechanism_figure(gsm8k: dict, countdown: dict) -> None:
     plt.close(fig)
 
 
+def _decontam_figure(test: dict, symbolic: dict, platinum: dict) -> None:
+    """base pass@1 vs pass@8 across the published, renumbered, and cleaned distributions.
+
+    Renumbering dents pass@1 (memorization helps the first try) but barely touches the pass@8
+    envelope the elicitation verdict rests on — contamination is a pass@1 effect, not a pass@8
+    one, so "base already solves it at pass@8" is genuine capability, not leakage.
+    """
+    dists = [
+        ("GSM8K-test\n(published)", test),
+        ("GSM-Symbolic\n(renumbered)", symbolic),
+        ("GSM8K-Platinum\n(cleaned)", platinum),
+    ]
+    p1 = [d["base_pass1"] * PP for _, d in dists]
+    p8 = [d["base_passk"] * PP for _, d in dists]
+    p8_err = [
+        [(d["base_passk"] - d["base_passk_ci_low"]) * PP for _, d in dists],
+        [(d["base_passk_ci_high"] - d["base_passk"]) * PP for _, d in dists],
+    ]
+
+    fig, ax = plt.subplots(figsize=(8.0, 4.7))
+    _clean(ax)
+    xs = [0.0, 1.0, 2.0]
+    width = 0.36
+    ax.bar([x - width / 2 for x in xs], p1, width, color="#cbd5e1", zorder=3)
+    ax.bar([x + width / 2 for x in xs], p8, width, color=RL_C, zorder=3)
+    ax.errorbar(
+        [x + width / 2 for x in xs],
+        p8,
+        yerr=p8_err,
+        fmt="none",
+        ecolor="#0b2a8a",
+        capsize=4,
+        zorder=5,
+    )
+    for x, v1, v8 in zip(xs, p1, p8, strict=True):
+        ax.text(
+            x - width / 2,
+            v1 + 1.5,
+            f"{v1:.0f}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            color="#475569",
+        )
+        ax.text(
+            x + width / 2,
+            v8 + 4,
+            f"{v8:.0f}",
+            ha="center",
+            va="bottom",
+            fontsize=10.5,
+            color=RL_C,
+            fontweight="bold",
+        )
+    ax.set_xticks(xs)
+    ax.set_xticklabels([name for name, _ in dists], fontsize=10.5)
+    ax.set_ylim(0, 108)
+    ax.set_yticks([0, 25, 50, 75, 100])
+    ax.set_ylabel("base accuracy (%)", fontsize=11.5)
+    ax.set_title(
+        "Renumbering dents base pass@1, not the pass@8 envelope",
+        fontsize=13.5,
+        fontweight="bold",
+        pad=30,
+    )
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, color="#cbd5e1"),
+        plt.Rectangle((0, 0), 1, 1, color=RL_C),
+    ]
+    ax.legend(
+        handles,
+        ["base pass@1 (first try)", "base pass@8 (the envelope)"],
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncol=2,
+        frameon=False,
+        fontsize=10,
+        handlelength=1.1,
+        columnspacing=1.8,
+    )
+    fig.savefig(HERE / "decontam" / "fig-decontam.png", dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main() -> None:
     placebo = json.loads((HERE / "seed-placebo-comparison.json").read_text(encoding="utf-8"))
     panel = json.loads((HERE / "pass8-multiseed.json").read_text(encoding="utf-8"))
@@ -355,13 +439,16 @@ def main() -> None:
     )
     mech = json.loads((HERE / "mechanism.json").read_text(encoding="utf-8"))
     mech_cd = json.loads((HERE / "countdown" / "mechanism.json").read_text(encoding="utf-8"))
+    symbolic = json.loads((HERE / "decontam" / "pass8-symbolic.json").read_text(encoding="utf-8"))
+    platinum = json.loads((HERE / "decontam" / "pass8-platinum.json").read_text(encoding="utf-8"))
     _placebo_comparison_figure(placebo)
     _passk_curve_figure(panel)
     _contrast_figure(panel, countdown)
     _mechanism_figure(mech, mech_cd)
+    _decontam_figure(panel, symbolic, platinum)
     print(
         "wrote fig-placebo-comparison.png, fig-passk-curve.png, fig-passk-contrast.png, "
-        "fig-mechanism.png"
+        "fig-mechanism.png, decontam/fig-decontam.png"
     )
 
 
