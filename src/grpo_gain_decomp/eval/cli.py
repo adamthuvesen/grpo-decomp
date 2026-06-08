@@ -38,13 +38,14 @@ from grpo_gain_decomp.eval.completions import (
     load_completion_set,
     write_completion_set,
 )
+from grpo_gain_decomp.report.control_seeds import aggregate_control_rows
 from grpo_gain_decomp.report.decomposition import DecompositionRow, build_decomposition
 from grpo_gain_decomp.report.mechanism import build_mechanism
 from grpo_gain_decomp.report.passk_seeds import aggregate_passk_seeds
 from grpo_gain_decomp.report.render import render_table, write_summary
 from grpo_gain_decomp.report.seeds import aggregate_placebo_comparison
 from grpo_gain_decomp.schemas import ProblemSet
-from grpo_gain_decomp.stats.compare import compare
+from grpo_gain_decomp.stats.compare import Comparison, compare
 from grpo_gain_decomp.train.provenance import RunProvenance
 
 #: The named problem sets `generate --set` can target.
@@ -167,6 +168,30 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out", type=Path, default=None, help="MechanismReport JSON path (else stdout)"
     )
     rmc.set_defaults(func=_cmd_report_mechanism)
+
+    rcs = sub.add_parser(
+        "report-control-seeds",
+        help="multi-seed section-3 controls with Holm family-wise correction",
+    )
+    rcs.add_argument(
+        "--battery-dirs",
+        required=True,
+        nargs="+",
+        type=Path,
+        dest="battery_dirs",
+        help="one battery dir per seed; the first holds base__<control> (seed-independent)",
+    )
+    rcs.add_argument("--task-set", default="gsm8k-test", dest="task_set")
+    rcs.add_argument(
+        "--control-sets",
+        nargs="+",
+        default=["gsm-symbolic", "gsm-plus", "gsm8k-platinum"],
+        dest="control_sets",
+    )
+    rcs.add_argument(
+        "--out", type=Path, default=None, help="ControlDecomposition JSON path (else stdout)"
+    )
+    rcs.set_defaults(func=_cmd_report_control_seeds)
 
     hld = sub.add_parser("heldout", help="held-out accuracy curve over a run's checkpoints")
     hld.add_argument(
@@ -416,6 +441,45 @@ def _cmd_report_mechanism(args: argparse.Namespace) -> int:
             json.dumps(report.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
         )
         print(f"wrote mechanism report to {out}")
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
+def _cmd_report_control_seeds(args: argparse.Namespace) -> int:
+    battery_dirs = [Path(d) for d in args.battery_dirs]
+    seed0 = battery_dirs[0]  # the seed-0 battery holds the seed-independent base arm
+    seeds = [_seed_label(d) for d in battery_dirs]
+    rows: list[tuple[str, str, list[Comparison]]] = []
+    for control in args.control_sets:
+        base_grade = _pass1(load_completion_set(seed0 / f"base__{control}"), "lenient")
+        comparisons = []
+        for battery_dir in battery_dirs:
+            correct = load_completion_set(battery_dir / f"correct__{control}")
+            comparisons.append(compare("base", base_grade, "correct", _pass1(correct, "lenient")))
+        rows.append((control, PROBES.get(control, control), comparisons))
+
+    decomp = aggregate_control_rows(rows, seeds, task=args.task_set)
+    lines = [
+        f"# Multi-seed controls - {args.task_set}",
+        "",
+        decomp.headline(),
+        "",
+        "| control | probes | Δ (pp) | 95% CI | p (raw) | p (Holm) |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    lines += [
+        f"| {r.control} | {r.probes} | {r.mean_delta * 100:+.1f} | "
+        f"[{r.ci_low * 100:.1f}, {r.ci_high * 100:.1f}] | {r.p_value:.3g} | "
+        f"{r.p_value_holm:.3g}{' *' if r.significant else ''} |"
+        for r in decomp.rows
+    ]
+    if args.out is not None:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(decomp.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"wrote multi-seed control decomposition to {out}")
     sys.stdout.write("\n".join(lines) + "\n")
     return 0
 

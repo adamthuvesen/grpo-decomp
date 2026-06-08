@@ -40,3 +40,26 @@ def mcnemar(correct_a: Sequence[bool], correct_b: Sequence[bool]) -> tuple[float
         return float(p), discordant, "exact-binomial"
     stat = (abs(a_only - b_only) - 1) ** 2 / discordant
     return float(chi2.sf(stat, df=1)), discordant, "chi2"
+
+
+def holm_correction(p_values: Sequence[float]) -> tuple[float, ...]:
+    """Holm-Bonferroni step-down adjusted p-values, returned in the input order.
+
+    Controls the family-wise error rate across a family of tests, uniformly more powerful
+    than plain Bonferroni: sort ascending, scale the i-th smallest of m by ``(m - i)``,
+    enforce a monotone non-decreasing sequence (a later, larger raw p can only stay >= an
+    earlier adjusted one), and cap at 1. A family of one returns its p unchanged. Use it to
+    turn per-row marginal p-values into a family-wise-corrected decomposition.
+    """
+    m = len(p_values)
+    if m == 0:
+        raise ValueError("no p-values to correct")
+    if any(not 0.0 <= p <= 1.0 for p in p_values):
+        raise ValueError(f"p-values must be in [0, 1], got {list(p_values)}")
+    order = sorted(range(m), key=lambda i: p_values[i])  # indices, ascending by p
+    adjusted = [0.0] * m
+    running = 0.0
+    for rank, idx in enumerate(order):
+        running = max(running, min((m - rank) * p_values[idx], 1.0))
+        adjusted[idx] = running
+    return tuple(adjusted)

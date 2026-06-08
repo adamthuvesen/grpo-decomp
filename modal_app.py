@@ -232,11 +232,18 @@ def eval_matrix(
         prov = RunProvenance.model_validate_json(
             (run_dir / "provenance.json").read_text(encoding="utf-8")
         )
-        return _selected_checkpoint_path(run_dir, prov.selected_checkpoint)
+        # Realize the deterministic `final` rule directly when a replicate seed never had a
+        # held-out curve (selected_checkpoint unset). Identical to the recorded selection for
+        # every published arm (all rule `final`), so full/placebo resolve exactly as before.
+        return _final_or_selected_checkpoint(
+            run_dir, prov.selected_checkpoint, prov.checkpoint_selection
+        )
 
     # full: base/correct span task + every control (control rows compare base vs correct);
     # random needs only the task set (placebo row is task-set only). placebo: just the
     # correct-vs-random confirmatory pair on the task set (all a replicate seed needs).
+    # controls: only the correct arm on the control sets (base is seed-independent, reused
+    # from the seed-0 battery) — the per-seed upgrade of the seed-0 control rows.
     if scope == "full":
         matrix = [
             ("base", base.base_model, base.base_model_revision, [task_set, *control_sets]),
@@ -248,8 +255,12 @@ def eval_matrix(
             ("correct", selected_checkpoint("correct"), None, [task_set]),
             ("random", selected_checkpoint("random"), None, [task_set]),
         ]
+    elif scope == "controls":
+        if not control_sets:
+            raise ValueError(f"scope 'controls' needs control sets; task {task!r} has none")
+        matrix = [("correct", selected_checkpoint("correct"), None, list(control_sets))]
     else:
-        raise ValueError(f"scope must be 'full' or 'placebo', got {scope!r}")
+        raise ValueError(f"scope must be 'full', 'placebo', or 'controls', got {scope!r}")
     # 1024 tokens matches training's max_completion_length, so eval isn't truncating
     # answers the model was trained to produce (the 512 held-out curve clips the tail).
     config = SamplingConfig(temperature=0.0, top_p=1.0, max_new_tokens=1024, n=1, seed=0)
@@ -478,6 +489,7 @@ def main(
     held-out:    modal run modal_app.py --arm configs/correct.yaml --command heldout
     battery:     modal run modal_app.py --command battery                       # seed 0, full
     placebo:    modal run modal_app.py --command battery --seed 1 --scope placebo
+    controls:    modal run --detach modal_app.py --command battery --scope controls --seed 1 --spawn
     elicitation: modal run modal_app.py --command elicitation
     passk-seeds: modal run --detach modal_app.py --command elicitation-multiseed --spawn
     escalated:   ...same, plus --n-base 32 --n-correct 16 (or --task countdown)

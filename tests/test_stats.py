@@ -6,7 +6,7 @@ import pytest
 
 from grpo_gain_decomp.stats.bootstrap import bootstrap_mean_ci
 from grpo_gain_decomp.stats.compare import compare
-from grpo_gain_decomp.stats.significance import mcnemar
+from grpo_gain_decomp.stats.significance import holm_correction, mcnemar
 
 
 def _by_id(values: list[bool]) -> dict[str, bool]:
@@ -101,3 +101,26 @@ def test_bootstrap_mean_ci_is_deterministic_and_brackets_the_mean() -> None:
 def test_bootstrap_mean_ci_rejects_empty() -> None:
     with pytest.raises(ValueError, match="empty"):
         bootstrap_mean_ci([])
+
+
+def test_holm_correction_hand_example_and_order() -> None:
+    # Holm of [0.01, 0.04, 0.03]: sorted [0.01,0.03,0.04] x [3,2,1] = [0.03,0.06,0.04],
+    # enforce monotone non-decreasing -> [0.03,0.06,0.06], mapped back to input order.
+    assert holm_correction([0.01, 0.04, 0.03]) == pytest.approx((0.03, 0.06, 0.06))
+    # Order is preserved (smaller raw p -> its adjusted value, in place).
+    assert holm_correction([0.04, 0.01]) == pytest.approx((0.04, 0.02))
+
+
+def test_holm_correction_caps_and_single() -> None:
+    assert holm_correction([0.03]) == pytest.approx((0.03,))  # family of one: unchanged
+    assert holm_correction([0.5, 0.5, 0.5]) == pytest.approx((1.0, 1.0, 1.0))  # capped at 1
+    # Holm is never smaller than Bonferroni's m*p for the smallest p, never larger than 1.
+    adj = holm_correction([0.2, 0.001, 0.9])
+    assert adj[1] == pytest.approx(0.003) and all(0.0 <= a <= 1.0 for a in adj)
+
+
+def test_holm_correction_validates() -> None:
+    with pytest.raises(ValueError, match="no p-values"):
+        holm_correction([])
+    with pytest.raises(ValueError, match=r"\[0, 1\]"):
+        holm_correction([0.5, 1.2])
