@@ -42,24 +42,27 @@ correct pass@8 over **3 seeds** vs the seed-independent base pass@8 anchor (`pas
 | base | 11.0% | **53.6%** [48.4, 58.9] |
 | correct (3-seed mean) | 58.0% | **94.6%** [91.9, 97.3] |
 
-- **base pass@8 (53.6%) ≪ correct pass@8 (94.6%)**: pass@8 coverage **moved Δ +41.0 pp, 95% CI
-  [38.3, 43.7]** (seed-level t, df=2). The trained model solves at pass@8 problems the base fails
-  even with 8 attempts: *new capability*, by definition outside the base's pass@k envelope.
-- Contrast GSM8K, where Δ pass@8 = **+0.7 pp [0.4, 1.1]** (also multi-seed): coverage barely
-  moves, so the gain is elicitation. **Same decomposition, same protocol, opposite verdicts** —
-  the Countdown expansion is ~60× the GSM8K movement, and both intervals are now seed-level.
+- **base pass@8 (53.6%) ≪ correct pass@8 (94.6%)**: pass@8 coverage **moved Δ +41.0 pp**,
+  propagated 95% CI **[+35.1, +46.9]** (base anchor folded in; seed-level [38.3, 43.7]). The
+  trained model solves at pass@8 problems the base fails even with 8 attempts: *new capability*,
+  by definition outside the base's pass@k envelope.
+- Contrast GSM8K, where Δ pass@8 = **+0.7 pp** (propagated **[−0.4, +1.9]**, consistent with
+  zero): coverage barely moves, so the gain is elicitation. **Same decomposition, same protocol,
+  opposite verdicts** — the propagated intervals (**[−0.4, +1.9]** vs **[+35.1, +46.9]**) do not
+  come close to overlapping.
 
 ## 3. Two-sided validation (the point of the study)
 
 | | GSM8K (Qwen2.5-Math-1.5B) | Countdown (general Qwen2.5-1.5B) |
 | --- | --- | --- |
 | placebo comparison (pass@1) | +3.9 pp [2.3, 5.6] (6 seeds) | **+46.5 pp [21.4, 71.6]** (3 seeds) |
-| Δ pass@8 coverage | **+0.7 pp [0.4, 1.1]** (6 seeds) | **+41.0 pp [38.3, 43.7]** (3 seeds) |
+| Δ pass@8 (propagated CI) | **+0.7 pp [−0.4, +1.9]** (6 seeds) | **+41.0 pp [+35.1, +46.9]** (3 seeds) |
 | base → correct pass@8 | 94.0 → 94.7 | 53.6 → 94.6 |
 | verdict | **elicitation** (saturated base) | **expansion** (base lacked the skill) |
 
-Both pass@8 rows are now seed-level (the panel was seed-0-only before), so the contrast no
-longer rests on a single draw on either side.
+Both pass@8 rows are now seed-level (the panel was seed-0-only before) and their CIs fold in the
+base anchor's own sampling uncertainty (propagated, not anchor-fixed); the intervals do not come
+close to overlapping, so the contrast rests on neither a single draw nor a noiseless anchor.
 
 The decomposition isn't biased toward "it's all fake": on a task where RL genuinely teaches
 new ability, it reports expansion with higher pass@8 coverage; on a saturated benchmark it reports
@@ -70,8 +73,8 @@ trustworthy rather than a null-by-construction artifact.
 
 On Countdown — a verifiable, uncontaminated search task the base cannot do — GRPO with a
 correctness reward delivers a **large, significant, genuinely-new-capability** gain (+46.5pp
-placebo comparison; Δ pass@8 +41.0 pp [38.3, 43.7], coverage 53.6 → 94.6). It is the positive
-control that proves the decomposition can detect expansion when it exists. Paired with GSM8K's
+placebo comparison; Δ pass@8 +41.0 pp, propagated [35.1, 46.9], coverage 53.6 → 94.6). It is the
+positive control that proves the decomposition can detect expansion when it exists. Paired with GSM8K's
 controlled elicitation result, the instrument is validated from both sides — now with both
 pass@8 panels seed-level, not seed-0 draws.
 

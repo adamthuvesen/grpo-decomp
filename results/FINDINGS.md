@@ -14,8 +14,9 @@ is nonetheless **mostly elicitation** of latent base capability, not new reasoni
 contamination, not formatting. Two corrections to the naive read: the flashy single-seed
 number (+6.1pp, McNemar p=3e-9) **overstated the magnitude** (six seeds settle it at
 **+3.9pp [2.3, 5.6]**), and the **6-seed** pass@k panel shows pass@8 coverage barely moves
-(Δ **+0.7pp [0.4, 1.1]**): the gain is the model getting more **reliable at problems it could
-already solve**, not new coverage. GSM8K is near-saturated for this base (base pass@8 = 94%).
+(Δ **+0.7pp**, propagated CI **[−0.4, +1.9]** — consistent with zero): the gain is the model
+getting more **reliable at problems it could already solve**, not new coverage. GSM8K is
+near-saturated for this base (base pass@8 = 94%).
 
 ![Placebo comparison over 6 seeds: +3.9 pp [2.3, 5.6]](fig-placebo-comparison.png)
 
@@ -49,10 +50,11 @@ correct − random, 6 seeds → mean **+3.9 pp**, 95% CI **[2.3, 5.6]** (seed-le
 ## 2. Elicitation: new capability or surfaced capability? (6 seeds, base n=16 / correct n=8, temp 0.7)
 
 correct pass@8 over **6 seeds** vs the seed-independent base pass@8 anchor
-(`pass8-multiseed.json`). pass@8 coverage **barely moves**: Δ **+0.7 pp, 95% CI [0.4, 1.1]**
-(seed-level t, df=5). This was the study's one load-bearing single-seed claim; it is now
-multi-seeded, on the same footing as the placebo comparison — and it *tightened*: the
-single-seed panel's +1.7 pp was the seed-0 high.
+(`pass8-multiseed.json`). pass@8 coverage **barely moves**: Δ **+0.7 pp**, propagated 95% CI
+**[−0.4, +1.9]** (the base anchor's sampling CI folded into the between-seed interval, below) —
+**consistent with zero**. This was the study's one load-bearing single-seed claim; it is now
+multi-seeded, on the same footing as the placebo comparison, and it *shrank*: the single-seed
+panel's +1.7 pp was the seed-0 high.
 
 | arm | pass@1 (sampled) | pass@8 | code-reasoning freq |
 | --- | --- | --- | --- |
@@ -62,11 +64,13 @@ single-seed panel's +1.7 pp was the seed-0 high.
 - **base pass@8 (94.0%) ≫ correct pass@1 (76.2%)**: given 8 tries, the base already solves
   almost everything the RL model produces in one sampled try. The gain lives **inside the base's
   pass@k coverage** — RL improved pass@1 reliability, it did not expand capability.
-- **correct pass@8 ≈ base pass@8**: Δ pass@8 = **+0.7 pp [0.4, 1.1]**. A real but negligible
-  lift — the interval excludes zero yet sits ~60× below Countdown's +41.0 pp expansion. This is
-  the *bounded-small* reading: a near-null confirmed with a tight CI, not a null-by-construction.
-  All six correct seeds cluster at 94.2–95.2% (near-ceiling, so between-seed spread is tiny and
-  n=8 already resolves the panel — no escalation needed).
+- **correct pass@8 ≈ base pass@8**: the between-seed interval is [+0.4, +1.1], but it holds the
+  base *fixed*; the base anchor's own problem-sampling CI (94.0% [92.9, 95.0]) is the **dominant**
+  term, so the honest propagated interval **[−0.4, +1.9] is consistent with zero**. The verdict
+  does not hinge on the sign: the GSM8K and Countdown propagated intervals (**[−0.4, +1.9]** vs
+  **[+35.1, +46.9]**) do not come close to overlapping. This is the *bounded-small* reading —
+  pass@8 coverage does not meaningfully move. All six correct seeds cluster at 94.2–95.2%
+  (near-ceiling; n=8 resolves the between-seed panel, no escalation needed).
 - **The style shift does not replicate.** The published seed-0 panel's code-reasoning drop
   (84% → 63%) was a seed-0 idiosyncrasy: across six seeds correct code-reasoning is **83.1%**
   (per-seed 63–91%) vs base 85.4% — essentially no shift, with only seed 0 at 63%. A second

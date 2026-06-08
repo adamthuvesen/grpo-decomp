@@ -71,6 +71,10 @@ def test_aggregate_passk_seeds_t_ci_and_delta() -> None:
     assert panel.delta_ci_high == pytest.approx(0.5 + half)
     # The base anchor is not noiseless: its own bootstrap CI brackets the point estimate.
     assert panel.base_passk_ci_low <= panel.base_passk <= panel.base_passk_ci_high
+    # The propagated Δ interval folds in the anchor's bootstrap half-width -> strictly wider
+    # than the seed-level interval (base p@1 over [0.5, 0.0] has real problem-sampling spread).
+    assert panel.delta_propagated_ci_low < panel.delta_ci_low
+    assert panel.delta_propagated_ci_high > panel.delta_ci_high
 
 
 def test_below_min_seeds_is_preliminary() -> None:

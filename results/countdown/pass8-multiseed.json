@@ -10,6 +10,8 @@
   "delta": 0.4103911713286714,
   "delta_ci_high": 0.43732421826899576,
   "delta_ci_low": 0.3834581243883471,
+  "delta_propagated_ci_high": 0.4694462277040347,
+  "delta_propagated_ci_low": 0.35133611495330813,
   "k": 8,
   "mean_correct_pass1": 0.5802951388888888,
   "mean_correct_passk": 0.9461805555555557,

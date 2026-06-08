@@ -29,10 +29,11 @@ that tests whether a result is real or a Qwen artifact is the follow-up.
 [`results/`](results/FINDINGS.md): the placebo comparison (correct − random) is **+3.9 pp,
 95% CI [2.3, 5.6]** (seed-level *t*, df=5): a small, correctness-driven, statistically
 significant gain. But it is mostly elicitation, not new reasoning: base pass@8 (94.0%)
-≫ correct pass@1 (76.2%), and pass@8 coverage barely moves — **Δ +0.7 pp, 95% CI [0.4, 1.1]**
-over 6 seeds. RL made the model more *reliable* at problems the base could already solve. Two
+≫ correct pass@1 (76.2%), and pass@8 coverage barely moves — **Δ +0.7 pp** over 6 seeds
+(propagated CI [−0.4, +1.9]: consistent with zero once the base anchor's own ±1.1 pp sampling
+CI is folded in). RL made the model more *reliable* at problems the base could already solve. Two
 confident single-seed numbers settled under aggregation: the placebo "+6.1 pp, p=3e-9" → +3.9 pp
-[2.3, 5.6], and the pass@8 panel's "+1.7 pp" → +0.7 pp [0.4, 1.1].
+[2.3, 5.6], and the pass@8 panel's "+1.7 pp" → +0.7 pp [−0.4, +1.9].
 
 | The confirmatory test | The elicitation finding |
 | --- | --- |

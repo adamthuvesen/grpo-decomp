@@ -55,21 +55,36 @@ class Pass8MultiSeed(Record):
     correct_passk_ci_high: float
 
     delta: float = Field(description="mean correct pass@k - base pass@k.")
-    delta_ci_low: float = Field(description="Seed-level t CI on Δ (base treated as fixed anchor).")
+    delta_ci_low: float = Field(
+        description="Seed-level t CI on Δ — between-seed variance only, base treated as a fixed "
+        "anchor. Understates Δ uncertainty when the anchor's own sampling SE is large."
+    )
     delta_ci_high: float
-    ci_kind: str = Field(description="How the correct/Δ interval was formed.")
+    delta_propagated_ci_low: float = Field(
+        description="Δ CI folding the base anchor's problem-bootstrap half-width into the "
+        "seed-level half-width (quadrature). The honest headline interval; conservative "
+        "(base and correct share the problem set, so pairing would only tighten it)."
+    )
+    delta_propagated_ci_high: float
+    ci_kind: str = Field(description="How the correct/seed-level Δ interval was formed.")
     preliminary: bool = Field(description=f"True below {MIN_SEEDS} seeds.")
 
     def headline(self) -> str:
-        """The atomic verdict line: bounded-small (elicitation) vs expansion."""
-        expanded = self.delta_ci_low > 0.0 and self.delta >= 0.10
+        """The atomic verdict line: bounded-small (elicitation) vs expansion.
+
+        The verdict keys off the *propagated* interval (the base anchor's sampling SE folded
+        in), so a movement that only clears zero with the base held fixed does not read as
+        expansion.
+        """
+        expanded = self.delta_propagated_ci_low > 0.0 and self.delta >= 0.10
         verdict = "expansion" if expanded else "bounded-small (elicitation)"
         tag = f"  [PRELIMINARY <{MIN_SEEDS} seeds]" if self.preliminary else ""
         return (
             f"over {self.n_seeds} seed(s) on {self.task}, correct pass@{self.k} "
             f"{self.mean_correct_passk * 100:.1f}% vs base {self.base_passk * 100:.1f}%: "
-            f"Δ {self.delta * 100:+.1f} pp (95% CI [{self.delta_ci_low * 100:.1f}, "
-            f"{self.delta_ci_high * 100:.1f}]; {self.ci_kind}) → {verdict}{tag}"
+            f"Δ {self.delta * 100:+.1f} pp (with anchor [{self.delta_propagated_ci_low * 100:.1f}, "
+            f"{self.delta_propagated_ci_high * 100:.1f}]; seed-level "
+            f"[{self.delta_ci_low * 100:.1f}, {self.delta_ci_high * 100:.1f}]) → {verdict}{tag}"
         )
 
 
@@ -137,6 +152,14 @@ def aggregate_passk_seeds(
         ci_kind = "single-seed (no seed variance)"
 
     delta = mean_passk - base_passk
+    # Propagated Δ interval: combine the seed-level half-width with the base anchor's
+    # problem-bootstrap half-width in quadrature. The anchor carries no training-seed variance,
+    # but its pass@k is estimated over finite problems and that SE is typically the dominant
+    # term — so the seed-level interval alone treats the anchor as noiseless and understates Δ.
+    # Conservative: base and correct share the problem set (positively correlated), so a paired
+    # estimate would only tighten this. Guaranteed to contain the seed-level interval.
+    base_half = (base_ci_high - base_ci_low) / 2.0
+    prop_half = float(np.hypot(half, base_half))
     return Pass8MultiSeed(
         task=task,
         k=k,
@@ -159,6 +182,8 @@ def aggregate_passk_seeds(
         delta=delta,
         delta_ci_low=delta - half,
         delta_ci_high=delta + half,
+        delta_propagated_ci_low=delta - prop_half,
+        delta_propagated_ci_high=delta + prop_half,
         ci_kind=ci_kind,
         preliminary=n_seeds < MIN_SEEDS,
     )
