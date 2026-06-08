@@ -363,6 +363,8 @@ def elicitation_multiseed(
     n_base: int = 16,
     n_correct: int = 8,
     correct_seeds: str = "0,1,2,3,4,5",
+    set_name: str | None = None,
+    limit: int | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
 ) -> str:
@@ -374,10 +376,17 @@ def elicitation_multiseed(
     published panel's — `temperature=0.7, top_p=1.0, max_new_tokens=1024` — so only `n` and
     the checkpoint change. Writes `CompletionSet`s to
     ``<RUNS_DIR>/passk-multiseed[-<task>]/<arm>__<set>`` (``base`` + ``correct-seed<N>``);
-    score with `grpo-decomp report-passk-seeds`.
+    score with `grpo-decomp report-passk-seeds --task-set <set>`.
+
+    `set_name` re-runs the same checkpoints off a different eval distribution (a control set
+    like `gsm-symbolic`/`gsm8k-platinum`) to decontaminate the pass@8 verdict; the default is
+    the task set. `limit` takes a deterministic `dev_slice` of that set (mirrors `grpo-decomp
+    generate --limit`) so an oversized control can be matched to the task set's size. The set
+    suffix keeps decontam cells disjoint from the published `__<task-set>` cells in one dir.
     """
     from pathlib import Path
 
+    from grpo_gain_decomp.data import dev_slice
     from grpo_gain_decomp.eval.cli import SETS
     from grpo_gain_decomp.eval.completions import (
         CompletionSet,
@@ -391,10 +400,15 @@ def elicitation_multiseed(
     from grpo_gain_decomp.train.provenance import RunProvenance
 
     base_cfg, task_set, _controls, prefix = _eval_task(task)
-    base = load_arm_config(Path(base_cfg))
+    eval_set = set_name or task_set
+    if eval_set not in SETS:
+        raise ValueError(f"unknown set {eval_set!r}; known sets are {tuple(sorted(SETS))}")
+    if limit is not None and limit < 1:
+        raise ValueError(f"limit must be >= 1, got {limit}")
     seeds = [int(s) for s in correct_seeds.split(",") if s.strip() != ""]
     if not seeds:
         raise ValueError(f"no correct seeds parsed from {correct_seeds!r}")
+    base = load_arm_config(Path(base_cfg))
 
     def selected_checkpoint(seed: int) -> str:
         run_dir = Path(RUNS_DIR) / f"{prefix}correct-seed{seed}"
@@ -407,7 +421,9 @@ def elicitation_multiseed(
 
     base_out = "passk-multiseed" if task == "gsm8k" else f"passk-multiseed-{task}"
     out_root = Path(RUNS_DIR) / base_out
-    problems = SETS[task_set]()
+    problems = SETS[eval_set]()
+    if limit is not None:
+        problems = dev_slice(problems, n=limit, seed=0)
 
     def run_arm(arm: str, model_ref: str, revision: str | None, n: int) -> None:
         # Same decoding as the published seed-0 panel; only n and the checkpoint vary.
@@ -428,9 +444,9 @@ def elicitation_multiseed(
             dirty=dirty,
         )
         out = write_completion_set(
-            CompletionSet(provenance=provenance, items=items), out_root / f"{arm}__{task_set}"
+            CompletionSet(provenance=provenance, items=items), out_root / f"{arm}__{eval_set}"
         )
-        print(f"  wrote {arm}__{task_set}: {len(items)} problems x n={n} -> {out}")
+        print(f"  wrote {arm}__{eval_set}: {len(items)} problems x n={n} -> {out}")
         runs.commit()  # persist per arm so a late failure doesn't discard finished cells
 
     run_arm("base", base.base_model, base.base_model_revision, n_base)
@@ -451,6 +467,8 @@ def main(
     n_base: int = 16,
     n_correct: int = 8,
     correct_seeds: str = "0,1,2,3,4,5",
+    set_name: str | None = None,
+    limit: int | None = None,
     spawn: bool = False,
 ) -> None:
     """Train an arm, score its held-out curve, or generate eval completions.
@@ -463,6 +481,7 @@ def main(
     elicitation: modal run modal_app.py --command elicitation
     passk-seeds: modal run --detach modal_app.py --command elicitation-multiseed --spawn
     escalated:   ...same, plus --n-base 32 --n-correct 16 (or --task countdown)
+    decontam:    ...same, plus --set-name gsm-symbolic --limit 1319 (or --set-name gsm8k-platinum)
     countdown:   modal run modal_app.py --command battery --task countdown --scope placebo --seed 1
     durable:     modal run --detach modal_app.py --arm <cfg> --spawn            # long runs
 
@@ -516,6 +535,8 @@ def main(
                 "n_base": n_base,
                 "n_correct": n_correct,
                 "correct_seeds": correct_seeds,
+                "set_name": set_name,
+                "limit": limit,
                 "commit": commit,
                 "dirty": dirty,
             },

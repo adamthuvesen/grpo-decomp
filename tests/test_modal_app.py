@@ -109,3 +109,18 @@ def test_final_or_selected_checkpoint_realizes_the_final_rule(monkeypatch) -> No
     # Unset selection under any other rule is an explicit error.
     with pytest.raises(ValueError, match="heldout"):
         modal_app._final_or_selected_checkpoint(run_dir, None, "best_on_validation")
+
+
+def test_elicitation_multiseed_rejects_unknown_set(monkeypatch) -> None:
+    # The decontam override validates the set against the registry before any model load,
+    # so a typo fails fast instead of after a paid generation. (`@app.function` is a no-op
+    # under the fake modal, so the raw function runs on CPU up to the first generate().)
+    modal_app = _modal_app(monkeypatch)
+    with pytest.raises(ValueError, match="unknown set"):
+        modal_app.elicitation_multiseed(task="gsm8k", set_name="not-a-real-set")
+
+
+def test_elicitation_multiseed_rejects_nonpositive_limit(monkeypatch) -> None:
+    modal_app = _modal_app(monkeypatch)
+    with pytest.raises(ValueError, match="limit must be"):
+        modal_app.elicitation_multiseed(task="gsm8k", limit=0)
