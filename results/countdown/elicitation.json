@@ -1,0 +1,13 @@
+{
+  "base": {
+    "n": 192,
+    "pass@1": 0.0898,
+    "pass@8": 0.5052
+  },
+  "correct": {
+    "n": 192,
+    "pass@1": 0.5964,
+    "pass@8": 0.9531
+  },
+  "note": "countdown-test held-out (n=192); n=8 sampled at temp 0.7. base pass@8 50.5% vs correct pass@8 95.3% -> pass@8 coverage MOVED +44.8pp = expansion (contrast GSM8K +1.7pp = elicitation)."
+}

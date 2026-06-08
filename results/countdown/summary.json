@@ -1,0 +1,67 @@
+{
+  "artifact_scope": "Single-seed descriptive decomposition (1 seed). Treat the comparison below as a per-seed diagnostic; the headline claim must come from seed-level aggregation such as `seed-placebo-comparison.json`.",
+  "base_model": "Qwen/Qwen2.5-1.5B",
+  "caveats": [
+    "Rows are independent re-measurements of the raw gain under each control; they overlap and MUST NOT be summed into an additive partition.",
+    "The placebo (correct - random) delta is a within-Qwen lower bound on non-correctness-driven gain, not a cross-family artifact verdict (needs the v2 Llama arm).",
+    "Only the placebo comparison is the pre-registered confirmatory test; every table row is descriptive/exploratory and its 95% CI is marginal (per-row), NOT family-wise corrected \u2014 do not read a single row's p<0.05 as confirmed.",
+    "PRELIMINARY: aggregated over 1 seed(s) (< 3); CIs reflect eval-sampling noise only, not run-to-run / seed variance \u2014 not a headline claim."
+  ],
+  "confirmatory_comparison": {
+    "comparison": {
+      "accuracy_a": 0.140625,
+      "accuracy_b": 0.4895833333333333,
+      "ci_high": 0.43229166666666663,
+      "ci_low": 0.265625,
+      "delta": 0.3489583333333333,
+      "label_a": "random",
+      "label_b": "correct",
+      "n": 192,
+      "n_discordant": 85,
+      "p_value": 8.144266588330113e-13,
+      "test": "chi2"
+    },
+    "control": "placebo (correct - random)",
+    "probes": "non-correctness-driven gain"
+  },
+  "elicitation_note": "pass@1: base=0.14, correct=0.49; high-n pass@k coverage deferred to a Phase-2 sampling run",
+  "preliminary": true,
+  "rows": [
+    {
+      "comparison": {
+        "accuracy_a": 0.13541666666666666,
+        "accuracy_b": 0.4895833333333333,
+        "ci_high": 0.4272135416666648,
+        "ci_low": 0.28125,
+        "delta": 0.35416666666666663,
+        "label_a": "base",
+        "label_b": "correct",
+        "n": 192,
+        "n_discordant": 80,
+        "p_value": 6.844060346519136e-14,
+        "test": "chi2"
+      },
+      "control": "raw gain",
+      "probes": "correct vs base on countdown-test"
+    },
+    {
+      "comparison": {
+        "accuracy_a": 0.4895833333333333,
+        "accuracy_b": 0.4895833333333333,
+        "ci_high": 0.0,
+        "ci_low": 0.0,
+        "delta": 0.0,
+        "label_a": "correct/strict",
+        "label_b": "correct/lenient",
+        "n": 192,
+        "n_discordant": 0,
+        "p_value": 1.0,
+        "test": "exact-binomial"
+      },
+      "control": "format sensitivity",
+      "probes": "lenient vs strict (same completions)"
+    }
+  ],
+  "seeds": 1,
+  "task": "countdown-test"
+}
