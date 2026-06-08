@@ -39,6 +39,7 @@ from grpo_gain_decomp.eval.completions import (
     write_completion_set,
 )
 from grpo_gain_decomp.report.decomposition import DecompositionRow, build_decomposition
+from grpo_gain_decomp.report.mechanism import build_mechanism
 from grpo_gain_decomp.report.passk_seeds import aggregate_passk_seeds
 from grpo_gain_decomp.report.render import render_table, write_summary
 from grpo_gain_decomp.report.seeds import aggregate_placebo_comparison
@@ -148,6 +149,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out", type=Path, default=None, help="Pass8MultiSeed JSON path (else stdout)"
     )
     rpk.set_defaults(func=_cmd_report_passk_seeds)
+
+    rmc = sub.add_parser(
+        "report-mechanism", help="per-problem reliability migration + completion-length shift"
+    )
+    rmc.add_argument(
+        "--completions-dir",
+        required=True,
+        type=Path,
+        dest="completions_dir",
+        help="dir with base__<set> + correct-seed<N>__<set> sampled CompletionSets",
+    )
+    rmc.add_argument("--task-set", default="gsm8k-test", dest="task_set")
+    rmc.add_argument("--k", type=int, default=8, help="pass@k envelope level (default 8)")
+    rmc.add_argument("--tau", type=float, default=0.5, help="reliability threshold (default 0.5)")
+    rmc.add_argument(
+        "--out", type=Path, default=None, help="MechanismReport JSON path (else stdout)"
+    )
+    rmc.set_defaults(func=_cmd_report_mechanism)
 
     hld = sub.add_parser("heldout", help="held-out accuracy curve over a run's checkpoints")
     hld.add_argument(
@@ -361,6 +380,42 @@ def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
             json.dumps(panel.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
         )
         print(f"wrote multi-seed pass@{panel.k} panel to {out}")
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
+def _cmd_report_mechanism(args: argparse.Namespace) -> int:
+    root = Path(args.completions_dir)
+    if not root.is_dir():
+        raise ValueError(f"completions dir {root} does not exist")
+    suffix = f"__{args.task_set}"
+    base = load_completion_set(root / f"base{suffix}")
+    correct = [
+        load_completion_set(sub)
+        for sub in sorted(root.iterdir())
+        if sub.is_dir() and sub.name.startswith("correct-seed") and sub.name.endswith(suffix)
+    ]
+    if not correct:
+        raise ValueError(f"no 'correct-seed<N>{suffix}' dirs under {root}")
+
+    report = build_mechanism(base, correct, task=args.task_set, k=args.k, tau=args.tau)
+    lines = [
+        f"# Mechanism - {args.task_set}",
+        "",
+        report.headline(),
+        "",
+        f"base already reliable {report.frac_base_already_reliable * 100:.1f}% · "
+        f"migrated {report.frac_migrated_to_reliable * 100:.1f}% · "
+        f"new {report.frac_new_capability * 100:.1f}% · "
+        f"still hard {report.frac_still_hard * 100:.1f}%",
+    ]
+    if args.out is not None:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(report.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"wrote mechanism report to {out}")
     sys.stdout.write("\n".join(lines) + "\n")
     return 0
 

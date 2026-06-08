@@ -93,6 +93,18 @@ quietly drop a yardstick the README invokes. What it does establish: there is no
 valid-`<<>>`-chain coverage for RL to have moved — on this base x dataset the reliability gain
 is the whole story.
 
+### Mechanism: migration into reliability, not new coverage
+
+Per problem, over the same multi-seed completions (`mechanism.json`, reliability threshold
+tau = 0.5): the base **already solves 75.2%** of GSM8K-test first-try-reliably. Of the rest the
+trained model makes **7.1%** reliable and **0.0% genuinely new** — every problem it newly nails
+first-try was already inside the base's pass@8 envelope, so **100% of the added reliability is
+migration** within that envelope, none is capability beyond the base's reach. Completion length
+barely moves (224 → 226 words): the model becomes *more reliable*, not longer or different. This
+is the per-problem face of the flat pass@8 panel — elicitation, by construction.
+
+![Where first-try-reliable solves come from: GSM8K is all migration within the base's pass@8 envelope, Countdown adds genuinely new capability](fig-mechanism.png)
+
 ## 3. Controls (seed 0, descriptive: marginal CIs, not family-wise corrected)
 
 Gain survives adversarial perturbation (gsm-plus +4.9), cleaned labels (platinum +4.8),

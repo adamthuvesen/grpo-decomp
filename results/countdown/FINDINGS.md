@@ -51,6 +51,14 @@ correct pass@8 over **3 seeds** vs the seed-independent base pass@8 anchor (`pas
   opposite verdicts** — the propagated intervals (**[−0.4, +1.9]** vs **[+35.1, +46.9]**) do not
   come close to overlapping.
 
+### Mechanism: real new capability, not just reliability
+
+Per problem (`mechanism.json`, reliability threshold tau = 0.5): the base solves almost nothing
+first-try-reliably (0.5%); the trained model makes **47.9%** migrated (within the base's pass@8
+reach) and **10.9% genuinely new** (outside it). That **10.9% new-capability mass** is the
+expansion signature GSM8K lacks (0.0% there). Completions also get *shorter* (366 → 315 words):
+RL finds the target more directly, not by searching longer.
+
 ## 3. Two-sided validation (the point of the study)
 
 | | GSM8K (Qwen2.5-Math-1.5B) | Countdown (general Qwen2.5-1.5B) |
@@ -58,6 +66,7 @@ correct pass@8 over **3 seeds** vs the seed-independent base pass@8 anchor (`pas
 | placebo comparison (pass@1) | +3.9 pp [2.3, 5.6] (6 seeds) | **+46.5 pp [21.4, 71.6]** (3 seeds) |
 | Δ pass@8 (propagated CI) | **+0.7 pp [−0.4, +1.9]** (6 seeds) | **+41.0 pp [+35.1, +46.9]** (3 seeds) |
 | base → correct pass@8 | 94.0 → 94.7 | 53.6 → 94.6 |
+| new-capability mass (mechanism) | **0.0%** | **10.9%** |
 | verdict | **elicitation** (saturated base) | **expansion** (base lacked the skill) |
 
 Both pass@8 rows are now seed-level (the panel was seed-0-only before) and their CIs fold in the

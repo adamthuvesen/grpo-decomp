@@ -1,0 +1,17 @@
+{
+  "base_mean_chars": 1739.4918619791667,
+  "base_mean_words": 366.2210286458333,
+  "correct_mean_chars": 1471.5184461805557,
+  "correct_mean_words": 315.30967881944446,
+  "frac_base_already_reliable": 0.005208333333333333,
+  "frac_migrated_to_reliable": 0.4791666666666667,
+  "frac_new_capability": 0.109375,
+  "frac_still_hard": 0.40625,
+  "k": 8,
+  "migration_share_of_gain": 0.8141592920353983,
+  "n_base": 16,
+  "n_correct_pooled": 24,
+  "n_problems": 192,
+  "reliability_threshold": 0.5,
+  "task": "countdown-test"
+}

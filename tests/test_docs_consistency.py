@@ -55,6 +55,8 @@ _CP8 = _load("results/countdown/pass8-multiseed.json")  # Countdown pass@8 (3 se
 _GPL = _load("results/seed-placebo-comparison.json")  # GSM8K placebo (6 seeds)
 _CPL = _load("results/countdown/seed-placebo-comparison.json")  # Countdown placebo
 _SUM = _load("results/summary.json")  # GSM8K seed-0 controls (plan #3 replaces these)
+_MECH = _load("results/mechanism.json")  # GSM8K per-problem migration + length shift
+_MECH_CD = _load("results/countdown/mechanism.json")
 
 
 def _ctrl(needle: str) -> dict:
@@ -158,6 +160,42 @@ _CLAIMS: list[tuple[str, str, str]] = [
         f"chain coverage is {_pct(_CP8['base_chain_coverage'])}%",
     ),
     ("cot.cd-cot-passk", _FIND_C, f"CoT-gated pass@8 is {_pct(_CP8['base_cot_passk'])}% for both"),
+    # -- Mechanism: per-problem migration + length shift (mechanism.json) --
+    (
+        "mech.gsm-base-reliable",
+        _FIND_G,
+        f"already solves {_pct(_MECH['frac_base_already_reliable'])}%",
+    ),
+    ("mech.gsm-migrated", _FIND_G, f"makes {_pct(_MECH['frac_migrated_to_reliable'])}% reliable"),
+    ("mech.gsm-new", _FIND_G, f"{_pct(_MECH['frac_new_capability'])}% genuinely new"),
+    (
+        "mech.gsm-share",
+        _FIND_G,
+        f"{_pct(_MECH['migration_share_of_gain'], dp=0)}% of the added reliability is migration",
+    ),
+    (
+        "mech.gsm-length",
+        _FIND_G,
+        f"{_MECH['base_mean_words']:.0f} {_ARROW} {_MECH['correct_mean_words']:.0f} words",
+    ),
+    (
+        "mech.cd-base-reliable",
+        _FIND_C,
+        f"first-try-reliably ({_pct(_MECH_CD['frac_base_already_reliable'])}%)",
+    ),
+    ("mech.cd-migrated", _FIND_C, f"makes {_pct(_MECH_CD['frac_migrated_to_reliable'])}% migrated"),
+    ("mech.cd-new", _FIND_C, f"{_pct(_MECH_CD['frac_new_capability'])}% genuinely new"),
+    (
+        "mech.cd-length",
+        _FIND_C,
+        f"{_MECH_CD['base_mean_words']:.0f} {_ARROW} {_MECH_CD['correct_mean_words']:.0f} words",
+    ),
+    (
+        "mech.readme-gsm-new",
+        _README,
+        f"{_pct(_MECH['frac_new_capability'])}% of the GSM8K gain is new capability",
+    ),
+    ("mech.readme-cd-new", _README, f"{_pct(_MECH_CD['frac_new_capability'])}% on Countdown"),
     # -- Countdown placebo (countdown/seed-placebo-comparison.json) --
     (
         "countdown.placebo",

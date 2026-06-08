@@ -282,16 +282,87 @@ def _contrast_figure(gsm8k: dict, countdown: dict) -> None:
     plt.close(fig)
 
 
+def _mechanism_figure(gsm8k: dict, countdown: dict) -> None:
+    """Where the trained model's first-try-reliable solves come from. A stacked bar per task:
+    base-already-reliable | migrated (within base pass@8) | new capability (beyond it) | still
+    hard. GSM8K has no `new` segment (elicitation); Countdown shows a visible one (expansion).
+    """
+    cats = [
+        ("frac_base_already_reliable", "base already reliable", BASE_C),
+        ("frac_migrated_to_reliable", "migrated to reliable", RL_C),
+        ("frac_new_capability", "new capability", "#15803d"),
+        ("frac_still_hard", "still hard", "#e2e8f0"),
+    ]
+    tasks = [("GSM8K", gsm8k, 1), ("Countdown", countdown, 0)]
+
+    fig, ax = plt.subplots(figsize=(8.6, 3.5))
+    ax.set_axisbelow(True)
+    ax.grid(axis="x", color=GRID, linewidth=1.1)
+    for _name, panel, row in tasks:
+        left = 0.0
+        for key, _label, color in cats:
+            width = panel[key] * PP
+            ax.barh(row, width, left=left, height=0.52, color=color, edgecolor="white", zorder=3)
+            left += width
+        new_pp = panel["frac_new_capability"] * PP
+        new_left = (panel["frac_base_already_reliable"] + panel["frac_migrated_to_reliable"]) * PP
+        ax.annotate(
+            f"new capability {new_pp:.1f}%",
+            xy=(new_left, row),
+            xytext=(0, 26 if row == 1 else -30),
+            textcoords="offset points",
+            ha="center",
+            fontsize=10,
+            fontweight="bold",
+            color="#15803d",
+            arrowprops={"arrowstyle": "-|>", "color": "#15803d", "lw": 1.6},
+        )
+    ax.set_yticks([1, 0])
+    ax.set_yticklabels(["GSM8K", "Countdown"], fontsize=12, fontweight="bold")
+    ax.set_ylim(-0.6, 1.6)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("share of problems (%)", fontsize=11)
+    ax.set_xticks([0, 25, 50, 75, 100])
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.tick_params(left=False)
+    ax.set_title(
+        "Where first-try-reliable solves come from: migration vs new capability",
+        fontsize=13.5,
+        fontweight="bold",
+        pad=30,
+    )
+    handles = [plt.Rectangle((0, 0), 1, 1, color=c) for _, _, c in cats]
+    ax.legend(
+        handles,
+        [label for _, label, _ in cats],
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncol=4,
+        frameon=False,
+        fontsize=9,
+        handlelength=1.0,
+        columnspacing=1.3,
+    )
+    fig.savefig(HERE / "fig-mechanism.png", dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main() -> None:
     placebo = json.loads((HERE / "seed-placebo-comparison.json").read_text(encoding="utf-8"))
     panel = json.loads((HERE / "pass8-multiseed.json").read_text(encoding="utf-8"))
     countdown = json.loads(
         (HERE / "countdown" / "pass8-multiseed.json").read_text(encoding="utf-8")
     )
+    mech = json.loads((HERE / "mechanism.json").read_text(encoding="utf-8"))
+    mech_cd = json.loads((HERE / "countdown" / "mechanism.json").read_text(encoding="utf-8"))
     _placebo_comparison_figure(placebo)
     _passk_curve_figure(panel)
     _contrast_figure(panel, countdown)
-    print("wrote fig-placebo-comparison.png, fig-passk-curve.png, fig-passk-contrast.png")
+    _mechanism_figure(mech, mech_cd)
+    print(
+        "wrote fig-placebo-comparison.png, fig-passk-curve.png, fig-passk-contrast.png, "
+        "fig-mechanism.png"
+    )
 
 
 if __name__ == "__main__":

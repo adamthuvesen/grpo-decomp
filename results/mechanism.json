@@ -1,0 +1,17 @@
+{
+  "base_mean_chars": 1295.8378506444276,
+  "base_mean_words": 223.88717778620168,
+  "correct_mean_chars": 1294.8997346474603,
+  "correct_mean_words": 225.9489038412939,
+  "frac_base_already_reliable": 0.7520849128127369,
+  "frac_migrated_to_reliable": 0.0712661106899166,
+  "frac_new_capability": 0.0,
+  "frac_still_hard": 0.17664897649734648,
+  "k": 8,
+  "migration_share_of_gain": 1.0,
+  "n_base": 16,
+  "n_correct_pooled": 48,
+  "n_problems": 1319,
+  "reliability_threshold": 0.5,
+  "task": "gsm8k-test"
+}
