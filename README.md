@@ -1,28 +1,26 @@
 # grpo-gain-decomposition
 
-How much of an LLM's RL "reasoning" gain is *real*?
-
-`grpo-gain-decomposition` trains a small language model with GRPO (the DeepSeek-R1-Zero
+How much of an LLM's RL "reasoning" gain is real? `grpo-gain-decomposition` trains a small language model with GRPO (the DeepSeek-R1-Zero
 recipe) on grade-school math, then runs an adversarial evaluation that
-**decomposes the benchmark gain** into its parts: genuine learning vs. contamination,
+decomposes the benchmark gain into its parts: genuine learning vs. contamination,
 answer formatting, and elicitation of capability the base model already had.
 
 ## The question
 
 RLVR (RL with verifiable rewards) produces large, cheap gains on math benchmarks,
-but several papers argue the gain is illusory:
+but several papers argue the gain is "illusory":
 
 - **random rewards** still lift Qwen models on math ([Spurious Rewards, 2506.10947](https://arxiv.org/abs/2506.10947))
 - the base model often **matches RL at high pass@k** ([Yue et al., 2504.13837](https://arxiv.org/abs/2504.13837))
 - benchmarks are **contaminated** in modern base models ([Wu et al., 2507.10532](https://arxiv.org/abs/2507.10532))
 
-...while others show RL *does* expand reasoning under the right conditions
+while others show RL does expand reasoning under the right conditions
 ([ProRL, 2505.24864](https://arxiv.org/abs/2505.24864)) and that the pass@k yardstick
 itself is flawed ([CoT-Pass@K, 2506.14245](https://arxiv.org/abs/2506.14245)).
 
 `grpo-gain-decomposition` builds the measurement that decomposes
 the gain, on the exact models the debate centers on (Qwen). v1 reproduces and
-decomposes the gain *within* Qwen (6 seeds per arm); the cross-family control (Llama)
+decomposes the gain within Qwen (6 seeds per arm); the cross-family control (Llama)
 that tests whether a result is real or a Qwen artifact is the follow-up.
 
 ## Status
@@ -30,7 +28,7 @@ that tests whether a result is real or a Qwen artifact is the follow-up.
 **GSM8K study complete: 6 seeds per arm.** The result is committed under
 [`results/`](results/FINDINGS.md): the placebo comparison (correct − random) is **+3.9 pp,
 95% CI [2.3, 5.6]** (seed-level *t*, df=5): a small, correctness-driven, statistically
-significant gain. But it is **mostly elicitation, not new reasoning**: base pass@8 (93.6%)
+significant gain. But it is mostly elicitation, not new reasoning: base pass@8 (93.6%)
 ≫ correct pass@1 (77.2%), and pass@8 coverage barely moves (93.6 → 95.3). RL made the
 model more *reliable* at problems the base could already solve. A confident single-seed
 "+6.1 pp, p=3e-9" settled, under seed aggregation and pass@k, into that +3.9 pp effect.
