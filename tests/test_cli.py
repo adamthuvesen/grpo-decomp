@@ -184,6 +184,41 @@ def test_report_seeds_rejects_non_greedy_artifact(tmp_path, capsys) -> None:
     assert "greedy pass@1" in captured.err
 
 
+def test_report_passk_seeds_aggregates_panel(tmp_path, capsys) -> None:
+    # Sampled (n>1) base anchor + two correct seeds — the multi-seed pass@k layout.
+    root = tmp_path / "passk"
+    _write_cs(root / "base__gsm8k-test", model="base", boxed="0", n=2, temperature=0.7)
+    _write_cs(root / "correct-seed0__gsm8k-test", model="c0", boxed="4", n=2, temperature=0.7)
+    _write_cs(root / "correct-seed1__gsm8k-test", model="c1", boxed="4", n=2, temperature=0.7)
+    out = tmp_path / "pass8.json"
+
+    code = main(
+        ["report-passk-seeds", "--completions-dir", str(root), "--k", "1", "--out", str(out)]
+    )
+    assert code == 0
+    assert "Multi-seed pass@1 coverage" in capsys.readouterr().out
+
+    panel = json.loads(out.read_text(encoding="utf-8"))
+    assert panel["task"] == "gsm8k-test"
+    assert panel["k"] == 1
+    assert panel["n_seeds"] == 2 and panel["seeds"] == ["0", "1"]
+    assert panel["n_base"] == 2 and panel["n_correct"] == 2
+    assert panel["base_passk"] == 0.0  # base boxed='0' (gold=4): all wrong
+    assert panel["mean_correct_passk"] == 1.0  # both correct seeds boxed='4': all right
+    assert panel["delta"] == 1.0
+    assert panel["preliminary"] is True  # 2 < MIN_SEEDS
+
+
+def test_report_passk_seeds_requires_correct_seed_dirs(tmp_path, capsys) -> None:
+    root = tmp_path / "passk"
+    _write_cs(root / "base__gsm8k-test", model="base", boxed="0", n=2, temperature=0.7)
+
+    assert main(["report-passk-seeds", "--completions-dir", str(root), "--k", "1"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "correct-seed" in captured.err
+
+
 def test_generate_missing_backend_dependency_is_clean_error(tmp_path, capsys, monkeypatch) -> None:
     def missing_backend(*args, **kwargs):
         raise ImportError("No module named 'vllm'")
