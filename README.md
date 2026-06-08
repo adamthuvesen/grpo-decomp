@@ -10,11 +10,11 @@ answer formatting, and elicitation of capability the base model already had.
 RLVR (RL with verifiable rewards) produces large, cheap gains on math benchmarks,
 but several papers argue the gain is "illusory":
 
-- **random rewards** still lift Qwen models on math ([Spurious Rewards, 2506.10947](https://arxiv.org/abs/2506.10947))
-- the base model often **matches RL at high pass@k** ([Yue et al., 2504.13837](https://arxiv.org/abs/2504.13837))
-- benchmarks are **contaminated** in modern base models ([Wu et al., 2507.10532](https://arxiv.org/abs/2507.10532))
+- Random rewards still lift Qwen models on math ([Spurious Rewards, 2506.10947](https://arxiv.org/abs/2506.10947))
+- The base model often matches RL at high pass@k ([Yue et al., 2504.13837](https://arxiv.org/abs/2504.13837))
+- Benchmarks are contaminated in modern base models ([Wu et al., 2507.10532](https://arxiv.org/abs/2507.10532))
 
-while others show RL does expand reasoning under the right conditions
+While others show RL does expand reasoning under the right conditions
 ([ProRL, 2505.24864](https://arxiv.org/abs/2505.24864)) and that the pass@k yardstick
 itself is flawed ([CoT-Pass@K, 2506.14245](https://arxiv.org/abs/2506.14245)).
 
