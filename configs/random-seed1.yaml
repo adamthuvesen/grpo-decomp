@@ -1,0 +1,8 @@
+# The placebo arm, seed replicate 1 (for headline aggregation over seeds).
+name: random
+base_model: Qwen/Qwen2.5-Math-1.5B
+base_model_revision: 4a83ca6e4526a4f2da3aa259ec36c259f66b2ab2  # pinned (verified 2026-06-06)
+reward: random
+seed: 1
+grpo:
+  max_completion_length: 1024

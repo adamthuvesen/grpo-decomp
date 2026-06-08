@@ -1,0 +1,9 @@
+# The placebo arm: random reward (the signature control). Identical to the
+# correct arm except the reward — "random rewards still improve Qwen".
+name: random
+base_model: Qwen/Qwen2.5-Math-1.5B
+base_model_revision: 4a83ca6e4526a4f2da3aa259ec36c259f66b2ab2  # pinned (verified 2026-06-06)
+reward: random
+seed: 0
+grpo:
+  max_completion_length: 1024
