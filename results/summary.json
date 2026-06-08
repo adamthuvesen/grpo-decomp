@@ -1,0 +1,118 @@
+{
+  "artifact_scope": "Single-seed descriptive decomposition (1 seed). Treat the comparison below as a per-seed diagnostic; the headline claim must come from seed-level aggregation such as `seed-placebo-comparison.json`.",
+  "base_model": "Qwen/Qwen2.5-Math-1.5B",
+  "caveats": [
+    "Rows are independent re-measurements of the raw gain under each control; they overlap and MUST NOT be summed into an additive partition.",
+    "The placebo (correct - random) delta is a within-Qwen lower bound on non-correctness-driven gain, not a cross-family artifact verdict (needs the v2 Llama arm).",
+    "Only the placebo comparison is the pre-registered confirmatory test; every table row is descriptive/exploratory and its 95% CI is marginal (per-row), NOT family-wise corrected \u2014 do not read a single row's p<0.05 as confirmed.",
+    "PRELIMINARY: aggregated over 1 seed(s) (< 3); CIs reflect eval-sampling noise only, not run-to-run / seed variance \u2014 not a headline claim."
+  ],
+  "confirmatory_comparison": {
+    "comparison": {
+      "accuracy_a": 0.7528430629264594,
+      "accuracy_b": 0.8142532221379833,
+      "ci_high": 0.0818802122820318,
+      "ci_low": 0.04245640636846093,
+      "delta": 0.06141015921152393,
+      "label_a": "random",
+      "label_b": "correct",
+      "n": 1319,
+      "n_discordant": 183,
+      "p_value": 3.3436436615067227e-09,
+      "test": "chi2"
+    },
+    "control": "placebo (correct - random)",
+    "probes": "non-correctness-driven gain"
+  },
+  "elicitation_note": "pass@1: base=0.76, correct=0.81; high-n pass@k coverage deferred to a Phase-2 sampling run",
+  "preliminary": true,
+  "rows": [
+    {
+      "comparison": {
+        "accuracy_a": 0.7642153146322972,
+        "accuracy_b": 0.8142532221379833,
+        "ci_high": 0.06974981046247153,
+        "ci_low": 0.03184230477634564,
+        "delta": 0.05003790750568615,
+        "label_a": "base",
+        "label_b": "correct",
+        "n": 1319,
+        "n_discordant": 170,
+        "p_value": 6.187456835037504e-07,
+        "test": "chi2"
+      },
+      "control": "raw gain",
+      "probes": "correct vs base on gsm8k-test"
+    },
+    {
+      "comparison": {
+        "accuracy_a": 0.6538503195061194,
+        "accuracy_b": 0.7033466912162893,
+        "ci_high": 0.057186180006498444,
+        "ci_low": 0.04191487057294496,
+        "delta": 0.04949637171016996,
+        "label_a": "base",
+        "label_b": "correct",
+        "n": 9233,
+        "n_discordant": 1297,
+        "p_value": 9.62877189939154e-37,
+        "test": "chi2"
+      },
+      "control": "control (gsm-plus)",
+      "probes": "robustness (adversarial perturbation)"
+    },
+    {
+      "comparison": {
+        "accuracy_a": 0.6308,
+        "accuracy_b": 0.7356,
+        "ci_high": 0.11680000000000001,
+        "ci_low": 0.09260000000000002,
+        "delta": 0.1048,
+        "label_a": "base",
+        "label_b": "correct",
+        "n": 5000,
+        "n_discordant": 1000,
+        "p_value": 1.931066426488048e-61,
+        "test": "chi2"
+      },
+      "control": "control (gsm-symbolic)",
+      "probes": "memorization (templated renumbering)"
+    },
+    {
+      "comparison": {
+        "accuracy_a": 0.7990074441687345,
+        "accuracy_b": 0.8469809760132341,
+        "ci_high": 0.06782464846980985,
+        "ci_low": 0.028122415219189456,
+        "delta": 0.047973531844499595,
+        "label_a": "base",
+        "label_b": "correct",
+        "n": 1209,
+        "n_discordant": 150,
+        "p_value": 3.2550860415202007e-06,
+        "test": "chi2"
+      },
+      "control": "control (gsm8k-platinum)",
+      "probes": "label noise (cleaned labels)"
+    },
+    {
+      "comparison": {
+        "accuracy_a": 0.8059135708870356,
+        "accuracy_b": 0.8142532221379833,
+        "ci_high": 0.013646702047005355,
+        "ci_low": 0.0037907505686125553,
+        "delta": 0.00833965125094771,
+        "label_a": "correct/strict",
+        "label_b": "correct/lenient",
+        "n": 1319,
+        "n_discordant": 11,
+        "p_value": 0.0009765625,
+        "test": "exact-binomial"
+      },
+      "control": "format sensitivity",
+      "probes": "lenient vs strict (same completions)"
+    }
+  ],
+  "seeds": 1,
+  "task": "gsm8k-test"
+}
