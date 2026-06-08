@@ -1,0 +1,90 @@
+"""Aggregate the placebo comparison (correct - random) across seed replicates.
+
+A single run's CI reflects eval-sampling noise only. The headline must also clear
+run-to-run (seed) variance, so we compute the placebo delta per seed and aggregate at
+the seed level: the mean delta with a t-based CI over seeds. Below `MIN_SEEDS` the
+seed-level interval is wide (or undefined at one seed) and the result stays preliminary.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+import numpy as np
+from pydantic import Field
+from scipy.stats import t
+
+from grpo_gain_decomp.report.decomposition import MIN_SEEDS
+from grpo_gain_decomp.schemas import Record
+from grpo_gain_decomp.stats.compare import Comparison
+
+
+class SeedPlaceboComparison(Record):
+    """The placebo comparison aggregated over seed replicates."""
+
+    task: str
+    n_seeds: int
+    seeds: tuple[str, ...] = Field(description="Per-seed labels, in input order.")
+    per_seed_delta: tuple[float, ...] = Field(description="correct - random per seed.")
+    per_seed_correct_acc: tuple[float, ...]
+    per_seed_random_acc: tuple[float, ...]
+    mean_delta: float
+    sem: float | None = Field(description="Std error of the mean over seeds (None at n=1).")
+    ci_low: float
+    ci_high: float
+    ci_kind: str = Field(description="How the CI was formed (seed-level t, or single-seed eval).")
+    preliminary: bool = Field(description=f"True below {MIN_SEEDS} seeds.")
+
+    def headline(self) -> str:
+        """The atomic seed-aggregated claim for the report header."""
+        verb = "beats" if self.mean_delta >= 0 else "trails"
+        tag = f"  [PRELIMINARY <{MIN_SEEDS} seeds]" if self.preliminary else ""
+        return (
+            f"over {self.n_seeds} seed(s) on {self.task}, correct {verb} random by "
+            f"{abs(self.mean_delta) * 100:.1f}% "
+            f"(95% CI [{self.ci_low * 100:.1f}, {self.ci_high * 100:.1f}]; {self.ci_kind}){tag}"
+        )
+
+
+def aggregate_placebo_comparison(
+    comparisons: Sequence[Comparison], seeds: Sequence[object], *, task: str = "gsm8k-test"
+) -> SeedPlaceboComparison:
+    """Aggregate per-seed placebo `Comparison`s into a seed-level mean delta + CI.
+
+    Each `Comparison` is correct-vs-random on one seed (delta = acc_correct - acc_random).
+    With >=2 seeds the CI is a t-interval over the per-seed deltas (capturing run-to-run
+    variance); at 1 seed it falls back to that seed's eval-bootstrap CI, clearly labelled.
+    A seed/comparison count mismatch raises an explicit error instead of zip-truncating.
+    """
+    if not comparisons:
+        raise ValueError("no per-seed comparisons to aggregate")
+    if len(comparisons) != len(seeds):
+        raise ValueError(f"{len(comparisons)} comparisons but {len(seeds)} seed labels")
+
+    deltas = np.array([c.delta for c in comparisons], dtype=float)
+    n = len(deltas)
+    mean = float(deltas.mean())
+    if n >= 2:
+        sem: float | None = float(deltas.std(ddof=1) / np.sqrt(n))
+        half = float(t.ppf(0.975, n - 1)) * sem
+        ci_low, ci_high = mean - half, mean + half
+        ci_kind = f"seed-level t, df={n - 1}"
+    else:
+        sem = None
+        ci_low, ci_high = comparisons[0].ci_low, comparisons[0].ci_high
+        ci_kind = "single-seed eval bootstrap (no seed variance)"
+
+    return SeedPlaceboComparison(
+        task=task,
+        n_seeds=n,
+        seeds=tuple(str(s) for s in seeds),
+        per_seed_delta=tuple(float(d) for d in deltas),
+        per_seed_correct_acc=tuple(float(c.accuracy_b) for c in comparisons),
+        per_seed_random_acc=tuple(float(c.accuracy_a) for c in comparisons),
+        mean_delta=mean,
+        sem=sem,
+        ci_low=float(ci_low),
+        ci_high=float(ci_high),
+        ci_kind=ci_kind,
+        preliminary=n < MIN_SEEDS,
+    )
