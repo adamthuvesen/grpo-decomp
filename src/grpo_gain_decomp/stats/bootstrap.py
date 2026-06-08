@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import numpy as np
+
 
 def paired_bootstrap_ci(
     correct_a: Sequence[bool],
@@ -46,3 +48,31 @@ def paired_bootstrap_ci(
         frame_b, frame_a, outcome="outcome", n_iter=n_iter, alpha=alpha, seed=seed
     )
     return result.delta_point_estimate, result.delta_ci_low, result.delta_ci_high
+
+
+def bootstrap_mean_ci(
+    values: Sequence[float],
+    *,
+    n_iter: int = 10_000,
+    alpha: float = 0.05,
+    seed: int = 42,
+) -> tuple[float, float, float]:
+    """Return ``(mean, ci_low, ci_high)`` for the mean of `values`, via a one-sample
+    percentile bootstrap (elements resampled with replacement).
+
+    The base pass@k anchor is a single, seed-independent model, so it carries no
+    training-seed variance — only problem-sampling uncertainty. Each element here is one
+    problem's pass@k estimate; resampling problems puts a CI on the anchor so it is not
+    treated as noiseless. Deterministic given `seed` (no polars / eval-audit needed —
+    this is a plain one-sample mean, unlike the paired delta above).
+    """
+    if len(values) == 0:
+        raise ValueError("empty values")
+    arr = np.asarray(values, dtype=float)
+    rng = np.random.default_rng(seed)
+    means = arr[rng.integers(0, arr.size, size=(n_iter, arr.size))].mean(axis=1)
+    return (
+        float(arr.mean()),
+        float(np.quantile(means, alpha / 2)),
+        float(np.quantile(means, 1 - alpha / 2)),
+    )

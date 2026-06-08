@@ -39,6 +39,7 @@ from grpo_gain_decomp.eval.completions import (
     write_completion_set,
 )
 from grpo_gain_decomp.report.decomposition import DecompositionRow, build_decomposition
+from grpo_gain_decomp.report.passk_seeds import aggregate_passk_seeds
 from grpo_gain_decomp.report.render import render_table, write_summary
 from grpo_gain_decomp.report.seeds import aggregate_placebo_comparison
 from grpo_gain_decomp.schemas import ProblemSet
@@ -129,6 +130,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out", type=Path, default=None, help="SeedPlaceboComparison JSON path (else stdout)"
     )
     rsd.set_defaults(func=_cmd_report_seeds)
+
+    rpk = sub.add_parser(
+        "report-passk-seeds",
+        help="aggregate multi-seed pass@k coverage (base anchor vs per-seed correct)",
+    )
+    rpk.add_argument(
+        "--completions-dir",
+        required=True,
+        type=Path,
+        dest="completions_dir",
+        help="dir with base__<set> + correct-seed<N>__<set> sampled CompletionSets",
+    )
+    rpk.add_argument("--task-set", default="gsm8k-test", dest="task_set")
+    rpk.add_argument("--k", type=int, default=8, help="pass@k coverage level (default 8)")
+    rpk.add_argument(
+        "--out", type=Path, default=None, help="Pass8MultiSeed JSON path (else stdout)"
+    )
+    rpk.set_defaults(func=_cmd_report_passk_seeds)
 
     hld = sub.add_parser("heldout", help="held-out accuracy curve over a run's checkpoints")
     hld.add_argument(
@@ -290,6 +309,55 @@ def _cmd_report_seeds(args: argparse.Namespace) -> int:
             encoding="utf-8",
         )
         print(f"wrote seed-level placebo comparison to {out}")
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
+def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
+    root = Path(args.completions_dir)
+    if not root.is_dir():
+        raise ValueError(f"completions dir {root} does not exist")
+    suffix = f"__{args.task_set}"
+    base = load_completion_set(root / f"base{suffix}")
+    correct_by_seed: list[tuple[int | str, CompletionSet]] = []
+    for sub in sorted(root.iterdir()):
+        if sub.is_dir() and sub.name.startswith("correct-seed") and sub.name.endswith(suffix):
+            label = sub.name[: -len(suffix)].partition("-seed")[2]
+            seed: int | str = int(label) if label.isdigit() else label
+            correct_by_seed.append((seed, load_completion_set(sub)))
+    if not correct_by_seed:
+        raise ValueError(f"no 'correct-seed<N>{suffix}' dirs under {root}")
+    # Numeric seeds first (in order), any non-numeric labels after — never compare int to str.
+    correct_by_seed.sort(key=lambda pair: (isinstance(pair[0], str), pair[0]))
+
+    panel = aggregate_passk_seeds(base, correct_by_seed, task=args.task_set, k=args.k)
+    lines = [
+        f"# Multi-seed pass@{panel.k} coverage - {args.task_set}",
+        "",
+        panel.headline(),
+        "",
+        f"| seed | correct pass@1 | correct pass@{panel.k} |",
+        "| --- | --- | --- |",
+    ]
+    lines += [
+        f"| {s} | {p1 * 100:.1f}% | {pk * 100:.1f}% |"
+        for s, p1, pk in zip(
+            panel.seeds, panel.per_seed_correct_pass1, panel.per_seed_correct_passk, strict=True
+        )
+    ]
+    lines += [
+        "",
+        f"base pass@1 {panel.base_pass1 * 100:.1f}% · base pass@{panel.k} "
+        f"{panel.base_passk * 100:.1f}% "
+        f"[{panel.base_passk_ci_low * 100:.1f}, {panel.base_passk_ci_high * 100:.1f}]",
+    ]
+    if args.out is not None:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(panel.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"wrote multi-seed pass@{panel.k} panel to {out}")
     sys.stdout.write("\n".join(lines) + "\n")
     return 0
 

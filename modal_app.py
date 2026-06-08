@@ -101,6 +101,26 @@ def _selected_checkpoint_path(run_dir: Path, selected_checkpoint: str | None) ->
     return str(run_dir / "checkpoints" / selected_checkpoint)
 
 
+def _final_or_selected_checkpoint(run_dir: Path, selected_checkpoint: str | None, rule: str) -> str:
+    """The checkpoint to evaluate for a finished arm.
+
+    Prefer the recorded selection (a `heldout` run sets it). When it is unset, realize the
+    deterministic ``final`` rule directly — no held-out curve is needed to know its answer,
+    and ``checkpoints/final`` is what every published placebo/elicitation artifact used. Any
+    other rule without a recorded selection is an explicit error (run `heldout` first). This
+    lets the multi-seed panel reuse the replicate checkpoints (rule ``final``, selection unset)
+    without an extra GPU pass.
+    """
+    if selected_checkpoint is None:
+        if rule != "final":
+            raise ValueError(
+                f"{run_dir} has no selected checkpoint and rule is {rule!r}; run "
+                "`modal run modal_app.py --command heldout` for this arm first"
+            )
+        selected_checkpoint = "final"
+    return str(run_dir / "checkpoints" / selected_checkpoint)
+
+
 @app.function(
     image=image,
     gpu="A100-80GB",
@@ -332,6 +352,93 @@ def elicitation(task: str = "gsm8k", commit: str | None = None, dirty: bool | No
     return str(out_root)
 
 
+@app.function(
+    image=image,
+    gpu="A100-80GB",
+    volumes={RUNS_DIR: runs},
+    timeout=6 * 60 * 60,
+)
+def elicitation_multiseed(
+    task: str = "gsm8k",
+    n_base: int = 16,
+    n_correct: int = 8,
+    correct_seeds: str = "0,1,2,3,4,5",
+    commit: str | None = None,
+    dirty: bool | None = None,
+) -> str:
+    """Multi-seed pass@k coverage panel: base anchor once + each correct training seed.
+
+    Generalizes `elicitation` (seed 0, n=8) so the elicitation/expansion verdict no longer
+    rests on a single seed. The base anchor (seed-independent) is sampled once at `n_base`;
+    every correct training seed is sampled at `n_correct`. Decoding is byte-for-byte the
+    published panel's — `temperature=0.7, top_p=1.0, max_new_tokens=1024` — so only `n` and
+    the checkpoint change. Writes `CompletionSet`s to
+    ``<RUNS_DIR>/passk-multiseed[-<task>]/<arm>__<set>`` (``base`` + ``correct-seed<N>``);
+    score with `grpo-decomp report-passk-seeds`.
+    """
+    from pathlib import Path
+
+    from grpo_gain_decomp.eval.cli import SETS
+    from grpo_gain_decomp.eval.completions import (
+        CompletionSet,
+        ProblemCompletions,
+        SamplingConfig,
+        capture_generation_provenance,
+        write_completion_set,
+    )
+    from grpo_gain_decomp.eval.generate import generate
+    from grpo_gain_decomp.train.config import load_arm_config
+    from grpo_gain_decomp.train.provenance import RunProvenance
+
+    base_cfg, task_set, _controls, prefix = _eval_task(task)
+    base = load_arm_config(Path(base_cfg))
+    seeds = [int(s) for s in correct_seeds.split(",") if s.strip() != ""]
+    if not seeds:
+        raise ValueError(f"no correct seeds parsed from {correct_seeds!r}")
+
+    def selected_checkpoint(seed: int) -> str:
+        run_dir = Path(RUNS_DIR) / f"{prefix}correct-seed{seed}"
+        prov = RunProvenance.model_validate_json(
+            (run_dir / "provenance.json").read_text(encoding="utf-8")
+        )
+        return _final_or_selected_checkpoint(
+            run_dir, prov.selected_checkpoint, prov.checkpoint_selection
+        )
+
+    base_out = "passk-multiseed" if task == "gsm8k" else f"passk-multiseed-{task}"
+    out_root = Path(RUNS_DIR) / base_out
+    problems = SETS[task_set]()
+
+    def run_arm(arm: str, model_ref: str, revision: str | None, n: int) -> None:
+        # Same decoding as the published seed-0 panel; only n and the checkpoint vary.
+        config = SamplingConfig(temperature=0.7, top_p=1.0, max_new_tokens=1024, n=n, seed=0)
+        samples = generate(model_ref, problems, config, backend="vllm", model_revision=revision)
+        items = tuple(
+            ProblemCompletions(problem=problem, samples=tuple(samples[problem.id]))
+            for problem in problems
+        )
+        provenance = capture_generation_provenance(
+            model=model_ref,
+            dataset=problems.source,
+            sampling=config,
+            backend="vllm",
+            n_problems=len(problems),
+            model_revision=revision,
+            commit=commit,
+            dirty=dirty,
+        )
+        out = write_completion_set(
+            CompletionSet(provenance=provenance, items=items), out_root / f"{arm}__{task_set}"
+        )
+        print(f"  wrote {arm}__{task_set}: {len(items)} problems x n={n} -> {out}")
+        runs.commit()  # persist per arm so a late failure doesn't discard finished cells
+
+    run_arm("base", base.base_model, base.base_model_revision, n_base)
+    for seed in seeds:
+        run_arm(f"correct-seed{seed}", selected_checkpoint(seed), None, n_correct)
+    return str(out_root)
+
+
 @app.local_entrypoint()
 def main(
     arm: str = "configs/correct.yaml",
@@ -341,6 +448,9 @@ def main(
     seed: int = 0,
     scope: str = "full",
     task: str = "gsm8k",
+    n_base: int = 16,
+    n_correct: int = 8,
+    correct_seeds: str = "0,1,2,3,4,5",
     spawn: bool = False,
 ) -> None:
     """Train an arm, score its held-out curve, or generate eval completions.
@@ -351,6 +461,8 @@ def main(
     battery:     modal run modal_app.py --command battery                       # seed 0, full
     placebo:    modal run modal_app.py --command battery --seed 1 --scope placebo
     elicitation: modal run modal_app.py --command elicitation
+    passk-seeds: modal run --detach modal_app.py --command elicitation-multiseed --spawn
+    escalated:   ...same, plus --n-base 32 --n-correct 16 (or --task countdown)
     countdown:   modal run modal_app.py --command battery --task countdown --scope placebo --seed 1
     durable:     modal run --detach modal_app.py --arm <cfg> --spawn            # long runs
 
@@ -396,9 +508,22 @@ def main(
         )
     elif command == "elicitation":
         fn, kwargs = elicitation, {"task": task, "commit": commit, "dirty": dirty}
+    elif command == "elicitation-multiseed":
+        fn, kwargs = (
+            elicitation_multiseed,
+            {
+                "task": task,
+                "n_base": n_base,
+                "n_correct": n_correct,
+                "correct_seeds": correct_seeds,
+                "commit": commit,
+                "dirty": dirty,
+            },
+        )
     else:
         raise ValueError(
-            f"command must be 'train', 'heldout', 'battery', or 'elicitation', got {command!r}"
+            "command must be 'train', 'heldout', 'battery', 'elicitation', or "
+            f"'elicitation-multiseed', got {command!r}"
         )
 
     if spawn:

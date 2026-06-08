@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from grpo_gain_decomp.stats.bootstrap import bootstrap_mean_ci
 from grpo_gain_decomp.stats.compare import compare
 from grpo_gain_decomp.stats.significance import mcnemar
 
@@ -87,3 +88,16 @@ def test_headline_handles_a_negative_delta() -> None:
     weak = _by_id([False] * 10 + [True] * 10)
     # B (weak) is worse than A (strong) -> "trails".
     assert compare("strong", strong, "weak", weak).headline().startswith("weak trails strong by")
+
+
+def test_bootstrap_mean_ci_is_deterministic_and_brackets_the_mean() -> None:
+    values = [0.1, 0.2, 0.9, 0.4, 0.5]
+    mean, ci_low, ci_high = bootstrap_mean_ci(values)
+    assert (mean, ci_low, ci_high) == bootstrap_mean_ci(values)  # fixed seed -> identical
+    assert mean == pytest.approx(sum(values) / len(values))
+    assert ci_low <= mean <= ci_high
+
+
+def test_bootstrap_mean_ci_rejects_empty() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        bootstrap_mean_ci([])

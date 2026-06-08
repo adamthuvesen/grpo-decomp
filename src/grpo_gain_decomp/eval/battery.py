@@ -136,6 +136,28 @@ def run_battery(
     )
 
 
+def lenient_counts_by_problem(
+    problems: ProblemSet, completions_by_id: Mapping[str, Sequence[str]]
+) -> tuple[list[int], int]:
+    """Per-problem count of lenient-correct completions (problem order), plus the uniform n.
+
+    The building block `run_battery` scores pass@k from, exposed for sampled (n>1)
+    multi-seed pass@k aggregation: ``estimate_pass_at_k(counts, k, n=n)`` for the panel and
+    the per-problem ``pass_at_k(n, c, k)`` the base-anchor bootstrap resamples. Reuses the
+    same lenient extraction + task verifier the battery uses, so counts match it exactly.
+    """
+    n = _uniform_sample_count(problems, completions_by_id)
+    check = verifier_for(problems.source)
+    counts: list[int] = []
+    for problem in problems:
+        correct = sum(
+            check(extract_lenient(completion), problem.gold_answer)
+            for completion in completions_by_id[problem.id]
+        )
+        counts.append(int(correct))
+    return counts, n
+
+
 _EXTRACTORS = {"strict": extract_strict, "lenient": extract_lenient}
 
 
