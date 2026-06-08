@@ -1,0 +1,93 @@
+# grpo-gain-decomposition findings (Qwen2.5-Math-1.5B, GRPO on GSM8K)
+
+Placebo comparison: **6 seeds per arm**; GSM8K-test (n=1319); pass@1 greedy, 1024-token budget,
+lenient extraction. Controls and the elicitation panel are **seed 0** (descriptive).
+Commit-pinned artifacts: `seed-placebo-comparison.json` (6-seed), `elicitation.json`, `summary.json`
+(seed-0 full decomposition), `decomposition.md`.
+
+## Headline (controlled)
+
+A **small (~+4pp), correctness-driven, and statistically significant** GSM8K gain that
+is nonetheless **mostly elicitation** of latent base capability, not new reasoning, not
+contamination, not formatting. Two corrections to the naive read: the flashy single-seed
+number (+6.1pp, McNemar p=3e-9) **overstated the magnitude** (six seeds settle it at
+**+3.9pp [2.3, 5.6]**), and the pass@k panel shows the gain is the model getting more
+**reliable at problems it could already solve**. GSM8K is near-saturated for this base
+(base pass@8 = 94%).
+
+![Placebo comparison over 6 seeds: +3.9 pp [2.3, 5.6]](fig-placebo-comparison.png)
+
+![RL improves pass@1 reliability while pass@8 coverage barely moves](fig-passk-curve.png)
+
+*Figures regenerate from the committed JSON via `uv run --with matplotlib python results/make_figures.py`.*
+
+## 1. Placebo comparison across seeds (the pre-registered confirmatory test)
+
+correct − random, 6 seeds → mean **+3.9 pp**, 95% CI **[2.3, 5.6]** (seed-level t, df=5).
+**Significant**: the interval excludes zero, and all 6 seeds are positive.
+
+| seed | random | correct | Δ (pp) |
+| --- | --- | --- | --- |
+| 0 | 75.3% | 81.4% | +6.1 |
+| 1 | 74.5% | 78.6% | +4.2 |
+| 2 | 76.6% | 78.6% | +2.0 |
+| 3 | 77.0% | 79.5% | +2.4 |
+| 4 | 76.0% | 79.9% | +3.9 |
+| 5 | 75.6% | 80.7% | +5.1 |
+
+- **Seeds were the deciding factor.** The seed-level CI tightened 3 → 5 → 6 seeds:
+  [−1.1, +9.3] (crossed zero) → [+1.7, +5.8] → **[+2.3, +5.6]**. The 3-seed "not
+  significant" was underpowered, not negative; more seeds resolved it.
+- **The placebo genuinely doesn't help.** Random is flat at ~74.5–77.0% across every seed
+  (≈ base 76.4%, and ~0.6pp *below* base on average). Seed 0's `correct` (81.4%) was the
+  lucky high; the seed-aggregated per-seed gain is ~+2–6pp.
+- Seed-averaged: base 76.4%, **random 75.8%**, **correct 79.8%** (+3.4 over base,
+  +3.9 over placebo).
+
+## 2. Elicitation: new capability or surfaced capability? (seed 0, n=8, temp 0.7)
+
+| arm | pass@1 (sampled) | pass@8 | code-reasoning freq |
+| --- | --- | --- | --- |
+| base | 70.7% | **93.6%** | 84.1% |
+| correct | 77.2% | 95.3% | 62.6% |
+
+- **base pass@8 (93.6%) ≫ correct pass@1 (77.2%)**: given 8 tries, the base already solves
+  almost everything the RL model produces greedily. The gain lives **inside the base's
+  pass@k coverage**: RL improved pass@1 reliability (moved ~6.5 pp of the 23 pp
+  pass@1→pass@8 gap into the first sample), it did not expand capability.
+- **correct pass@8 (95.3%) ≈ base pass@8 (93.6%)**: pass@8 coverage barely moved (+1.7 pp).
+- **Style shift:** code-reasoning frequency dropped 84% → 63%: RL moved the model from
+  program-of-thought toward natural-language CoT. A behavioral change, not just accuracy.
+- *Caveat:* this panel is one seed. The gap it rests on is large enough to be robust to
+  seed noise, but a multi-seed pass@k pass would measure it as directly as the placebo comparison.
+
+## 3. Controls (seed 0, descriptive: marginal CIs, not family-wise corrected)
+
+Gain survives adversarial perturbation (gsm-plus +4.9), cleaned labels (platinum +4.8),
+and is larger on renumbered problems (gsm-symbolic +10.5); format contributes +0.8.
+Base drops 76% → 63% from gsm8k-test to renumbered gsm-symbolic, a base-model
+contamination signal (Qwen2.5-Math has known GSM8K exposure), independent of the RL gain.
+See `decomposition.md` / `summary.json`.
+
+## Bottom line
+
+On GSM8K, GRPO with a verifiable correctness reward delivers a **real, significant, but
+modest (~+4pp)** gain over a random-reward placebo, and the gain is **mostly the model
+becoming more reliable at problems it could already solve**, not new reasoning. The
+controls did their job: a confident single-seed "+6pp, p=3e-9" settled, under seed
+aggregation and pass@k, into a small-but-real effect with the right caveats.
+
+## What would push the model *forward* (next)
+
+GSM8K's ceiling (base pass@8 = 94%) is the limiting factor: the saturation is a property
+of the **base × dataset** pair, not the dataset alone (general Qwen2.5-1.5B scores 68.5
+GSM8K / 35.0 MATH vs the math model's 76.8 / 49.8). To measure genuine *expansion* cheaply:
+
+- **MATH with the general `Qwen2.5-1.5B` base**: 35% base pass@1 leaves real headroom plus
+  enough reward signal; reuses the `math-verify` reward (needs a MATH loader). The
+  highest-signal cheap test.
+- **Countdown (TinyZero-style)**: a search task the base genuinely lacks, where RL teaches
+  new ability (pass@k expands); single-GPU, ~$30. Doubles as a positive control proving the
+  decomposition can detect expansion when it exists.
+- **Cross-family arm (Llama)** to upgrade the placebo from a within-Qwen lower bound to a
+  cross-family artifact verdict.
