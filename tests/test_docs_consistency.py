@@ -59,6 +59,7 @@ _MECH = _load("results/mechanism.json")  # GSM8K per-problem migration + length 
 _MECH_CD = _load("results/countdown/mechanism.json")
 _SYM = _load("results/decontam/pass8-symbolic.json")  # renumbered (GSM-Symbolic)
 _PLAT = _load("results/decontam/pass8-platinum.json")  # cleaned labels (GSM8K-Platinum)
+_DECOMP = _load("results/decomposition-multiseed.json")  # 6-seed Holm-corrected controls
 
 
 def _ctrl(needle: str) -> dict:
@@ -67,6 +68,14 @@ def _ctrl(needle: str) -> dict:
         if needle in row["control"]:
             return row["comparison"]
     raise KeyError(needle)
+
+
+def _crow(control: str) -> dict:
+    """The 6-seed control row for exactly `control` (decomposition-multiseed.json)."""
+    for row in _DECOMP["rows"]:
+        if row["control"] == control:
+            return row
+    raise KeyError(control)
 
 
 _FIND_G = "results/FINDINGS.md"
@@ -306,13 +315,46 @@ _CLAIMS: list[tuple[str, str, str]] = [
         _README,
         f"base {_pct(_CP8['base_passk'])}% {_ARROW} correct {_pct(_CP8['mean_correct_passk'])}%",
     ),
-    # -- GSM8K seed-0 controls (summary.json); plan #3 replaces these with multi-seed --
-    ("control.gsm-plus", _FIND_G, f"gsm-plus {_pct(_ctrl('gsm-plus')['delta'], sign=True)}"),
-    ("control.platinum", _FIND_G, f"platinum {_pct(_ctrl('platinum')['delta'], sign=True)}"),
+    # -- GSM8K controls: 6-seed Holm-corrected table (decomposition-multiseed.json) --
     (
-        "control.gsm-symbolic",
+        "ctrl6.symbolic",
         _FIND_G,
-        f"gsm-symbolic {_pct(_ctrl('gsm-symbolic')['delta'], sign=True)}",
+        f"{_pct(_crow('gsm-symbolic')['mean_delta'], sign=True)} | "
+        f"[{_pct(_crow('gsm-symbolic')['ci_low'])}, {_pct(_crow('gsm-symbolic')['ci_high'])}] | "
+        f"{_crow('gsm-symbolic')['p_value_holm']:.3g}",
+    ),
+    (
+        "ctrl6.plus",
+        _FIND_G,
+        f"{_pct(_crow('gsm-plus')['mean_delta'], sign=True)} | "
+        f"[{_pct(_crow('gsm-plus')['ci_low'])}, {_pct(_crow('gsm-plus')['ci_high'])}] | "
+        f"{_crow('gsm-plus')['p_value_holm']:.3g}",
+    ),
+    (
+        "ctrl6.platinum",
+        _FIND_G,
+        f"{_pct(_crow('gsm8k-platinum')['mean_delta'], sign=True)} | "
+        f"[{_pct(_crow('gsm8k-platinum')['ci_low'])}, "
+        f"{_pct(_crow('gsm8k-platinum')['ci_high'])}] | "
+        f"{_crow('gsm8k-platinum')['p_value_holm']:.3g}",
+    ),
+    (
+        "ctrl6.symbolic-regression",
+        _FIND_G,
+        f"{_pct(_crow('gsm-symbolic')['per_seed_delta'][0], sign=True)} {_ARROW} "
+        f"{_pct(_crow('gsm-symbolic')['mean_delta'], sign=True)}",
+    ),
+    (
+        "ctrl6.plus-regression",
+        _FIND_G,
+        f"{_pct(_crow('gsm-plus')['per_seed_delta'][0], sign=True)} {_ARROW} "
+        f"{_pct(_crow('gsm-plus')['mean_delta'], sign=True)}",
+    ),
+    (
+        "ctrl6.platinum-regression",
+        _FIND_G,
+        f"{_pct(_crow('gsm8k-platinum')['per_seed_delta'][0], sign=True)} {_ARROW} "
+        f"{_pct(_crow('gsm8k-platinum')['mean_delta'], sign=True)}",
     ),
     ("control.format", _FIND_G, f"format contributes {_pct(_ctrl('format')['delta'], sign=True)}"),
     (

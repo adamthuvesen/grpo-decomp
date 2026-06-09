@@ -2,10 +2,10 @@
 
 Placebo comparison: **6 seeds per arm**; GSM8K-test (n=1319); pass@1 greedy, 1024-token budget,
 lenient extraction. The pass@k coverage panel is now **6 seeds** too (base n=16 / correct n=8,
-temp 0.7); only the §3 controls remain seed 0 (descriptive). Commit-pinned artifacts:
+temp 0.7); the §3 controls are now **6 seeds** too (Holm-corrected). Commit-pinned artifacts:
 `seed-placebo-comparison.json` (6-seed), `pass8-multiseed.json` (6-seed pass@k),
-`elicitation.json` (historical seed-0 panel), `summary.json` (seed-0 full decomposition),
-`decomposition.md`.
+`decomposition-multiseed.json` (6-seed Holm-corrected controls), `summary.json` (seed-0 full
+decomposition), `decomposition.md`.
 
 ## Headline (controlled)
 
@@ -111,13 +111,29 @@ is the per-problem face of the flat pass@8 panel — elicitation, by constructio
 
 ![Where first-try-reliable solves come from: GSM8K is all migration within the base's pass@8 envelope, Countdown adds genuinely new capability](fig-mechanism.png)
 
-## 3. Controls (seed 0, descriptive: marginal CIs, not family-wise corrected)
+## 3. Controls across 6 seeds (confirmatory: seed-level CIs, Holm-corrected)
 
-Gain survives adversarial perturbation (gsm-plus +4.9), cleaned labels (platinum +4.8),
-and is larger on renumbered problems (gsm-symbolic +10.5); format contributes +0.8.
-Base drops 76% → 63% from gsm8k-test to renumbered gsm-symbolic, a base-model
-contamination signal (Qwen2.5-Math has known GSM8K exposure), independent of the RL gain.
-See `decomposition.md` / `summary.json`.
+The gain survives every control under family-wise correction. correct - base per training seed
+(base is seed-independent), a seed-level t CI (df=5), and Holm-Bonferroni across the three rows
+(`decomposition-multiseed.json`):
+
+| control | probes | Δ (pp), 6 seeds | 95% CI | p (Holm) |
+| --- | --- | --- | --- | --- |
+| gsm-symbolic | memorization (renumbered) | +4.1 | [0.8, 7.5] | 0.0253 |
+| gsm-plus | robustness (perturbation) | +3.5 | [2.7, 4.4] | 0.00028 |
+| gsm8k-platinum | label noise (cleaned) | +3.2 | [1.9, 4.5] | 0.0027 |
+
+- **All three clear zero after Holm** (3/3 significant, FWER-controlled): the gain is not
+  contamination, not adversarial fragility, not label noise — a real correctness-driven effect on
+  every perturbed distribution.
+- **The seed-0 numbers were highs.** gsm-symbolic settled **+10.5 → +4.1** (seed 0 was +10.5,
+  seeds 1-5 are +1.8 to +4.4); gsm-plus +4.9 → +3.5; platinum +4.8 → +3.2 — a third confident
+  single-seed number regressing under aggregation, after the placebo (+6.1 → +3.9) and the pass@8
+  panel (+1.7 → +0.7).
+- **Contamination is a base pass@1 effect, not an RL one.** Base drops 76% → 63% from gsm8k-test
+  to renumbered gsm-symbolic (Qwen2.5-Math has known GSM8K exposure); §2's decontamination shows
+  the pass@8 envelope is robust regardless. format contributes +0.8 (lenient vs strict, seed 0).
+  See `summary.json` / `decomposition.md` for the seed-0 full decomposition.
 
 ## Bottom line
 
