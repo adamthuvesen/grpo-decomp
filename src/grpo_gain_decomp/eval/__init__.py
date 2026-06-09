@@ -14,7 +14,7 @@ from grpo_gain_decomp.eval.completions import (
     write_completion_set,
 )
 from grpo_gain_decomp.eval.cot import chain_is_valid, has_verifiable_chain, verify_steps
-from grpo_gain_decomp.eval.generate import generate, resolve_backend
+from grpo_gain_decomp.eval.generate import generate, generate_completion_set, resolve_backend
 from grpo_gain_decomp.eval.passk import estimate_pass_at_k, pass_at_k
 
 __all__ = [
@@ -31,6 +31,7 @@ __all__ = [
     "extract_lenient",
     "extract_strict",
     "generate",
+    "generate_completion_set",
     "grade",
     "has_verifiable_chain",
     "is_code_reasoning",

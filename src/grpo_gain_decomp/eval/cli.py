@@ -32,9 +32,7 @@ from grpo_gain_decomp.data import (
 from grpo_gain_decomp.eval.battery import BatteryResult, grade, run_battery
 from grpo_gain_decomp.eval.completions import (
     CompletionSet,
-    ProblemCompletions,
     SamplingConfig,
-    capture_generation_provenance,
     load_completion_set,
     write_completion_set,
 )
@@ -44,7 +42,7 @@ from grpo_gain_decomp.report.mechanism import build_mechanism
 from grpo_gain_decomp.report.passk_seeds import aggregate_passk_seeds
 from grpo_gain_decomp.report.render import render_table, write_summary
 from grpo_gain_decomp.report.seeds import aggregate_placebo_comparison
-from grpo_gain_decomp.schemas import ProblemSet
+from grpo_gain_decomp.schemas import ProblemSet, Record
 from grpo_gain_decomp.stats.compare import Comparison, compare
 from grpo_gain_decomp.train.provenance import RunProvenance
 
@@ -212,7 +210,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _cmd_generate(args: argparse.Namespace) -> int:
     # Lazy import: only `generate` needs a backend, so `battery`/`report` stay CPU-only.
-    from grpo_gain_decomp.eval.generate import generate, resolve_backend
+    from grpo_gain_decomp.eval.generate import generate_completion_set
 
     config = SamplingConfig(
         temperature=args.temperature,
@@ -227,23 +225,11 @@ def _cmd_generate(args: argparse.Namespace) -> int:
     if args.limit is not None:
         problems = dev_slice(problems, n=args.limit, seed=config.seed)
 
-    samples = generate(
+    completion_set = generate_completion_set(
         args.model, problems, config, backend=args.backend, model_revision=args.revision
     )
-    items = tuple(
-        ProblemCompletions(problem=problem, samples=tuple(samples[problem.id]))
-        for problem in problems
-    )
-    provenance = capture_generation_provenance(
-        model=args.model,
-        dataset=problems.source,
-        sampling=config,
-        backend=resolve_backend(args.backend),
-        n_problems=len(problems),
-        model_revision=args.revision,
-    )
-    out = write_completion_set(CompletionSet(provenance=provenance, items=items), args.out)
-    print(f"wrote {len(items)} problems x {config.n} samples to {out}")
+    out = write_completion_set(completion_set, args.out)
+    print(f"wrote {len(completion_set.items)} problems x {config.n} samples to {out}")
     return 0
 
 
@@ -345,34 +331,13 @@ def _cmd_report_seeds(args: argparse.Namespace) -> int:
             strict=True,
         )
     ]
-    if args.out is not None:
-        out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(
-            json.dumps(placebo_comparison.model_dump(), sort_keys=True, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        print(f"wrote seed-level placebo comparison to {out}")
+    _write_json(placebo_comparison, args.out, "seed-level placebo comparison")
     sys.stdout.write("\n".join(lines) + "\n")
     return 0
 
 
 def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
-    root = Path(args.completions_dir)
-    if not root.is_dir():
-        raise ValueError(f"completions dir {root} does not exist")
-    suffix = f"__{args.task_set}"
-    base = load_completion_set(root / f"base{suffix}")
-    correct_by_seed: list[tuple[int | str, CompletionSet]] = []
-    for sub in sorted(root.iterdir()):
-        if sub.is_dir() and sub.name.startswith("correct-seed") and sub.name.endswith(suffix):
-            label = sub.name[: -len(suffix)].partition("-seed")[2]
-            seed: int | str = int(label) if label.isdigit() else label
-            correct_by_seed.append((seed, load_completion_set(sub)))
-    if not correct_by_seed:
-        raise ValueError(f"no 'correct-seed<N>{suffix}' dirs under {root}")
-    # Numeric seeds first (in order), any non-numeric labels after — never compare int to str.
-    correct_by_seed.sort(key=lambda pair: (isinstance(pair[0], str), pair[0]))
+    base, correct_by_seed = _base_and_correct_seeds(args.completions_dir, args.task_set)
 
     panel = aggregate_passk_seeds(base, correct_by_seed, task=args.task_set, k=args.k)
     lines = [
@@ -398,30 +363,14 @@ def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
         f"base CoT-gated pass@{panel.k} {panel.base_cot_passk * 100:.1f}% "
         f"[{panel.base_cot_passk_ci_low * 100:.1f}, {panel.base_cot_passk_ci_high * 100:.1f}]",
     ]
-    if args.out is not None:
-        out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(
-            json.dumps(panel.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
-        )
-        print(f"wrote multi-seed pass@{panel.k} panel to {out}")
+    _write_json(panel, args.out, f"multi-seed pass@{panel.k} panel")
     sys.stdout.write("\n".join(lines) + "\n")
     return 0
 
 
 def _cmd_report_mechanism(args: argparse.Namespace) -> int:
-    root = Path(args.completions_dir)
-    if not root.is_dir():
-        raise ValueError(f"completions dir {root} does not exist")
-    suffix = f"__{args.task_set}"
-    base = load_completion_set(root / f"base{suffix}")
-    correct = [
-        load_completion_set(sub)
-        for sub in sorted(root.iterdir())
-        if sub.is_dir() and sub.name.startswith("correct-seed") and sub.name.endswith(suffix)
-    ]
-    if not correct:
-        raise ValueError(f"no 'correct-seed<N>{suffix}' dirs under {root}")
+    base, correct_by_seed = _base_and_correct_seeds(args.completions_dir, args.task_set)
+    correct = [completion_set for _seed, completion_set in correct_by_seed]
 
     report = build_mechanism(base, correct, task=args.task_set, k=args.k, tau=args.tau)
     lines = [
@@ -434,13 +383,7 @@ def _cmd_report_mechanism(args: argparse.Namespace) -> int:
         f"new {report.frac_new_capability * 100:.1f}% · "
         f"still hard {report.frac_still_hard * 100:.1f}%",
     ]
-    if args.out is not None:
-        out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(
-            json.dumps(report.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
-        )
-        print(f"wrote mechanism report to {out}")
+    _write_json(report, args.out, "mechanism report")
     sys.stdout.write("\n".join(lines) + "\n")
     return 0
 
@@ -473,15 +416,46 @@ def _cmd_report_control_seeds(args: argparse.Namespace) -> int:
         f"{r.p_value_holm:.3g}{' *' if r.significant else ''} |"
         for r in decomp.rows
     ]
-    if args.out is not None:
-        out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(
-            json.dumps(decomp.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
-        )
-        print(f"wrote multi-seed control decomposition to {out}")
+    _write_json(decomp, args.out, "multi-seed control decomposition")
     sys.stdout.write("\n".join(lines) + "\n")
     return 0
+
+
+def _write_json(record: Record, out: Path | None, label: str) -> None:
+    """Write a result record as deterministic JSON when ``--out`` was given."""
+    if out is None:
+        return
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        json.dumps(record.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"wrote {label} to {out}")
+
+
+def _base_and_correct_seeds(
+    root: Path, task_set: str
+) -> tuple[CompletionSet, list[tuple[int | str, CompletionSet]]]:
+    """Load ``base__<set>`` plus every ``correct-seed<N>__<set>`` under `root`.
+
+    The seed-replicate layout both `report-passk-seeds` and `report-mechanism` consume.
+    Numeric seeds sort first (in order), any non-numeric labels after — never int vs str.
+    """
+    root = Path(root)
+    if not root.is_dir():
+        raise ValueError(f"completions dir {root} does not exist")
+    suffix = f"__{task_set}"
+    base = load_completion_set(root / f"base{suffix}")
+    correct_by_seed: list[tuple[int | str, CompletionSet]] = []
+    for sub in sorted(root.iterdir()):
+        if sub.is_dir() and sub.name.startswith("correct-seed") and sub.name.endswith(suffix):
+            label = sub.name[: -len(suffix)].partition("-seed")[2]
+            seed: int | str = int(label) if label.isdigit() else label
+            correct_by_seed.append((seed, load_completion_set(sub)))
+    if not correct_by_seed:
+        raise ValueError(f"no 'correct-seed<N>{suffix}' dirs under {root}")
+    correct_by_seed.sort(key=lambda pair: (isinstance(pair[0], str), pair[0]))
+    return base, correct_by_seed
 
 
 def _seed_label(battery_dir: Path) -> int | str:

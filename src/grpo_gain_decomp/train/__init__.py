@@ -6,13 +6,7 @@ and the provenance record — so they can be pinned and reviewed before any spen
 """
 
 from grpo_gain_decomp.train.config import ArmConfig, GRPOSettings, load_arm_config
-from grpo_gain_decomp.train.launcher import (
-    build_prompt,
-    launch,
-    prepare_run,
-    smoke_overrides,
-    to_dataset,
-)
+from grpo_gain_decomp.train.launcher import launch, prepare_run, smoke_overrides, to_dataset
 from grpo_gain_decomp.train.provenance import PROVENANCE_PACKAGES, RunProvenance, capture_provenance
 
 __all__ = [
@@ -20,7 +14,6 @@ __all__ = [
     "ArmConfig",
     "GRPOSettings",
     "RunProvenance",
-    "build_prompt",
     "capture_provenance",
     "launch",
     "load_arm_config",

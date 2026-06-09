@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from datasets import Dataset
 
@@ -179,7 +180,7 @@ def _shutdown_distributed() -> None:
         dist.destroy_process_group()
 
 
-def _prepare_tokenizer(tokenizer: object) -> None:
+def _prepare_tokenizer(tokenizer: Any) -> None:
     """Default the pad token to EOS and left-pad for batched generation.
 
     v1 trains the base model on a raw (non-chat) prompt, so its **native** EOS
@@ -190,6 +191,6 @@ def _prepare_tokenizer(tokenizer: object) -> None:
     silently masks the gradient. A v2 chat-template arm that wants ``<|im_end|>``
     must also pass ``stop_token_ids`` to vLLM via ``generation_kwargs``.
     """
-    if tokenizer.pad_token is None:  # type: ignore[attr-defined]
-        tokenizer.pad_token = tokenizer.eos_token  # type: ignore[attr-defined]
-    tokenizer.padding_side = "left"  # type: ignore[attr-defined]
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
