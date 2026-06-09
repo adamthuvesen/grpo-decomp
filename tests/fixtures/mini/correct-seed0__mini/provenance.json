@@ -1,0 +1,23 @@
+{
+  "backend": "vllm",
+  "commit": "frozen",
+  "dataset": {
+    "config": "main",
+    "name": "openai/gsm8k",
+    "revision": "frozen-fixture",
+    "split": "test"
+  },
+  "dirty": false,
+  "model": "correct-seed0__mini",
+  "model_revision": null,
+  "n_problems": 12,
+  "package_versions": {},
+  "python_version": "3.11",
+  "sampling": {
+    "max_new_tokens": 64,
+    "n": 4,
+    "seed": 0,
+    "temperature": 0.7,
+    "top_p": 1.0
+  }
+}

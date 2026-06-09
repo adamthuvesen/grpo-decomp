@@ -1,0 +1,12 @@
+{"problem": {"gold_answer": "0", "id": "q00", "question": "q"}, "samples": ["<<-1+1=0>> so \\boxed{0}", "\\boxed{0}", "\\boxed{0}", "\\boxed{999}"]}
+{"problem": {"gold_answer": "1", "id": "q01", "question": "q"}, "samples": ["<<0+1=1>> so \\boxed{1}", "\\boxed{1}", "\\boxed{1}", "\\boxed{1000}"]}
+{"problem": {"gold_answer": "2", "id": "q02", "question": "q"}, "samples": ["<<1+1=2>> so \\boxed{2}", "\\boxed{2}", "\\boxed{2}", "\\boxed{1001}"]}
+{"problem": {"gold_answer": "3", "id": "q03", "question": "q"}, "samples": ["<<2+1=3>> so \\boxed{3}", "\\boxed{3}", "\\boxed{3}", "\\boxed{1002}"]}
+{"problem": {"gold_answer": "4", "id": "q04", "question": "q"}, "samples": ["<<3+1=4>> so \\boxed{4}", "\\boxed{4}", "\\boxed{4}", "\\boxed{1003}"]}
+{"problem": {"gold_answer": "5", "id": "q05", "question": "q"}, "samples": ["<<4+1=5>> so \\boxed{5}", "\\boxed{5}", "\\boxed{5}", "\\boxed{1004}"]}
+{"problem": {"gold_answer": "6", "id": "q06", "question": "q"}, "samples": ["<<5+1=6>> so \\boxed{6}", "\\boxed{6}", "\\boxed{6}", "\\boxed{1005}"]}
+{"problem": {"gold_answer": "7", "id": "q07", "question": "q"}, "samples": ["<<6+1=7>> so \\boxed{7}", "\\boxed{7}", "\\boxed{7}", "\\boxed{1006}"]}
+{"problem": {"gold_answer": "8", "id": "q08", "question": "q"}, "samples": ["\\boxed{8}", "\\boxed{8}", "\\boxed{1007}", "\\boxed{1007}"]}
+{"problem": {"gold_answer": "9", "id": "q09", "question": "q"}, "samples": ["\\boxed{9}", "\\boxed{9}", "\\boxed{1008}", "\\boxed{1008}"]}
+{"problem": {"gold_answer": "10", "id": "q10", "question": "q"}, "samples": ["\\boxed{1009}", "\\boxed{1009}", "\\boxed{1009}", "\\boxed{1009}"]}
+{"problem": {"gold_answer": "11", "id": "q11", "question": "q"}, "samples": ["\\boxed{1010}", "\\boxed{1010}", "\\boxed{1010}", "\\boxed{1010}"]}
