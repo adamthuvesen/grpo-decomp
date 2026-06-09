@@ -211,14 +211,8 @@ def eval_matrix(
     from pathlib import Path
 
     from grpo_gain_decomp.eval.cli import SETS
-    from grpo_gain_decomp.eval.completions import (
-        CompletionSet,
-        ProblemCompletions,
-        SamplingConfig,
-        capture_generation_provenance,
-        write_completion_set,
-    )
-    from grpo_gain_decomp.eval.generate import generate
+    from grpo_gain_decomp.eval.completions import SamplingConfig, write_completion_set
+    from grpo_gain_decomp.eval.generate import generate_completion_set
     from grpo_gain_decomp.train.config import load_arm_config
     from grpo_gain_decomp.train.provenance import RunProvenance
 
@@ -270,25 +264,17 @@ def eval_matrix(
     for arm, model_ref, revision, sets in matrix:
         for set_name in sets:
             problems = SETS[set_name]()
-            samples = generate(model_ref, problems, config, backend="vllm", model_revision=revision)
-            items = tuple(
-                ProblemCompletions(problem=problem, samples=tuple(samples[problem.id]))
-                for problem in problems
-            )
-            provenance = capture_generation_provenance(
-                model=model_ref,
-                dataset=problems.source,
-                sampling=config,
+            completion_set = generate_completion_set(
+                model_ref,
+                problems,
+                config,
                 backend="vllm",
-                n_problems=len(problems),
                 model_revision=revision,
                 commit=commit,
                 dirty=dirty,
             )
-            out = write_completion_set(
-                CompletionSet(provenance=provenance, items=items), out_root / f"{arm}__{set_name}"
-            )
-            print(f"  wrote {arm}__{set_name}: {len(items)} problems -> {out}")
+            out = write_completion_set(completion_set, out_root / f"{arm}__{set_name}")
+            print(f"  wrote {arm}__{set_name}: {len(completion_set.items)} problems -> {out}")
         runs.commit()  # persist per arm so a late failure doesn't discard finished cells
     return str(out_root)
 
@@ -310,14 +296,8 @@ def elicitation(task: str = "gsm8k", commit: str | None = None, dirty: bool | No
     from pathlib import Path
 
     from grpo_gain_decomp.eval.cli import SETS
-    from grpo_gain_decomp.eval.completions import (
-        CompletionSet,
-        ProblemCompletions,
-        SamplingConfig,
-        capture_generation_provenance,
-        write_completion_set,
-    )
-    from grpo_gain_decomp.eval.generate import generate
+    from grpo_gain_decomp.eval.completions import SamplingConfig, write_completion_set
+    from grpo_gain_decomp.eval.generate import generate_completion_set
     from grpo_gain_decomp.train.config import load_arm_config
     from grpo_gain_decomp.train.provenance import RunProvenance
 
@@ -340,25 +320,20 @@ def elicitation(task: str = "gsm8k", commit: str | None = None, dirty: bool | No
     problems = SETS[task_set]()
 
     for arm, model_ref, revision in matrix:
-        samples = generate(model_ref, problems, config, backend="vllm", model_revision=revision)
-        items = tuple(
-            ProblemCompletions(problem=problem, samples=tuple(samples[problem.id]))
-            for problem in problems
-        )
-        provenance = capture_generation_provenance(
-            model=model_ref,
-            dataset=problems.source,
-            sampling=config,
+        completion_set = generate_completion_set(
+            model_ref,
+            problems,
+            config,
             backend="vllm",
-            n_problems=len(problems),
             model_revision=revision,
             commit=commit,
             dirty=dirty,
         )
-        out = write_completion_set(
-            CompletionSet(provenance=provenance, items=items), out_root / f"{arm}__{task_set}"
+        out = write_completion_set(completion_set, out_root / f"{arm}__{task_set}")
+        print(
+            f"  wrote {arm}__{task_set}: {len(completion_set.items)} problems "
+            f"x n={config.n} -> {out}"
         )
-        print(f"  wrote {arm}__{task_set}: {len(items)} problems x n={config.n} -> {out}")
         runs.commit()
     return str(out_root)
 
@@ -399,14 +374,8 @@ def elicitation_multiseed(
 
     from grpo_gain_decomp.data import dev_slice
     from grpo_gain_decomp.eval.cli import SETS
-    from grpo_gain_decomp.eval.completions import (
-        CompletionSet,
-        ProblemCompletions,
-        SamplingConfig,
-        capture_generation_provenance,
-        write_completion_set,
-    )
-    from grpo_gain_decomp.eval.generate import generate
+    from grpo_gain_decomp.eval.completions import SamplingConfig, write_completion_set
+    from grpo_gain_decomp.eval.generate import generate_completion_set
     from grpo_gain_decomp.train.config import load_arm_config
     from grpo_gain_decomp.train.provenance import RunProvenance
 
@@ -439,25 +408,17 @@ def elicitation_multiseed(
     def run_arm(arm: str, model_ref: str, revision: str | None, n: int) -> None:
         # Same decoding as the published seed-0 panel; only n and the checkpoint vary.
         config = SamplingConfig(temperature=0.7, top_p=1.0, max_new_tokens=1024, n=n, seed=0)
-        samples = generate(model_ref, problems, config, backend="vllm", model_revision=revision)
-        items = tuple(
-            ProblemCompletions(problem=problem, samples=tuple(samples[problem.id]))
-            for problem in problems
-        )
-        provenance = capture_generation_provenance(
-            model=model_ref,
-            dataset=problems.source,
-            sampling=config,
+        completion_set = generate_completion_set(
+            model_ref,
+            problems,
+            config,
             backend="vllm",
-            n_problems=len(problems),
             model_revision=revision,
             commit=commit,
             dirty=dirty,
         )
-        out = write_completion_set(
-            CompletionSet(provenance=provenance, items=items), out_root / f"{arm}__{eval_set}"
-        )
-        print(f"  wrote {arm}__{eval_set}: {len(items)} problems x n={n} -> {out}")
+        out = write_completion_set(completion_set, out_root / f"{arm}__{eval_set}")
+        print(f"  wrote {arm}__{eval_set}: {len(completion_set.items)} problems x n={n} -> {out}")
         runs.commit()  # persist per arm so a late failure doesn't discard finished cells
 
     run_arm("base", base.base_model, base.base_model_revision, n_base)

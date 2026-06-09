@@ -25,6 +25,7 @@ from grpo_gain_decomp.eval.cot import has_verifiable_chain
 from grpo_gain_decomp.eval.passk import estimate_pass_at_k, pass_at_k
 from grpo_gain_decomp.report.decomposition import MIN_SEEDS
 from grpo_gain_decomp.schemas import Record
+from grpo_gain_decomp.stats.bootstrap import bootstrap_mean_ci
 
 
 class Pass8MultiSeed(Record):
@@ -153,8 +154,10 @@ class _ArmMetrics(NamedTuple):
 
 def _arm_metrics(cs: CompletionSet, k: int) -> _ArmMetrics:
     """All pass@k metrics for one sampled arm — vanilla and CoT-gated share the problem set."""
-    counts, n = lenient_counts_by_problem(cs.problem_set(), cs.completions_by_id())
-    cot_counts, _ = cot_counts_by_problem(cs.problem_set(), cs.completions_by_id())
+    problems = cs.problem_set()
+    completions_by_id = cs.completions_by_id()
+    counts, n = lenient_counts_by_problem(problems, completions_by_id)
+    cot_counts, _ = cot_counts_by_problem(problems, completions_by_id)
     if not 1 <= k <= n:
         raise ValueError(f"pass@{k} needs 1<=k<=n; arm has n={n}")
     samples = [sample for item in cs.items for sample in item.samples]
@@ -190,10 +193,6 @@ def aggregate_passk_seeds(
     seed-level interval shifted by the fixed anchor (whose own bootstrap CI is reported
     separately). All correct arms must share one `n`; the base anchor may differ.
     """
-    # Lazy import: the one-sample anchor bootstrap needs numpy only, but keeping the import
-    # local mirrors stats.bootstrap's separation of the (eval-extra) paired path.
-    from grpo_gain_decomp.stats.bootstrap import bootstrap_mean_ci
-
     if not correct_by_seed:
         raise ValueError("no per-seed correct arms to aggregate")
 

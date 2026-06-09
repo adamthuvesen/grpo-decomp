@@ -13,7 +13,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from grpo_gain_decomp.eval.completions import SamplingConfig
+from grpo_gain_decomp.eval.completions import (
+    CompletionSet,
+    ProblemCompletions,
+    SamplingConfig,
+    capture_generation_provenance,
+)
 from grpo_gain_decomp.prompts import build_prompt
 from grpo_gain_decomp.schemas import ProblemSet
 
@@ -71,6 +76,41 @@ def generate(
             )
         result[problem.id] = list(samples)
     return result
+
+
+def generate_completion_set(
+    model: str,
+    problems: ProblemSet,
+    config: SamplingConfig,
+    *,
+    backend: str = "auto",
+    model_revision: str | None = None,
+    commit: str | None = None,
+    dirty: bool | None = None,
+) -> CompletionSet:
+    """Sample completions and package them as a provenance-carrying `CompletionSet`.
+
+    The one assembly path for the phase-2 artifact (items in problem order, the
+    resolved backend recorded), shared by the CLI and every Modal eval function.
+    `commit`/`dirty` override git-derived provenance (Modal images strip `.git`).
+    """
+    resolved = resolve_backend(backend)
+    samples = generate(model, problems, config, backend=resolved, model_revision=model_revision)
+    items = tuple(
+        ProblemCompletions(problem=problem, samples=tuple(samples[problem.id]))
+        for problem in problems
+    )
+    provenance = capture_generation_provenance(
+        model=model,
+        dataset=problems.source,
+        sampling=config,
+        backend=resolved,
+        n_problems=len(problems),
+        model_revision=model_revision,
+        commit=commit,
+        dirty=dirty,
+    )
+    return CompletionSet(provenance=provenance, items=items)
 
 
 def _cuda_available() -> bool:
