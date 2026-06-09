@@ -76,6 +76,40 @@ modal volume get assay-runs correct-seed0 ./runs/correct-seed0    # pull for loc
 Then Phase 2: `grpo-decomp generate --backend vllm` on base + both checkpoints across the eval
 sets, and `grpo-decomp report` for the decomposition table (see the README).
 
+## Reproduce the decomposition (CPU only, no training)
+
+Every committed number in `results/` is derived from `CompletionSet`s on the `assay-runs` Volume
+by the `grpo-decomp report-*` aggregators — deterministic (fixed bootstrap seed), so a clean
+checkout reproduces them exactly. Two levels, cheapest first:
+
+**Verify figures + docs (no Volume, no Modal account).** `make results` regenerates the committed
+PNGs from the JSON and runs the docs↔JSON consistency test, so a reviewer can confirm every
+headline number traces to its artifact:
+
+```bash
+make install        # CPU env
+make results         # figures from results/*.json + the docs<->JSON consistency check
+```
+
+**Re-derive the JSON from the completions (needs the Volume).** Pull the completion dirs, then
+`make aggregate`:
+
+```bash
+uv tool install modal && modal setup
+modal volume get assay-runs passk-multiseed           runs/passk-multiseed
+modal volume get assay-runs passk-multiseed-countdown runs/passk-multiseed-countdown
+modal volume get assay-runs battery                    runs/battery
+for s in 1 2 3 4 5; do modal volume get assay-runs battery-seed$s runs/battery-seed$s; done
+make aggregate       # report-passk-seeds / report-mechanism / report-control-seeds -> results/*.json
+make results         # then regenerate figures + verify
+```
+
+`passk-multiseed` carries the gsm8k-test, gsm-symbolic, and gsm8k-platinum pass@8 panels (the
+`__<set>` suffix keeps them disjoint); `battery` holds the seed-independent base, and
+`battery-seed{1..5}` the per-seed correct arms the multi-seed §3 controls aggregate. A
+byte-identical re-gen is the healthy result; a diff means a completion set or the code moved.
+The 24 KB `tests/fixtures/mini` exercises the same aggregators end-to-end without any download.
+
 ## Tuning notes
 
 - `configs/*.yaml`: `max_steps=500` and `save_steps=100` are placeholders; anchor on the day-1 run.
