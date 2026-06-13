@@ -68,7 +68,7 @@ format-reward arms remain follow-ups.
 
 ## Architecture
 
-How the pieces fit is in [agents/docs/ARCHITECTURE.md](agents/docs/ARCHITECTURE.md): modules
+How the pieces fit is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): modules
 and their one-way dependencies, the data flow, the GRPO training loop, the reward functions,
 the decomposition and statistics, and the Modal execution model, all with diagrams.
 
@@ -100,6 +100,19 @@ grpo-decomp battery  --completions runs/base__dev --k 1
 grpo-decomp generate --model <correct-ckpt> --set gsm8k-test --backend vllm --n 256 --temperature 0.8 --out runs/correct__gsm8k-test
 grpo-decomp report   --completions-dir runs/ --out results/   # <arm>__<set> dirs -> table + summary.json
 ```
+
+## Reproduce
+
+Trained checkpoints are not in this repo — they live on the Modal `assay-runs` volume, so
+re-running generation means training the arms (RUNBOOK) or pulling the completions back. The
+committed `results/` JSON makes that unnecessary for verifying the numbers:
+
+```bash
+make results   # regenerate the figures from results/*.json + check every headline number traces to its JSON
+```
+
+`make results` needs no GPU and no Modal account. To re-derive the JSON from the raw completions
+(needs the volume) see [RUNBOOK.md](RUNBOOK.md) → "Reproduce the decomposition".
 
 ## Stack
 

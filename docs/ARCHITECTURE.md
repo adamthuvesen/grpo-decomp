@@ -391,7 +391,7 @@ grpo-gain-decomposition/
 ├── configs/                  # one YAML per (arm, seed)
 ├── results/                  # committed tables, summary.json, findings
 ├── modal_app.py              # Modal image + GPU functions + entrypoint
-└── agents/docs/              # this document
+└── docs/                     # this document
 ```
 
 ## A reader's path through the code

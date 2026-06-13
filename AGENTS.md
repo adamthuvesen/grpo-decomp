@@ -11,7 +11,7 @@ uncontrolled "RL works."
 
 ## Working Contract
 
-- Start from repo truth: read `README.md`, [`agents/docs/ARCHITECTURE.md`](agents/docs/ARCHITECTURE.md),
+- Start from repo truth: read `README.md`, [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
   `pyproject.toml`, and nearby tests before inventing patterns.
 - Prefer the smallest coherent change. This repo is a focused, narrow study, not an
   RL framework. Do not turn it into a platform.
@@ -28,7 +28,7 @@ uncontrolled "RL works."
 
 ## Repo Map
 
-Full architecture + data flow + diagrams: [`agents/docs/ARCHITECTURE.md`](agents/docs/ARCHITECTURE.md).
+Full architecture + data flow + diagrams: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 - `src/grpo_gain_decomp/data/` — GSM8K + perturbation-set loaders (GSM-Symbolic, GSM-Plus, GSM8K-Platinum), pinned revisions.
 - `src/grpo_gain_decomp/rewards/` — verifiable reward functions sharing one signature: `correct`, `random` (placebo), `format`.
