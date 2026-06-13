@@ -68,7 +68,7 @@ format-reward arms remain follow-ups.
 
 ## Architecture
 
-How the pieces fit is in [agents/docs/ARCHITECTURE.md](agents/docs/ARCHITECTURE.md): modules
+How the pieces fit is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): modules
 and their one-way dependencies, the data flow, the GRPO training loop, the reward functions,
 the decomposition and statistics, and the Modal execution model, all with diagrams.
 
