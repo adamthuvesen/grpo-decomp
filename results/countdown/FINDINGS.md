@@ -26,8 +26,8 @@ positive.
 | 1 | 4.2% | 55.7% | +51.6 |
 | 2 | 0.0% | 53.1% | +53.1 |
 
-- **The correct arm learned the task.** From a base of ~9% it reaches ~49–56% held-out
-  pass@1, a skill the base genuinely lacked, not reliability on a skill it had.
+- **The correct arm learned the task.** From a base of ~11% pass@1 (§2) it reaches ~49–56%
+  held-out pass@1, a skill the base genuinely lacked, not reliability on a skill it had.
 - **The placebo genuinely doesn't help.** Random reward sits at 0–14% (≈ base or below; a
   correctness-blind reward can't teach search). Seed 2's random arm collapsed to 0%.
 - Three seeds, not six: the effect is so large that the seed-level interval clears zero
@@ -68,6 +68,8 @@ RL finds the target more directly, not by searching longer.
 | base → correct pass@8 | 94.0 → 94.7 | 53.6 → 94.6 |
 | new-capability mass (mechanism) | **0.0%** | **10.9%** |
 | verdict | **elicitation** (saturated base) | **expansion** (base lacked the skill) |
+
+![pass@8 coverage: GSM8K barely moves (+0.7 pp, elicitation) while Countdown leaps from 53.6 to 94.6 (+41.0 pp, expansion) — same decomposition, opposite verdicts](../fig-passk-contrast.png)
 
 Both pass@8 rows are now seed-level (the panel was seed-0-only before) and their CIs fold in the
 base anchor's own sampling uncertainty (propagated, not anchor-fixed); the intervals do not come

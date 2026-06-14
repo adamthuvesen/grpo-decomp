@@ -4,8 +4,8 @@ Placebo comparison: **6 seeds per arm**; GSM8K-test (n=1319); pass@1 greedy, 102
 lenient extraction. The pass@k coverage panel is now **6 seeds** too (base n=16 / correct n=8,
 temp 0.7); the §3 controls are now **6 seeds** too (Holm-corrected). Commit-pinned artifacts:
 `seed-placebo-comparison.json` (6-seed), `pass8-multiseed.json` (6-seed pass@k),
-`decomposition-multiseed.json` (6-seed Holm-corrected controls), `summary.json` (seed-0 full
-decomposition), `decomposition.md`.
+`mechanism.json` (per-problem migration), `decomposition-multiseed.json` (6-seed
+Holm-corrected controls), `summary.json` (seed-0 full decomposition), `decomposition.md`.
 
 ## Headline (controlled)
 
@@ -143,17 +143,23 @@ becoming more reliable at problems it could already solve**, not new reasoning. 
 controls did their job: a confident single-seed "+6pp, p=3e-9" settled, under seed
 aggregation and pass@k, into a small-but-real effect with the right caveats.
 
-## What would push the model *forward* (next)
+## What's next
 
 GSM8K's ceiling (base pass@8 = 94%) is the limiting factor: the saturation is a property
 of the **base × dataset** pair, not the dataset alone (general Qwen2.5-1.5B scores 68.5
-GSM8K / 35.0 MATH vs the math model's 76.8 / 49.8). To measure genuine *expansion* cheaply:
+GSM8K / 35.0 MATH vs the math model's 76.8 / 49.8).
+
+**Done — the positive control.** Countdown (a TinyZero-style search task the base genuinely
+lacks) was run on this exact protocol and **does** expand capability: pass@8 coverage moves
+53.6 → 94.6 (Δ +41.0 pp) and 10.9% of the gain is genuinely new. It proves the decomposition
+detects expansion when it exists, which is what makes the GSM8K "mostly elicitation" verdict
+trustworthy rather than null-by-construction — full panel in
+[`countdown/FINDINGS.md`](countdown/FINDINGS.md).
+
+Two follow-ups remain — to find genuine expansion on *math*, and to harden the placebo:
 
 - **MATH with the general `Qwen2.5-1.5B` base**: 35% base pass@1 leaves real headroom plus
   enough reward signal; reuses the `math-verify` reward (needs a MATH loader). The
   highest-signal cheap test.
-- **Countdown (TinyZero-style)**: a search task the base genuinely lacks, where RL teaches
-  new ability (pass@k expands); single-GPU, ~$30. Doubles as a positive control proving the
-  decomposition can detect expansion when it exists.
 - **Cross-family arm (Llama)** to upgrade the placebo from a within-Qwen lower bound to a
   cross-family artifact verdict.

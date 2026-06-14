@@ -30,12 +30,12 @@ uncontrolled "RL works."
 
 Full architecture + data flow + diagrams: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-- `src/grpo_gain_decomp/data/` — GSM8K + perturbation-set loaders (GSM-Symbolic, GSM-Plus, GSM8K-Platinum), pinned revisions.
-- `src/grpo_gain_decomp/rewards/` — verifiable reward functions sharing one signature: `correct`, `random` (placebo), `format`.
+- `src/grpo_gain_decomp/data/` — GSM8K + perturbation/clean-label loaders (GSM-Symbolic, GSM-Plus, GSM8K-Platinum) at pinned revisions, plus the procedurally generated Countdown positive control.
+- `src/grpo_gain_decomp/rewards/` — verifiable reward functions sharing one signature: `correct`, `countdown`, `random` (placebo); `format` is specified but deferred (not selectable).
 - `src/grpo_gain_decomp/train/` — TRL `GRPOConfig` + run launcher (one arm per config).
 - `src/grpo_gain_decomp/eval/` — answer extraction (strict/lenient), pass@k + CoT-pass@k estimators, the "code-reasoning" detector.
-- `src/grpo_gain_decomp/stats/` — McNemar + paired bootstrap CIs, or a thin adapter over `eval-audit`.
-- `src/grpo_gain_decomp/report/` — deterministic decomposition-table generator.
+- `src/grpo_gain_decomp/stats/` — McNemar + Holm correction (local) + paired bootstrap CIs (a thin adapter over `eval-audit`).
+- `src/grpo_gain_decomp/report/` — the single-seed decomposition table + the multi-seed aggregators (placebo, pass@k, mechanism, Holm-corrected controls).
 - `configs/` — one YAML per arm + seed.
 - `results/` — committed: the headline decomposition table, plots, `summary.json`. (`runs/` checkpoints are gitignored.)
 
