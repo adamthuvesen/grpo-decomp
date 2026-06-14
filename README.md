@@ -25,36 +25,41 @@ that tests whether a result is real or a Qwen artifact is the follow-up.
 
 ## Status
 
+### GSM8K: Real Gain, Mostly Elicitation
+
 **GSM8K study complete: 6 seeds per arm.** The committed results are in
 [`results/`](results/FINDINGS.md).
 
-The confirmatory result is real but small: correct reward beats random reward by
-**+3.9 pp, 95% CI [2.3, 5.6]**. The mechanism is mostly elicitation, not new
-reasoning:
+Correct reward beats random reward by **+3.9 pp, 95% CI [2.3, 5.6]**. That is a real,
+statistically clear gain, but the mechanism is mostly reliability on problems the base model
+could already solve:
 
-- The base model already has wide coverage: base pass@8 (94.0%) is above correct pass@1 (76.2%).
-- Coverage barely moves after RL: Δ +0.7 pp, 95% CI [−0.4, +1.9].
-- Per problem, **0.0% of the GSM8K gain is new capability**; by contrast, the expansion control shows **10.9% on Countdown**.
-- The decontamination check supports the same read: on renumbered GSM-Symbolic problems, base pass@8 holds at 90.8%.
-- CoT-gated pass@k is not useful here: the Qwen completions have **0.0% verifiable-chain coverage** because they reason in code, not calculator annotations.
+- base pass@8 (94.0%) is already above correct pass@1 (76.2%).
+- pass@8 coverage barely moves after RL: Δ +0.7 pp, 95% CI [−0.4, +1.9].
+- Per problem, **0.0% of the GSM8K gain is new capability**.
+- On renumbered GSM-Symbolic problems, base pass@8 holds at 90.8%.
+- CoT-gated pass@k is not useful here: Qwen has **0.0% verifiable-chain coverage** in these completions.
 
 ![GSM8K decomposition](results/fig-gsm8k-decomposition.svg)
+
+### Positive Control: Countdown Expands
+
+Countdown is the counterexample that makes the measurement credible. Same protocol, different
+task: the base model lacks coverage, and RL really expands what it can solve. The placebo
+comparison is **+46.5 pp, 95% CI [21.4, 71.6]**, while pass@8 coverage moves by
+**Δ +41.0 pp, 95% CI [38.3, 43.7]**: base 53.6% → correct 94.6%. Per problem,
+**10.9% on Countdown** is genuinely new capability.
+
+![Countdown expansion](results/fig-task-contrast.svg)
+
+That two-sidedness is the point. The instrument reports elicitation on a saturated benchmark
+and expansion when coverage actually moves. The cross-family Llama and format-reward arms remain
+follow-ups.
 
 Everything that runs on CPU is built and tested: data loaders, reward functions, the eval
 battery, paired statistics, the decomposition report, the GRPO training launcher + Modal
 runner, and the completion-generation backend (transformers on CPU/MPS · vLLM on GPU) behind
 the `grpo-decomp` CLI.
-
-**Positive control: expansion, confirmed.** Countdown uses the same decomposition on a task
-where the base model genuinely lacks coverage. The result flips: the placebo comparison is
-**+46.5 pp, 95% CI [21.4, 71.6]**, and pass@8 coverage moves by **Δ +41.0 pp, 95% CI [38.3, 43.7]**:
-base 53.6% → correct 94.6%.
-
-![GSM8K versus Countdown](results/fig-task-contrast.svg)
-
-That two-sidedness is the point. The instrument reports elicitation on a saturated benchmark
-and expansion on the positive control. The cross-family Llama and format-reward arms remain
-follow-ups.
 
 ## Architecture
 
