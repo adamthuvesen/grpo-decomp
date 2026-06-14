@@ -25,46 +25,36 @@ that tests whether a result is real or a Qwen artifact is the follow-up.
 
 ## Status
 
-**GSM8K study complete: 6 seeds per arm.** The result is committed under
-[`results/`](results/FINDINGS.md): the placebo comparison (correct − random) is **+3.9 pp,
-95% CI [2.3, 5.6]** (seed-level *t*, df=5): a small, correctness-driven, statistically
-significant gain. But it is mostly elicitation, not new reasoning: base pass@8 (94.0%)
-≫ correct pass@1 (76.2%), and pass@8 coverage barely moves — **Δ +0.7 pp** over 6 seeds
-(propagated CI [−0.4, +1.9]: consistent with zero once the base anchor's own ±1.1 pp sampling
-CI is folded in). RL made the model more *reliable* at problems the base could already solve —
-per problem, **0.0% of the GSM8K gain is new capability** (every problem the trained model newly
-solves first-try is within the base's pass@8 reach; 10.9% on Countdown, the expansion signature).
-And the envelope survives decontamination: on **renumbered** problems (GSM-Symbolic) base pass@8
-holds at **90.8%**, so it is latent capability, not memorized GSM8K ([`results/decontam/`](results/decontam/FINDINGS.md)).
-Two confident single-seed numbers settled under aggregation: the placebo "+6.1 pp, p=3e-9" → +3.9 pp
-[2.3, 5.6], and the pass@8 panel's "+1.7 pp" → +0.7 pp [−0.4, +1.9]. We also apply the CoT-gated
-yardstick the last critique recommends: it has **0.0% verifiable-chain coverage** on these Qwen
-completions (they reason in code, not `<<a op b=c>>` annotations), so it cannot discriminate base
-from RL here — a proxy limitation we report in [FINDINGS](results/FINDINGS.md), not quietly drop.
+**GSM8K study complete: 6 seeds per arm.** The committed results are in
+[`results/`](results/FINDINGS.md).
 
-| The confirmatory test | The elicitation finding |
-| --- | --- |
-| ![Placebo comparison over 6 seeds: +3.9 pp [2.3, 5.6]](results/fig-placebo-comparison.png) | ![RL improves pass@1 reliability while pass@8 coverage barely moves](results/fig-passk-curve.png) |
+The confirmatory result is real but small: correct reward beats random reward by
+**+3.9 pp, 95% CI [2.3, 5.6]**. The mechanism is mostly elicitation, not new
+reasoning:
+
+- The base model already has wide coverage: base pass@8 (94.0%) is above correct pass@1 (76.2%).
+- Coverage barely moves after RL: Δ +0.7 pp, 95% CI [−0.4, +1.9].
+- Per problem, **0.0% of the GSM8K gain is new capability**; by contrast, the expansion control shows **10.9% on Countdown**.
+- The decontamination check supports the same read: on renumbered GSM-Symbolic problems, base pass@8 holds at 90.8%.
+- CoT-gated pass@k is not useful here: the Qwen completions have **0.0% verifiable-chain coverage** because they reason in code, not calculator annotations.
+
+![GSM8K decomposition](results/fig-gsm8k-decomposition.svg)
 
 Everything that runs on CPU is built and tested: data loaders, reward functions, the eval
 battery, paired statistics, the decomposition report, the GRPO training launcher + Modal
 runner, and the completion-generation backend (transformers on CPU/MPS · vLLM on GPU) behind
 the `grpo-decomp` CLI.
 
-**The positive control: expansion, confirmed.** GSM8K is near-saturated for this base (base
-pass@8 = 94%), so to prove the decomposition can *detect* genuine expansion, a second study
-trains the **general `Qwen2.5-1.5B`** with GRPO on **Countdown** (a TinyZero-style search task
-the base genuinely lacks). The result is committed under
-[`results/countdown/`](results/countdown/FINDINGS.md): a **+46.5 pp** placebo comparison (95% CI
-[21.4, 71.6], 3 seeds) and pass@8 coverage that **moves** — **Δ +41.0 pp, 95% CI [38.3, 43.7]**
-(3 seeds): base 53.6% → correct 94.6%. Same decomposition, same protocol, opposite verdict from
-GSM8K's. **Elicitation there, expansion here:**
+**Positive control: expansion, confirmed.** Countdown uses the same decomposition on a task
+where the base model genuinely lacks coverage. The result flips: the placebo comparison is
+**+46.5 pp, 95% CI [21.4, 71.6]**, and pass@8 coverage moves by **Δ +41.0 pp, 95% CI [38.3, 43.7]**:
+base 53.6% → correct 94.6%.
 
-![Pass@8 coverage: flat on GSM8K (elicitation), expanded on Countdown (expansion)](results/fig-passk-contrast.png)
+![GSM8K versus Countdown](results/fig-task-contrast.svg)
 
-That two-sidedness is the point. The instrument isn't biased toward "it's all fake": it
-reports expansion when RL genuinely teaches new ability. The cross-family (Llama) and
-format-reward arms remain follow-ups.
+That two-sidedness is the point. The instrument reports elicitation on a saturated benchmark
+and expansion on the positive control. The cross-family Llama and format-reward arms remain
+follow-ups.
 
 ## Architecture
 
