@@ -64,7 +64,7 @@
     <text class="label" x="102" y="330" text-anchor="middle">GSM8K</text>
     <line x1="202" y1="160.7" x2="258" y2="54.0" stroke="#ef553b" stroke-width="4" stroke-linecap="round"/>
     <circle cx="202" cy="160.7" r="7" fill="#00cc96"/><circle cx="258" cy="54.0" r="7" fill="#ef553b"/>
-    <text class="value" x="230" y="145" text-anchor="middle">+41.0 pp</text>
+    <text class="value" x="270" y="145" text-anchor="start">+41.0 pp</text>
     <text class="label" x="230" y="330" text-anchor="middle">Countdown</text>
   </g>
 
