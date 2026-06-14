@@ -79,8 +79,8 @@ they do.
 | `rewards/`      | The graders, one shared signature, selected by name.                  |
 | `train/`        | GRPO config, the run launcher, and run provenance.                    |
 | `eval/`         | Generation, the completion artifact, grading, pass@k, detectors, CLI. |
-| `stats/`        | Paired comparison: delta, bootstrap CI, McNemar (via `eval-audit`).   |
-| `report/`       | The decomposition table, rendering, and seed-level aggregation.       |
+| `stats/`        | Paired comparison: delta + bootstrap CI (via `eval-audit`), McNemar and Holm (local). |
+| `report/`       | The single-seed decomposition table plus the multi-seed aggregators (placebo, pass@k, mechanism, controls). |
 | `configs/`      | One YAML per (arm, seed).                                             |
 | `results/`      | Committed outputs: decomposition table, `summary.json`, findings.     |
 | `modal_app.py`  | Rents an A100 on Modal and runs the GPU steps.                        |
@@ -166,13 +166,16 @@ one word in its config. `correct`, `countdown`, and `random` are selectable.
 recipe: `beta=0` (no KL penalty, no reference model), `num_generations=8`,
 `learning_rate=1e-6`, `max_completion_length=1024`, `max_steps=500`,
 `save_steps=100`, and colocated vLLM rollouts. `ArmConfig` adds `name`,
-`base_model` (+ pinned revision), `reward`, `seed`, `train_split`, and
-`checkpoint_selection` (`final` or `best_on_validation`).
+`base_model` (+ pinned revision), `reward`, `seed`, `dataset` (`gsm8k` or
+`countdown`), `train_split`, and `checkpoint_selection` (`final` or
+`best_on_validation`).
 
-`train/launcher.py` runs one arm end to end: load GSM8K, hold out a validation
-split, build the prompt dataset, pick the reward, construct the TRL `GRPOTrainer`,
-train, save the final checkpoint, and tear down the process group cleanly. It
-writes a `RunProvenance` record before training starts.
+`train/launcher.py` runs one arm end to end: load the arm's training set (GSM8K,
+or the generated Countdown set for the positive control), hold out a validation
+split (GSM8K carves a per-seed split out of train; Countdown ships a dedicated,
+seed-independent one), build the prompt dataset, pick the reward, construct the
+TRL `GRPOTrainer`, train, save the final checkpoint, and tear down the process
+group cleanly. It writes a `RunProvenance` record before training starts.
 
 ### How one GRPO step learns
 
@@ -242,8 +245,11 @@ classDiagram
 - `passk.py`: the unbiased pass@k estimator.
 - `code_reasoning.py` / `cot.py` are the detectors: did the model solve by emitting
   program-style reasoning, and does its chain contain verifiable steps.
-- `cli.py` is the `grpo-decomp` entry point: `generate`, `battery`, `report`,
-  `report-seeds`, and `heldout`.
+- `cli.py` is the `grpo-decomp` entry point. Eight subcommands: `generate`,
+  `battery`, and `report` (the single-seed table), plus the multi-seed
+  aggregators `report-seeds` (placebo), `report-passk-seeds` (pass@k coverage),
+  `report-mechanism` (per-problem migration), `report-control-seeds` (the
+  Holm-corrected §3 controls), and `heldout` (the held-out curve).
 
 The **held-out curve** (`heldout` / `heldout_arm`) scores every saved checkpoint of
 a finished run on its validation split, writes `heldout.json`, then realizes the
@@ -255,12 +261,14 @@ training reward.
 
 ## Decomposition and statistics
 
-`report/` consumes a directory of `CompletionSet`s named `<arm>__<set>` (for
-example `correct__gsm8k-test`). It groups them by set and arm and builds one
-`Comparison` per question, each carrying a paired bootstrap CI and a McNemar
-p-value (`stats/compare.py`, with the bootstrap delegated to `eval-audit`). A
-comparison requires both arms to cover the same problem ids, so a misalignment is a
-clear error, never a silent positional mismatch.
+The single-seed `report` command consumes a directory of `CompletionSet`s named
+`<arm>__<set>` (for example `correct__gsm8k-test`). It groups them by set and arm
+and builds one `Comparison` per question, each carrying a paired bootstrap CI and
+a McNemar p-value (`stats/compare.py`, with the bootstrap delegated to
+`eval-audit`). A comparison requires both arms to cover the same problem ids, so a
+misalignment is a clear error, never a silent positional mismatch. This produces
+the per-seed `summary.json` + `decomposition.md` — a diagnostic, flagged
+`[PRELIMINARY]` because one run's CI reflects evaluation sampling only.
 
 ```mermaid
 flowchart TD
@@ -275,11 +283,12 @@ flowchart TD
     BASE --> CTRL["control rows<br/>gsm-symbolic / gsm-plus / platinum"]
     CORR --> CTRL
 
-    PLACEBO --> SEEDS["seeds.aggregate_placebo_comparison<br/>mean over seeds + t-based CI"]
-    RAW --> TABLE["decomposition table + summary.json"]
+    RAW --> TABLE["single-seed table + summary.json<br/>(diagnostic, PRELIMINARY)"]
+    PLACEBO --> TABLE
     FMT --> TABLE
     CTRL --> TABLE
-    SEEDS --> TABLE
+
+    PLACEBO -.->|"per seed, x6"| SEEDS["report-seeds -> seed-placebo-comparison.json<br/>mean over seeds + t CI (the headline)"]
 ```
 
 Two things to keep straight when reading the output:
@@ -288,9 +297,26 @@ Two things to keep straight when reading the output:
   its CI is per-row (marginal), not corrected for multiple comparisons. A single
   row crossing p<0.05 is not a confirmed finding.
 - **Seed aggregation is the headline.** A single run's CI reflects evaluation
-  sampling only. `report/seeds.py` recomputes the placebo comparison per seed and aggregates at
-  the seed level (mean delta with a t-interval over seeds), which is the interval
-  that also reflects run-to-run variance. Below three seeds it stays preliminary.
+  sampling only. The committed headline numbers come from four multi-seed
+  aggregators that recompute their metric per seed and aggregate at the seed level
+  (mean with a t-interval over seeds), so the interval also reflects run-to-run
+  variance. Below three seeds the result stays preliminary.
+
+### The committed multi-seed artifacts
+
+Each FINDINGS number traces to one aggregator → one JSON in `results/` (the
+`make_figures.py` figures and the docs↔JSON consistency test read these, never the
+single-seed table):
+
+| Aggregator (`grpo-decomp …`) | Module | Artifact | What it backs |
+| --- | --- | --- | --- |
+| `report-seeds` | `report/seeds.py` | `seed-placebo-comparison.json` | The confirmatory placebo delta (correct − random), seed-level t CI. |
+| `report-passk-seeds` | `report/passk_seeds.py` | `pass8-multiseed.json` | pass@k coverage: base anchor (problem-bootstrap CI) vs per-seed correct, with the propagated Δ interval and the CoT-gated twin. |
+| `report-mechanism` | `report/mechanism.py` | `mechanism.json` | Per-problem migration vs new capability + the completion-length shift. |
+| `report-control-seeds` | `report/control_seeds.py` | `decomposition-multiseed.json` | The §3 controls (gsm-symbolic / gsm-plus / gsm8k-platinum), Holm-corrected across the family. |
+
+The Countdown positive control and the decontamination panels reuse the same
+aggregators over `countdown/` and `decontam/` `CompletionSet`s.
 
 ---
 
@@ -309,9 +335,9 @@ back to one commit.
 ## Execution on Modal
 
 The GPU steps run on a single A100 rented through Modal. `modal_app.py` defines the
-image and four functions; the local entrypoint computes the git commit/dirty state
-(the image strips `.git`) and passes it in, so a cloud run is still traceable to the
-code that produced it.
+image and five A100 functions; the local entrypoint computes the git commit/dirty
+state (the image strips `.git`) and passes it in, so a cloud run is still traceable
+to the code that produced it.
 
 ```mermaid
 flowchart TB
@@ -328,6 +354,7 @@ flowchart TB
         HA["heldout_arm"]
         EM["eval_matrix"]
         EL["elicitation"]
+        EMS["elicitation_multiseed"]
     end
     VOL[("Volume: assay-runs<br/>checkpoints + battery artifacts")]
     SEC["wandb secret (curves)"]
@@ -336,12 +363,14 @@ flowchart TB
     ENT --> HA
     ENT --> EM
     ENT --> EL
+    ENT --> EMS
     img -.->|builds| fns
     SEC --> TA
     TA --> VOL
     HA --> VOL
     EM --> VOL
     EL --> VOL
+    EMS --> VOL
 ```
 
 - **The image is split on purpose.** Dependencies install in a layer keyed only on
@@ -350,16 +379,24 @@ flowchart TB
   re-downloads the multi-gigabyte GPU stack; only the fast relink re-runs.
 - **`train_arm`** trains one arm and commits checkpoints + provenance to the Volume.
 - **`heldout_arm`** scores a finished run's checkpoints and records the selection.
-- **`eval_matrix`** generates the decomposition battery. `scope=full` (seed 0)
-  covers base/correct/random over the task set plus the three control sets;
-  `scope=placebo` (replicate seeds) covers just the correct-vs-random pair on the
-  task set, which is all an extra seed needs.
-- **`elicitation`** samples base and correct with `n>1` to measure pass@k: whether
-  the gain is new capability or capability the base already had.
+- **`eval_matrix`** generates the greedy (pass@1) decomposition battery, with three
+  scopes. `scope=full` (seed 0) covers base/correct/random over the task set plus
+  the three control sets; `scope=placebo` (replicate seeds) covers just the
+  correct-vs-random pair on the task set, which is all an extra placebo seed needs;
+  `scope=controls` (replicate seeds) covers just the correct arm on the control
+  sets — the per-seed upgrade of the seed-0 control rows (base is seed-independent,
+  reused from seed 0), feeding the Holm-corrected §3 table.
+- **`elicitation`** samples base and correct (seed 0) with `n>1` to measure pass@k:
+  whether the gain is new capability or capability the base already had.
+- **`elicitation_multiseed`** generalizes that panel so the verdict no longer rests
+  on one seed: a base anchor sampled once plus every correct training seed, with an
+  optional `set_name` to re-run the same checkpoints off a control distribution. It
+  produced the committed `passk-multiseed` panels and the decontamination cells.
 
-`eval_matrix` and `elicitation` take a `task` (`gsm8k` or `countdown`); `_eval_task`
-maps it to the base config, eval set, control sets, and run-name prefix. GSM8K carries
-the three perturbation/clean-label controls and unprefixed run dirs; Countdown has no
+The three eval functions (`eval_matrix`, `elicitation`, `elicitation_multiseed`)
+take a `task` (`gsm8k` or `countdown`); `_eval_task` maps it to the base config,
+eval set, control sets, and run-name prefix. GSM8K carries the three
+perturbation/clean-label controls and unprefixed run dirs; Countdown has no
 controls and uses `countdown-`-prefixed runs.
 
 ### Two Modal gotchas, learned the hard way
@@ -386,8 +423,9 @@ grpo-gain-decomposition/
 │   ├── train/                # config, launcher, run provenance
 │   ├── eval/                 # generate, completions, battery, passk,
 │   │                         #   cot, code_reasoning, answers, cli
-│   ├── stats/                # compare, bootstrap, significance
-│   └── report/               # decomposition, render, seeds
+│   ├── stats/                # compare, bootstrap, significance (McNemar + Holm)
+│   └── report/               # decomposition, render, seeds, passk_seeds,
+│                             #   mechanism, control_seeds
 ├── configs/                  # one YAML per (arm, seed)
 ├── results/                  # committed tables, summary.json, findings
 ├── modal_app.py              # Modal image + GPU functions + entrypoint
@@ -402,4 +440,5 @@ grpo-gain-decomposition/
 4. `eval/completions.py`: the artifact that separates generation from analysis.
 5. `eval/cli.py`: how generation, grading, and the report are driven.
 6. `stats/compare.py` and `report/decomposition.py`: how a gain becomes a claim.
-7. `report/seeds.py`: how claims survive run-to-run variance.
+7. `report/seeds.py` and its siblings (`passk_seeds`, `mechanism`,
+   `control_seeds`): how claims survive run-to-run variance.

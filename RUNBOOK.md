@@ -1,10 +1,11 @@
 # Training runbook: GRPO arms on Modal
 
 The reusable procedure for training a GRPO arm on a single A100. The GSM8K placebo comparison
-(`correct` + `random`, 6 seeds each) was run exactly this way; reuse it for a new dataset
-arm (MATH on the general base, Countdown): swap the configs and repeat. Each arm pair is
-~a weekend on one A100, ~$100–250; everything GPU-independent is already built and tested,
-so training is the only paid step.
+(`correct` + `random`, 6 seeds each) and the Countdown positive control (3 seeds each, on the
+general base) were both run exactly this way; reuse it for a new dataset arm — e.g. MATH on the
+general base — by swapping the configs and repeating. Each arm pair is ~a weekend on one A100,
+~$100–250; everything GPU-independent is already built and tested, so training is the only paid
+step.
 
 **Prereqs:** a Modal account and a Weights & Biases account (training curves log to W&B).
 
@@ -47,7 +48,7 @@ modal run --detach modal_app.py --arm configs/correct.yaml --spawn
 
 # 3. Held-out accuracy curve over its checkpoints (runs on the GPU against the Volume).
 modal run modal_app.py --arm configs/correct.yaml --command heldout
-#    This is the GSM8K-vs-MATH decision (design D3): read HELD-OUT ACCURACY, not the reward curve.
+#    This is the GSM8K-vs-MATH decision: read HELD-OUT ACCURACY, not the reward curve.
 #    If held-out accuracy is flat after run 1, fall back to MATH-level training.
 ```
 
@@ -100,15 +101,24 @@ modal volume get assay-runs passk-multiseed           runs/passk-multiseed
 modal volume get assay-runs passk-multiseed-countdown runs/passk-multiseed-countdown
 modal volume get assay-runs battery                    runs/battery
 for s in 1 2 3 4 5; do modal volume get assay-runs battery-seed$s runs/battery-seed$s; done
-make aggregate       # report-passk-seeds / report-mechanism / report-control-seeds -> results/*.json
+make aggregate       # report-passk-seeds / report-mechanism / report-control-seeds -> the multi-seed panels
+
+# The confirmatory placebo comparison + the seed-0 full decomposition aren't in `make aggregate`;
+# they read the same battery dirs. (GSM8K shown; for Countdown, swap in the countdown battery dirs
+# and --task-set countdown-test.)
+uv run grpo-decomp report-seeds --task-set gsm8k-test \
+  --battery-dirs runs/battery runs/battery-seed{1,2,3,4,5} --out results/seed-placebo-comparison.json
+uv run grpo-decomp report --completions-dir runs/battery --task-set gsm8k-test --out results/
+
 make results         # then regenerate figures + verify
 ```
 
 `passk-multiseed` carries the gsm8k-test, gsm-symbolic, and gsm8k-platinum pass@8 panels (the
-`__<set>` suffix keeps them disjoint); `battery` holds the seed-independent base, and
-`battery-seed{1..5}` the per-seed correct arms the multi-seed §3 controls aggregate. A
-byte-identical re-gen is the healthy result; a diff means a completion set or the code moved.
-The 24 KB `tests/fixtures/mini` exercises the same aggregators end-to-end without any download.
+`__<set>` suffix keeps them disjoint); `battery` holds the seed-independent base plus the seed-0
+correct/random arms, and `battery-seed{1..5}` the per-seed correct/random arms the placebo
+comparison and the §3 controls aggregate. A byte-identical re-gen is the healthy result; a diff
+means a completion set or the code moved. The 24 KB `tests/fixtures/mini` exercises the same
+aggregators end-to-end without any download.
 
 ## Tuning notes
 
