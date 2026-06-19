@@ -72,6 +72,8 @@ the decomposition and statistics, and the Modal execution model, all with diagra
 ```bash
 make install           # CPU env: data, rewards, eval, stats, report
 make check             # ruff + unit tests (the Phase-0 check)
+make demo              # score committed mini completions; no model load
+make results           # rebuild figures from committed JSON and check docs
 make test-integration  # loads the pinned datasets from HuggingFace
 
 uv sync --extra train  # GPU stack (Linux/CUDA)
@@ -81,8 +83,13 @@ modal run modal_app.py --arm configs/correct.yaml  # one training arm on an A100
 The full Phase-1 sequence is in [RUNBOOK.md](RUNBOOK.md): Modal auth, the W&B secret, the
 day-1 smoke, both arms, and the held-out accuracy curve.
 
-Evaluation runs through `grpo-decomp`: `generate` (the only model-loading step) writes a
-`CompletionSet`; `battery` and `report` read it on a cheap CPU box, no backend needed.
+Evaluation runs through `grpo-decomp`:
+
+- `generate` loads a model and writes a `CompletionSet`.
+- `battery` scores one `CompletionSet`.
+- `report` reads completion directories and writes the decomposition table.
+
+Only `generate` needs a model backend. `battery`, `report`, and `make results` run on CPU.
 
 ```bash
 uv sync --extra generate  # CPU/MPS generation backend (transformers; no CUDA needed)
@@ -96,7 +103,20 @@ grpo-decomp generate --model <correct-ckpt> --set gsm8k-test --backend vllm --n 
 grpo-decomp report   --completions-dir runs/ --out results/   # <arm>__<set> dirs -> table + summary.json
 ```
 
-## Reproduce
+## No-GPU Demo
+
+`make demo` scores two tiny committed `CompletionSet` fixtures. It does not download a model,
+hit HuggingFace, use Modal, or need a GPU.
+
+```bash
+make demo
+```
+
+Expected headline values: the base fixture scores `strict_accuracy = 0.3333333333333333`.
+The correct fixture scores `strict_accuracy = 0.5`. Both fixtures have 12 problems and
+4 samples per problem.
+
+## Verify Committed Results
 
 Trained checkpoints are not in this repo — they live on the Modal `assay-runs` volume, so
 re-running generation means training the arms (RUNBOOK) or pulling the completions back. The
@@ -106,8 +126,23 @@ committed `results/` JSON makes that unnecessary for verifying the numbers:
 make results   # regenerate the figures from results/*.json + check every headline number traces to its JSON
 ```
 
-`make results` needs no GPU and no Modal account. To re-derive the JSON from the raw completions
-(needs the volume) see [RUNBOOK.md](RUNBOOK.md) → "Reproduce the decomposition".
+Expected output:
+
+```text
+uv run --with matplotlib python results/make_figures.py
+wrote fig-placebo-comparison.png, fig-passk-curve.png, fig-passk-contrast.png, fig-mechanism.png, decontam/fig-decontam.png
+uv run pytest tests/test_docs_consistency.py -q
+................................................................         [100%]
+```
+
+`make results` needs no GPU and no Modal account. It verifies the committed JSON and rebuilds
+the committed figures. It does not re-derive checkpoints or completions.
+
+## Re-Derive From Checkpoints
+
+The trained checkpoints and full completion sets are off-repo artifacts on Modal. Re-deriving
+`results/*.json` needs those artifacts, the run volume, and the GPU generation path. See
+[RUNBOOK.md](RUNBOOK.md) → "Reproduce the decomposition".
 
 ## Stack
 
