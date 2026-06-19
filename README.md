@@ -105,44 +105,32 @@ grpo-decomp report   --completions-dir runs/ --out results/   # <arm>__<set> dir
 
 ## No-GPU Demo
 
-`make demo` scores two tiny committed `CompletionSet` fixtures. It does not download a model,
-hit HuggingFace, use Modal, or need a GPU.
+`make demo` scores two committed mini `CompletionSet` fixtures. It does not load a model,
+use the network, use Modal, or need a GPU.
 
 ```bash
 make demo
 ```
 
-Expected headline values: the base fixture scores `strict_accuracy = 0.3333333333333333`.
-The correct fixture scores `strict_accuracy = 0.5`. Both fixtures have 12 problems and
-4 samples per problem.
+Expected: base `strict_accuracy = 0.3333333333333333`; correct `strict_accuracy = 0.5`.
+Both fixtures have 12 problems and 4 samples per problem.
 
 ## Verify Committed Results
 
-Trained checkpoints are not in this repo — they live on the Modal `assay-runs` volume, so
-re-running generation means training the arms (RUNBOOK) or pulling the completions back. The
-committed `results/` JSON makes that unnecessary for verifying the numbers:
+Trained checkpoints are not in this repo. They live on the Modal `assay-runs` volume. The
+committed `results/` JSON is enough to verify the published numbers:
 
 ```bash
-make results   # regenerate the figures from results/*.json + check every headline number traces to its JSON
+make results
 ```
 
-Expected output:
-
-```text
-uv run --with matplotlib python results/make_figures.py
-wrote fig-placebo-comparison.png, fig-passk-curve.png, fig-passk-contrast.png, fig-mechanism.png, decontam/fig-decontam.png
-uv run pytest tests/test_docs_consistency.py -q
-................................................................         [100%]
-```
-
-`make results` needs no GPU and no Modal account. It verifies the committed JSON and rebuilds
-the committed figures. It does not re-derive checkpoints or completions.
+This rebuilds figures from `results/*.json` and checks that headline doc numbers trace to
+JSON. It needs no GPU and no Modal account. It does not re-derive checkpoints or completions.
 
 ## Re-Derive From Checkpoints
 
-The trained checkpoints and full completion sets are off-repo artifacts on Modal. Re-deriving
-`results/*.json` needs those artifacts, the run volume, and the GPU generation path. See
-[RUNBOOK.md](RUNBOOK.md) → "Reproduce the decomposition".
+Re-deriving `results/*.json` needs the off-repo checkpoints, full completion sets, Modal run
+volume, and GPU generation path. See [RUNBOOK.md](RUNBOOK.md) → "Reproduce the decomposition".
 
 ## Stack
 
