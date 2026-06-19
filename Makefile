@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := check
-.PHONY: install fmt lint test test-integration check results aggregate
+.PHONY: install fmt lint test test-integration check demo results aggregate
 
 install:  ## Sync the dev environment (incl. the CPU eval/stats layer)
 	uv sync --extra dev --extra eval
@@ -19,6 +19,12 @@ test-integration:  ## Run network/HuggingFace integration tests
 	uv run pytest -m integration
 
 check: lint test  ## The Phase 0 gate: lint + unit tests
+
+demo:  ## Score committed mini CompletionSets; no model load, GPU, or network
+	@printf 'base fixture:\n'
+	uv run grpo-decomp battery --completions tests/fixtures/mini/base__mini --k 1
+	@printf '\ncorrect fixture:\n'
+	uv run grpo-decomp battery --completions tests/fixtures/mini/correct-seed0__mini --k 1
 
 results:  ## Regenerate the committed figures from JSON, then verify docs <-> JSON consistency
 	uv run --with matplotlib python results/make_figures.py
