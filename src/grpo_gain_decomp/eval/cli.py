@@ -15,26 +15,47 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import ValidationError
 
-from grpo_gain_decomp.data import (
-    dev_slice,
-    load_countdown,
-    load_gsm8k,
-    load_gsm8k_platinum,
-    load_gsm_plus,
-    load_gsm_symbolic,
-    validation_split,
-)
-from grpo_gain_decomp.eval.battery import BatteryResult, grade, run_battery
+from grpo_gain_decomp.data import dev_slice
+from grpo_gain_decomp.eval.battery import grade, run_battery
 from grpo_gain_decomp.eval.completions import (
-    CompletionSet,
     SamplingConfig,
     load_completion_set,
     write_completion_set,
+)
+from grpo_gain_decomp.eval.heldout import (
+    discover_checkpoints as _discover_checkpoints,
+)
+from grpo_gain_decomp.eval.heldout import (
+    select_checkpoint,
+)
+from grpo_gain_decomp.eval.heldout import (
+    validation_for_run as _validation_for_run,
+)
+from grpo_gain_decomp.eval.registry import ARMS, PROBES, SETS
+from grpo_gain_decomp.eval.report_inputs import (
+    base_and_correct_seeds as _base_and_correct_seeds,
+)
+from grpo_gain_decomp.eval.report_inputs import (
+    control_row as _control_row,
+)
+from grpo_gain_decomp.eval.report_inputs import (
+    discover_completion_sets as _discover_completion_sets,
+)
+from grpo_gain_decomp.eval.report_inputs import (
+    elicitation_note as _elicitation_note,
+)
+from grpo_gain_decomp.eval.report_inputs import (
+    greedy_pass1 as _pass1,
+)
+from grpo_gain_decomp.eval.report_inputs import (
+    seed_label as _seed_label,
+)
+from grpo_gain_decomp.eval.report_inputs import (
+    validate_report_artifacts as _validate_report_artifacts,
 )
 from grpo_gain_decomp.report.control_seeds import aggregate_control_rows
 from grpo_gain_decomp.report.decomposition import DecompositionRow, build_decomposition
@@ -42,31 +63,9 @@ from grpo_gain_decomp.report.mechanism import build_mechanism
 from grpo_gain_decomp.report.passk_seeds import aggregate_passk_seeds
 from grpo_gain_decomp.report.render import render_table, write_summary
 from grpo_gain_decomp.report.seeds import aggregate_placebo_comparison
-from grpo_gain_decomp.schemas import ProblemSet, Record
+from grpo_gain_decomp.schemas import Record
 from grpo_gain_decomp.stats.compare import Comparison, compare
 from grpo_gain_decomp.train.provenance import RunProvenance
-
-#: The named problem sets `generate --set` can target.
-SETS: dict[str, Callable[[], ProblemSet]] = {
-    "gsm8k-test": lambda: load_gsm8k("test"),
-    "gsm8k-train": lambda: load_gsm8k("train"),
-    "dev": lambda: dev_slice(load_gsm8k("test")),
-    "gsm-symbolic": lambda: load_gsm_symbolic("main"),
-    "gsm-plus": lambda: load_gsm_plus("test"),
-    "gsm8k-platinum": load_gsm8k_platinum,
-    "countdown-test": lambda: load_countdown("test"),
-    "countdown-dev": lambda: load_countdown("dev"),
-}
-
-#: The arms a decomposition compares; `correct` is compared against `base` and `random`.
-ARMS = ("base", "correct", "random")
-
-#: What each control set actually probes (the report's controlled row labels).
-PROBES = {
-    "gsm-symbolic": "memorization (templated renumbering)",
-    "gsm8k-platinum": "label noise (cleaned labels)",
-    "gsm-plus": "robustness (adversarial perturbation)",
-}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -433,159 +432,6 @@ def _write_json(record: Record, out: Path | None, label: str) -> None:
     print(f"wrote {label} to {out}")
 
 
-def _base_and_correct_seeds(
-    root: Path, task_set: str
-) -> tuple[CompletionSet, list[tuple[int | str, CompletionSet]]]:
-    """Load ``base__<set>`` plus every ``correct-seed<N>__<set>`` under `root`.
-
-    The seed-replicate layout both `report-passk-seeds` and `report-mechanism` consume.
-    Numeric seeds sort first (in order), any non-numeric labels after — never int vs str.
-    """
-    root = Path(root)
-    if not root.is_dir():
-        raise ValueError(f"completions dir {root} does not exist")
-    suffix = f"__{task_set}"
-    base = load_completion_set(root / f"base{suffix}")
-    correct_by_seed: list[tuple[int | str, CompletionSet]] = []
-    for sub in sorted(root.iterdir()):
-        if sub.is_dir() and sub.name.startswith("correct-seed") and sub.name.endswith(suffix):
-            label = sub.name[: -len(suffix)].partition("-seed")[2]
-            seed: int | str = int(label) if label.isdigit() else label
-            correct_by_seed.append((seed, load_completion_set(sub)))
-    if not correct_by_seed:
-        raise ValueError(f"no 'correct-seed<N>{suffix}' dirs under {root}")
-    correct_by_seed.sort(key=lambda pair: (isinstance(pair[0], str), pair[0]))
-    return base, correct_by_seed
-
-
-def _seed_label(battery_dir: Path) -> int | str:
-    """Recover a seed label from a battery dir name (``battery`` -> 0, ``battery-seed2`` -> 2)."""
-    name = Path(battery_dir).name
-    if name == "battery":
-        return 0
-    head, _, tail = name.rpartition("-seed")
-    return int(tail) if head and tail.isdigit() else name
-
-
-def _discover_completion_sets(root: Path) -> dict[str, dict[str, CompletionSet]]:
-    """Load ``<arm>__<set>`` subdirectories into ``{set: {arm: CompletionSet}}``."""
-    root = Path(root)
-    if not root.is_dir():
-        raise ValueError(f"completions dir {root} does not exist")
-    grouped: dict[str, dict[str, CompletionSet]] = {}
-    for sub in sorted(root.iterdir()):
-        if not sub.is_dir() or "__" not in sub.name:
-            continue
-        arm, _, slug = sub.name.partition("__")
-        if arm not in ARMS:
-            continue
-        grouped.setdefault(slug, {})[arm] = load_completion_set(sub)
-    if not grouped:
-        raise ValueError(f"no '<arm>__<set>' completion dirs found under {root}")
-    return grouped
-
-
-def _validate_report_artifacts(grouped: dict[str, dict[str, CompletionSet]]) -> None:
-    """Require report artifacts to match the registered eval sets they claim to be."""
-    for slug, arms in grouped.items():
-        if slug not in SETS:
-            raise ValueError(f"unknown report set {slug!r}; known sets are {tuple(sorted(SETS))}")
-        expected = SETS[slug]()
-        for arm, completion_set in arms.items():
-            _validate_completion_set(slug, arm, completion_set, expected)
-
-
-def _validate_completion_set(
-    slug: str, arm: str, completion_set: CompletionSet, expected: ProblemSet
-) -> None:
-    if completion_set.provenance.dataset != expected.source:
-        raise ValueError(
-            f"{arm}__{slug}: dataset metadata does not match registered set "
-            f"{expected.source.model_dump()}"
-        )
-    expected_ids = tuple(problem.id for problem in expected)
-    actual_ids = tuple(item.problem.id for item in completion_set.items)
-    if len(actual_ids) != len(expected_ids) or actual_ids != expected_ids:
-        raise ValueError(
-            f"{arm}__{slug}: problem ids do not match registered set "
-            f"(expected {len(expected_ids)}, got {len(actual_ids)})"
-        )
-
-
-def _pass1(completion_set: CompletionSet, policy: str) -> dict[str, bool]:
-    """Grade the first sample per problem (pass@1) under `policy`."""
-    sampling = completion_set.provenance.sampling
-    if sampling.n != 1 or sampling.temperature != 0.0:
-        raise ValueError(
-            "greedy pass@1 artifacts must have sampling.n=1 and temperature=0.0; "
-            f"got n={sampling.n}, temperature={sampling.temperature}"
-        )
-    first = {item.problem.id: item.samples[0] for item in completion_set.items}
-    return grade(completion_set.problem_set(), first, policy=policy)
-
-
-def _control_row(slug: str, arms: dict[str, CompletionSet]) -> DecompositionRow:
-    comparison = compare(
-        "base", _pass1(arms["base"], "lenient"), "correct", _pass1(arms["correct"], "lenient")
-    )
-    return DecompositionRow(
-        control=f"control ({slug})", probes=PROBES.get(slug, slug), comparison=comparison
-    )
-
-
-def _battery_at(completion_set: CompletionSet, k_values: list[int]) -> BatteryResult:
-    return run_battery(
-        completion_set.problem_set(), completion_set.completions_by_id(), k_values=k_values
-    )
-
-
-def _vanilla_at(battery: BatteryResult, k: int) -> float:
-    """The vanilla pass@k at exactly `k` from a battery result."""
-    for entry in battery.pass_at_k:
-        if entry.k == k:
-            return entry.vanilla
-    raise ValueError(f"pass@{k} was not computed")
-
-
-def _elicitation_note(base: CompletionSet, correct: CompletionSet) -> str:
-    """The elicitation / capability-expansion panel line.
-
-    When both arms are sampled at n>1, report the pass@k curve (base vs correct at
-    matched k) — the certified-expansion readout: higher pass@k coverage means
-    new capability, not just improved pass@1 reliability. Otherwise fall back to
-    the base pass@k vs correct pass@1 elicitation line, or a plain pass@1 line when n==1.
-    """
-    n_base = base.provenance.sampling.n
-    n_correct = correct.provenance.sampling.n
-    if n_base > 1 and n_correct > 1:
-        k = min(n_base, n_correct)
-        base_battery = _battery_at(base, sorted({1, k}))
-        correct_battery = _battery_at(correct, sorted({1, k}))
-        base_k = _vanilla_at(base_battery, k)
-        correct_k = _vanilla_at(correct_battery, k)
-        return (
-            f"pass@k curve: base pass@{k}={base_k:.2f} vs correct pass@{k}={correct_k:.2f} "
-            f"(Δ={correct_k - base_k:+.2f}); pass@1 base={base_battery.lenient_accuracy:.2f}, "
-            f"correct={correct_battery.lenient_accuracy:.2f} "
-            f"(code-reasoning base={base_battery.code_reasoning_frequency:.2f}, "
-            f"correct={correct_battery.code_reasoning_frequency:.2f})"
-        )
-    base_battery = _battery_at(base, sorted({1, n_base}))
-    correct_battery = _battery_at(correct, [1])
-    if n_base > 1:
-        return (
-            f"base pass@{n_base}={base_battery.pass_at_k[-1].vanilla:.2f} vs "
-            f"correct pass@1={correct_battery.lenient_accuracy:.2f} "
-            f"(code-reasoning base={base_battery.code_reasoning_frequency:.2f}, "
-            f"correct={correct_battery.code_reasoning_frequency:.2f})"
-        )
-    return (
-        f"pass@1: base={base_battery.lenient_accuracy:.2f}, "
-        f"correct={correct_battery.lenient_accuracy:.2f}; "
-        "high-n pass@k coverage deferred to a Phase-2 sampling run"
-    )
-
-
 def _cmd_heldout(args: argparse.Namespace) -> int:
     # Lazy import: only this command loads a model, so it stays off the CPU-only path.
     from grpo_gain_decomp.eval.generate import generate
@@ -638,62 +484,6 @@ def _cmd_heldout(args: argparse.Namespace) -> int:
     )
     print(f"selected {name} (step {step}) per rule '{provenance.checkpoint_selection}'")
     return 0
-
-
-def select_checkpoint(points: list[dict], rule: str, final_step: int) -> tuple[str, int]:
-    """Realize a checkpoint-selection rule over a held-out curve → (checkpoint dir, step).
-
-    `final` always takes the end-of-training checkpoint; `best_on_validation` takes the
-    highest held-out accuracy, breaking ties toward the later (more-trained) step.
-    """
-    if rule == "final":
-        if not any(point["checkpoint"] == "final" for point in points):
-            raise ValueError("final checkpoint selection needs a discovered final checkpoint")
-        return "final", final_step
-    if rule == "best_on_validation":
-        if not points:
-            raise ValueError("best_on_validation needs a non-empty held-out curve")
-        best = max(
-            points,
-            key=lambda p: (p["accuracy"], p["step"] if p["step"] is not None else final_step),
-        )
-        return best["checkpoint"], best["step"] if best["step"] is not None else final_step
-    raise ValueError(f"unknown checkpoint_selection rule {rule!r}")
-
-
-def _validation_for_run(provenance: RunProvenance) -> ProblemSet:
-    """Reconstruct the exact held-out split a run used (deterministic from the source)."""
-    ref = provenance.dataset
-    if ref.name == "countdown":
-        # Countdown ships a dedicated, seed-independent validation split; regenerate it.
-        return load_countdown("validation")
-    if ref.name == "openai/gsm8k":
-        train = load_gsm8k(ref.split, revision=ref.revision)
-        _, validation = validation_split(train, n=provenance.validation_size, seed=provenance.seed)
-        return validation
-    raise ValueError(f"held-out reconstruction supports gsm8k train or countdown, got {ref.name!r}")
-
-
-def _discover_checkpoints(run_dir: Path) -> list[Path]:
-    """Saved checkpoints under ``run_dir/checkpoints``, sorted by step with ``final`` last."""
-    root = Path(run_dir) / "checkpoints"
-    if not root.is_dir():
-        raise ValueError(f"no checkpoints/ directory under {run_dir}")
-    numbered: list[Path] = []
-    final: Path | None = None
-    for sub in root.iterdir():
-        if not sub.is_dir():
-            continue
-        if sub.name == "final":
-            final = sub
-        elif sub.name.startswith("checkpoint-") and sub.name.split("-", 1)[1].isdigit():
-            numbered.append(sub)
-    numbered.sort(key=lambda path: int(path.name.split("-", 1)[1]))
-    if final is not None:
-        numbered.append(final)
-    if not numbered:
-        raise ValueError(f"no 'checkpoint-<step>' or 'final' dirs under {root}")
-    return numbered
 
 
 if __name__ == "__main__":

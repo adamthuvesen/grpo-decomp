@@ -6,6 +6,11 @@ import pytest
 
 from grpo_gain_decomp.report.decomposition import MIN_SEEDS, DecompositionRow, build_decomposition
 from grpo_gain_decomp.report.render import render_table, to_summary_json, write_summary
+from grpo_gain_decomp.report.status import (
+    artifact_scope_for,
+    is_preliminary_seed_count,
+    preliminary_suffix,
+)
 from grpo_gain_decomp.stats.compare import Comparison
 
 
@@ -49,6 +54,15 @@ def test_preliminary_flag_tracks_min_seeds() -> None:
     assert _build(1).preliminary is True
     assert _build(MIN_SEEDS - 1).preliminary is True
     assert _build(MIN_SEEDS).preliminary is False
+
+
+def test_claim_status_helpers_are_the_shared_policy() -> None:
+    assert is_preliminary_seed_count(1) is True
+    assert is_preliminary_seed_count(MIN_SEEDS) is False
+    assert "Single-seed descriptive decomposition" in artifact_scope_for(1)
+    assert "Seed-aggregated decomposition" in artifact_scope_for(MIN_SEEDS)
+    assert preliminary_suffix(True) == " [PRELIMINARY]"
+    assert preliminary_suffix(False) == ""
 
 
 def test_caveats_cover_preliminary_nonadditivity_and_within_qwen() -> None:

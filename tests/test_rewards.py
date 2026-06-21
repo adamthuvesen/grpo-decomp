@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from grpo_gain_decomp.rewards import (
+    PLACEBO_REWARD,
     SELECTABLE,
     correct,
     countdown,
@@ -48,10 +49,18 @@ def test_placebo_values_in_unit_interval() -> None:
 
 
 def test_placebo_ignores_correctness() -> None:
-    # Same completions, different golds -> identical rewards (gold is unused).
+    # Same RNG seed, different completions and golds -> identical rewards (both are unused).
     with_gold_a = make_random_reward(0)(["x", "y"], gold_answer=["1", "2"])
-    with_gold_b = make_random_reward(0)(["x", "y"], gold_answer=["999", "888"])
+    with_gold_b = make_random_reward(0)(["different", "text"], gold_answer=["999", "888"])
     assert with_gold_a == with_gold_b
+
+
+def test_placebo_rng_is_stateful_within_a_run() -> None:
+    reward = make_random_reward(0)
+    first = reward(["a"])
+    second = reward(["a"])
+    assert first != second
+    assert first == make_random_reward(0)(["a"])
 
 
 def test_placebo_is_reproducible_per_seed() -> None:
@@ -86,8 +95,10 @@ def test_get_reward_selects_by_name() -> None:
     assert get_reward("correct") is correct
     assert get_reward("countdown") is countdown
     assert "countdown" in SELECTABLE
+    assert PLACEBO_REWARD == "random"
+    assert PLACEBO_REWARD in SELECTABLE
     # 'random' yields a fresh seeded fn equivalent to constructing it directly.
-    assert get_reward("random", seed=0)(["a"]) == make_random_reward(0)(["a"])
+    assert get_reward(PLACEBO_REWARD, seed=0)(["a"]) == make_random_reward(0)(["a"])
 
 
 def test_get_reward_rejects_format_and_unknown() -> None:

@@ -14,11 +14,17 @@ from collections.abc import Sequence
 
 from pydantic import Field
 
+from grpo_gain_decomp.report.status import (
+    MIN_HEADLINE_SEEDS,
+    artifact_scope_for,
+    is_preliminary_seed_count,
+    preliminary_caveat_for,
+)
 from grpo_gain_decomp.schemas import Record
 from grpo_gain_decomp.stats.compare import Comparison
 
 #: Minimum seeds before a result is a headline claim rather than preliminary.
-MIN_SEEDS = 3
+MIN_SEEDS = MIN_HEADLINE_SEEDS
 
 
 class DecompositionRow(Record):
@@ -65,21 +71,8 @@ def build_decomposition(
     elicitation_note: str,
 ) -> Decomposition:
     """Assemble the decomposition, flagging it preliminary below `MIN_SEEDS` seeds."""
-    if seeds < 1:
-        raise ValueError(f"seeds must be >= 1, got {seeds}")
-
-    preliminary = seeds < MIN_SEEDS
-    if preliminary:
-        artifact_scope = (
-            f"Single-seed descriptive decomposition ({seeds} seed). Treat the comparison below as "
-            "a per-seed diagnostic; the headline claim must come from seed-level aggregation "
-            "such as `seed-placebo-comparison.json`."
-        )
-    else:
-        artifact_scope = (
-            f"Seed-aggregated decomposition ({seeds} seeds). The placebo comparison is "
-            "eligible as a headline claim because it includes run-to-run seed variance."
-        )
+    preliminary = is_preliminary_seed_count(seeds)
+    artifact_scope = artifact_scope_for(seeds)
     caveats = [
         "Rows are independent re-measurements of the raw gain under each control; "
         "they overlap and MUST NOT be summed into an additive partition.",
@@ -90,11 +83,9 @@ def build_decomposition(
         "row is descriptive/exploratory and its 95% CI is marginal (per-row), NOT "
         "family-wise corrected — do not read a single row's p<0.05 as confirmed.",
     ]
-    if preliminary:
-        caveats.append(
-            f"PRELIMINARY: aggregated over {seeds} seed(s) (< {MIN_SEEDS}); CIs reflect "
-            "eval-sampling noise only, not run-to-run / seed variance — not a headline claim."
-        )
+    preliminary_caveat = preliminary_caveat_for(seeds)
+    if preliminary_caveat is not None:
+        caveats.append(preliminary_caveat)
 
     return Decomposition(
         base_model=base_model,

@@ -28,7 +28,7 @@ from collections.abc import Iterator, Sequence
 from fractions import Fraction
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from grpo_gain_decomp.schemas import DatasetRef, Problem, ProblemSet, Record
 
@@ -50,25 +50,60 @@ class CountdownKeyError(ValueError):
     """A `gold_answer` is not a parseable Countdown key."""
 
 
+class CountdownKey(Record):
+    """Typed representation of the Countdown answer key stored in `Problem.gold_answer`."""
+
+    numbers: tuple[int, ...] = Field(description="Sorted source-number multiset.")
+    target: int
+
+    @field_validator("numbers", mode="before")
+    @classmethod
+    def _sorted_numbers(cls, value: Sequence[int]) -> tuple[int, ...]:
+        """Canonicalize the source-number multiset for stable artifact strings."""
+        return tuple(sorted(int(n) for n in value))
+
+    @classmethod
+    def from_values(cls, numbers: Sequence[int], target: int) -> CountdownKey:
+        """Build a canonical Countdown key from raw numbers and target."""
+        return cls(numbers=tuple(numbers), target=target)
+
+    @classmethod
+    def decode(cls, key: str) -> CountdownKey:
+        """Parse the string stored in `Problem.gold_answer`."""
+        try:
+            target_part, numbers_part = key.split(";")
+            target_label, target_raw = target_part.split("=", 1)
+            numbers_label, numbers_raw = numbers_part.split("=", 1)
+            if target_label != "target" or numbers_label != "numbers" or not numbers_raw:
+                raise ValueError
+            numbers = tuple(int(n) for n in numbers_raw.split(","))
+            target = int(target_raw)
+        except ValueError as exc:
+            raise CountdownKeyError(f"not a Countdown key: {key!r}") from exc
+        return cls(numbers=numbers, target=target)
+
+    def encode(self) -> str:
+        """Encode to the stable wire format used in `Problem.gold_answer`."""
+        sorted_numbers = ",".join(str(n) for n in self.numbers)
+        return f"target={self.target};numbers={sorted_numbers}"
+
+    def as_tuple(self) -> tuple[tuple[int, ...], int]:
+        """Compatibility shape used by existing reward/eval code."""
+        return self.numbers, self.target
+
+
 def format_countdown_key(numbers: Sequence[int], target: int) -> str:
     """Encode the answer key as ``target=<t>;numbers=<n1,n2,...>`` (numbers sorted).
 
     Kept in `Problem.gold_answer` (a plain string), so the frozen canonical schema is
     unchanged and one parser serves both the reward and the eval grader.
     """
-    sorted_numbers = ",".join(str(n) for n in sorted(numbers))
-    return f"target={target};numbers={sorted_numbers}"
+    return CountdownKey.from_values(numbers, target).encode()
 
 
 def parse_countdown_key(key: str) -> tuple[tuple[int, ...], int]:
     """Decode a Countdown key into ``(numbers, target)``; explicit error if malformed."""
-    try:
-        target_part, numbers_part = key.split(";")
-        target = int(target_part.removeprefix("target="))
-        numbers = tuple(int(n) for n in numbers_part.removeprefix("numbers=").split(","))
-    except ValueError as exc:
-        raise CountdownKeyError(f"not a Countdown key: {key!r}") from exc
-    return numbers, target
+    return CountdownKey.decode(key).as_tuple()
 
 
 # --- The restricted verifier (used on untrusted model output) ---------------------------

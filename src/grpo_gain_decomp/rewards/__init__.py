@@ -21,12 +21,16 @@ from grpo_gain_decomp.rewards.correct import correct
 from grpo_gain_decomp.rewards.countdown import countdown
 from grpo_gain_decomp.rewards.placebo import make_random_reward
 
+#: Config value for the correctness-blind placebo reward. Kept as "random" for
+#: backward-compatible arm YAMLs; named here so callers do not treat it as a toy baseline.
+PLACEBO_REWARD = "random"
+
 #: Shared reward signature: completions + forwarded columns -> one score per
 #: completion (or None to skip the sample).
 RewardFn = Callable[..., list[float | None]]
 
 #: The rewards a training arm may select. `format` is deferred (see module docstring).
-SELECTABLE = ("correct", "countdown", "random")
+SELECTABLE = ("correct", "countdown", PLACEBO_REWARD)
 
 
 def get_reward(name: str, *, seed: int = 0) -> RewardFn:
@@ -43,9 +47,17 @@ def get_reward(name: str, *, seed: int = 0) -> RewardFn:
         return correct
     if name == "countdown":
         return countdown
-    if name == "random":
+    if name == PLACEBO_REWARD:
         return make_random_reward(seed)
     raise ValueError(f"unknown reward {name!r}; selectable rewards are {SELECTABLE}")
 
 
-__all__ = ["SELECTABLE", "RewardFn", "correct", "countdown", "get_reward", "make_random_reward"]
+__all__ = [
+    "PLACEBO_REWARD",
+    "SELECTABLE",
+    "RewardFn",
+    "correct",
+    "countdown",
+    "get_reward",
+    "make_random_reward",
+]
