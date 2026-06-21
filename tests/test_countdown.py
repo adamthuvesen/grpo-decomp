@@ -13,6 +13,7 @@ import pytest
 from grpo_gain_decomp.data.countdown import (
     DEFAULT_COUNTDOWN_CONFIG,
     CountdownConfig,
+    CountdownKey,
     CountdownKeyError,
     countdown_is_correct,
     evaluate_expression,
@@ -49,9 +50,18 @@ def test_key_round_trips_with_sorted_numbers() -> None:
     assert parse_countdown_key(key) == ((4, 5, 6, 7), 30)
 
 
+def test_countdown_key_object_preserves_wire_format() -> None:
+    key = CountdownKey.from_values([7, 4, 6, 5], 30)
+    assert key.numbers == (4, 5, 6, 7)
+    assert key.target == 30
+    assert key.encode() == "target=30;numbers=4,5,6,7"
+    assert CountdownKey.decode(key.encode()) == key
+
+
 def test_parse_rejects_a_malformed_key() -> None:
-    with pytest.raises(CountdownKeyError):
-        parse_countdown_key("not a key")
+    for key in ("not a key", "target=30;numbers=", "answer=30;numbers=4,5"):
+        with pytest.raises(CountdownKeyError):
+            parse_countdown_key(key)
 
 
 # --- the restricted, eval-free evaluator ------------------------------------------------
@@ -103,7 +113,7 @@ def test_foreign_number_is_invalid() -> None:
 
 
 def test_countdown_is_correct_grades_against_a_key() -> None:
-    key = format_countdown_key([4, 5, 6, 7], 26)
+    key = CountdownKey.from_values([4, 5, 6, 7], 26).encode()
     assert countdown_is_correct("4 * 5 + 6", key)
     assert not countdown_is_correct("4 * 5 + 7", key)
     assert not countdown_is_correct(None, key)
@@ -199,6 +209,18 @@ def test_grade_uses_the_countdown_checker_for_countdown_sets() -> None:
     problems = _countdown_problems()
     assert grade(problems, {"c0": r"\boxed{4 * 5 + 6}"})["c0"] is True
     assert grade(problems, {"c0": r"\boxed{4 * 5 + 7}"})["c0"] is False
+
+
+def test_reward_and_eval_share_countdown_key_parsing() -> None:
+    key = CountdownKey.from_values([4, 5, 6, 7], 26).encode()
+    assert countdown_is_correct("4 * 5 + 6", key)
+    assert grade(
+        ProblemSet(
+            source=DatasetRef(name="countdown", config="x", split="test", revision="r"),
+            problems=(Problem(id="c0", question="q", gold_answer=key),),
+        ),
+        {"c0": r"\boxed{4 * 5 + 6}"},
+    ) == {"c0": True}
 
 
 # --- the capability-expansion panel -----------------------------------------------------

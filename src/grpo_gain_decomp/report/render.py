@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from grpo_gain_decomp.report.decomposition import Decomposition, DecompositionRow
+from grpo_gain_decomp.report.status import preliminary_suffix
 
 
 def _row_cells(row: DecompositionRow) -> str:
@@ -22,7 +23,7 @@ def _row_cells(row: DecompositionRow) -> str:
 
 def render_table(decomposition: Decomposition) -> str:
     """Render the decomposition as a deterministic Markdown table + panels."""
-    status = " [PRELIMINARY]" if decomposition.preliminary else ""
+    status = preliminary_suffix(decomposition.preliminary)
     lines = [
         f"# Decomposition — {decomposition.base_model} on {decomposition.task}{status}",
         "",
