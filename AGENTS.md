@@ -1,46 +1,47 @@
-# AGENTS.md
+# AGENTS.md — grpo-gain-decomposition
 
-Repo-local instructions for AI coding agents working in `grpo-gain-decomposition`.
+`grpo-gain-decomposition` is a controlled study: train a small model with GRPO on math,
+then run an adversarial eval battery that decomposes the benchmark gain into real reasoning
+vs. contamination, formatting, and elicitation. The result is only as trustworthy as the
+controls — "most of this gain was elicitation" beats a confident, uncontrolled "RL works."
 
-`grpo-gain-decomposition` is a controlled study: train a small model with GRPO on math, then run an
-adversarial eval battery that decomposes the benchmark gain into real reasoning vs.
-contamination, formatting, and elicitation. Its taste is the same as a good
-experiment — the result is only as trustworthy as the controls. A finding that
-says "most of this gain was elicitation" is more valuable than a confident,
-uncontrolled "RL works."
+This is a focused, narrow study, not an RL framework. Keep it that way; do not turn it into
+a platform. User-level guidance (tone, principles, git etiquette) lives in `~/.claude/CLAUDE.md`
+and `~/dotfiles/agents/AGENTS.md` and is *not* duplicated here.
 
-## Working Contract
+## Quickstart
 
-- Start from repo truth: read `README.md`, [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
-  `pyproject.toml`, and nearby tests before inventing patterns.
-- Prefer the smallest coherent change. This repo is a focused, narrow study, not an
-  RL framework. Do not turn it into a platform.
-- **Preserve controlled evaluation.** Never report a gain without its controls. Every
-  headline number carries a confidence interval and a paired significance test.
-  Never claim from a single training run — aggregate over seeds.
-- The training reward curve is not evidence. Only held-out eval, completion-length,
-  and entropy are. Treat a rising reward with suspicion.
-- Determinism where it matters: fixed seeds, pinned dataset revisions, recorded
-  model/commit/config hashes on every result artifact.
-- Do not add runtime dependencies without asking. The intended stack is TRL +
-  transformers + vLLM + datasets for training, and `eval-audit` for statistics.
-  No broad RL/agent frameworks beyond TRL.
+```bash
+make install        # CPU env: data, rewards, eval, stats, report
+make check          # ruff + unit tests (the Phase-0 gate)
+make demo           # score committed mini CompletionSets; no model load
+make results        # rebuild figures from results/*.json + docs<->JSON consistency check
 
-## Repo Map
+modal run modal_app.py --arm configs/correct.yaml          # train one arm on an A100 (see RUNBOOK.md)
+grpo-decomp battery --completions runs/base__dev --k 1      # grade a CompletionSet (CPU)
+grpo-decomp report  --completions-dir runs/ --out results/  # <arm>__<set> dirs -> table + summary.json
+```
 
-Full architecture + data flow + diagrams: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-
-- `src/grpo_gain_decomp/data/` — GSM8K + perturbation/clean-label loaders (GSM-Symbolic, GSM-Plus, GSM8K-Platinum) at pinned revisions, plus the procedurally generated Countdown positive control.
-- `src/grpo_gain_decomp/rewards/` — verifiable reward functions sharing one signature: `correct`, `countdown`, `random` (placebo); `format` is specified but deferred (not selectable).
-- `src/grpo_gain_decomp/train/` — TRL `GRPOConfig` + run launcher (one arm per config).
-- `src/grpo_gain_decomp/eval/` — answer extraction (strict/lenient), pass@k + CoT-pass@k estimators, the "code-reasoning" detector.
-- `src/grpo_gain_decomp/stats/` — McNemar + Holm correction (local) + paired bootstrap CIs (a thin adapter over `eval-audit`).
-- `src/grpo_gain_decomp/report/` — the single-seed decomposition table + the multi-seed aggregators (placebo, pass@k, mechanism, Holm-corrected controls).
-- `configs/` — one YAML per arm + seed.
-- `results/` — committed: the headline decomposition table, plots, `summary.json`. (`runs/` checkpoints are gitignored.)
+Only `generate` (and training) needs a model/GPU; `battery`, `report`, and `make results` run on CPU.
 
 ## Conventions
 
-- Python 3.11+, `uv`, ruff (line length 100), strict Pydantic for result schemas.
-- `CLAUDE.md` is a symlink to this file.
-- Pin TRL — its GRPO defaults move between versions; re-verify config at build time.
+- Start from repo truth: read `README.md`, [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), `pyproject.toml`, and nearby tests before inventing patterns.
+- Prefer the smallest coherent change; if a doc disagrees with code, fix the doc in the same change.
+- **Controls before gains.** Never report a gain without its controls, a confidence interval, and a paired significance test.
+- **The reward curve is not evidence.** Only held-out eval, completion length, and entropy are; treat a rising reward with suspicion.
+- **Never claim from one run** — aggregate over seeds (below three seeds, label preliminary).
+- Determinism: fixed seeds, pinned dataset revisions, recorded model/commit/config/dependency hashes on every artifact.
+- **Pin TRL** — its GRPO defaults move between versions; re-verify config at build time. Same for vLLM (`==0.17.1`, TRL 1.0.0's supported max).
+- No new runtime deps without asking. Stack is TRL + transformers + vLLM + datasets (train) and `eval-audit` (stats); no broad RL/agent frameworks.
+- Python 3.11+, `uv`, ruff (line length 100), strict Pydantic for result schemas. `CLAUDE.md` is a symlink to this file.
+
+The rationale behind these rules (why the reward curve lies, why seeds, why strict schemas)
+lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#design-rules-that-shaped-the-code).
+
+## Read The Docs First
+
+| Topic | Doc |
+| --- | --- |
+| Architecture, data flow, module map, Modal execution | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Training a GRPO arm on Modal, reproducing results | [RUNBOOK.md](RUNBOOK.md) |
