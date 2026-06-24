@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_gain_decomp.eval.passk import estimate_pass_at_k, pass_at_k
+from llm_grpo_gains.eval.passk import estimate_pass_at_k, pass_at_k
 
 
 def test_pass_at_1_equals_empirical_rate() -> None:

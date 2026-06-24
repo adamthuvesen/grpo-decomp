@@ -1,4 +1,4 @@
-"""Modal app: run a grpo-gain-decomposition GRPO arm on a single A100.
+"""Modal app: run a llm-grpo-gains GRPO arm on a single A100.
 
     modal run modal_app.py --arm configs/correct.yaml          # launch a run
     modal run modal_app.py --arm configs/correct.yaml --smoke-problems 8   # day-1 smoke
@@ -22,11 +22,11 @@ from pathlib import Path
 
 import modal
 
-APP_NAME = "grpo-gain-decomp"
+APP_NAME = "llm-grpo-gains"
 CUDA_IMAGE = "nvidia/cuda:12.4.1-devel-ubuntu22.04"
 RUNS_DIR = "/runs"
 # Where the project tree is mounted inside the image (arbitrary; kept off the volume).
-REMOTE_ROOT = "/root/grpo-gain-decomposition"
+REMOTE_ROOT = "/root/llm-grpo-gains"
 
 app = modal.App(APP_NAME)
 
@@ -146,8 +146,8 @@ def train_arm(
     """
     from pathlib import Path
 
-    from grpo_gain_decomp.train.config import load_arm_config
-    from grpo_gain_decomp.train.launcher import launch
+    from llm_grpo_gains.train.config import load_arm_config
+    from llm_grpo_gains.train.launcher import launch
 
     arm = load_arm_config(Path(arm_yaml))
     run_dir = launch(
@@ -172,8 +172,8 @@ def heldout_arm(arm_yaml: str) -> str:
     """Held-out accuracy curve over a finished arm's checkpoints (check this, not reward)."""
     from pathlib import Path
 
-    from grpo_gain_decomp.eval.cli import main as eval_main
-    from grpo_gain_decomp.train.config import load_arm_config
+    from llm_grpo_gains.eval.cli import main as eval_main
+    from llm_grpo_gains.train.config import load_arm_config
 
     arm = load_arm_config(Path(arm_yaml))
     run_dir = Path(RUNS_DIR) / f"{arm.name}-seed{arm.seed}"
@@ -210,11 +210,11 @@ def eval_matrix(
     """
     from pathlib import Path
 
-    from grpo_gain_decomp.eval.cli import SETS
-    from grpo_gain_decomp.eval.completions import SamplingConfig, write_completion_set
-    from grpo_gain_decomp.eval.generate import generate_completion_set
-    from grpo_gain_decomp.train.config import load_arm_config
-    from grpo_gain_decomp.train.provenance import RunProvenance
+    from llm_grpo_gains.eval.cli import SETS
+    from llm_grpo_gains.eval.completions import SamplingConfig, write_completion_set
+    from llm_grpo_gains.eval.generate import generate_completion_set
+    from llm_grpo_gains.train.config import load_arm_config
+    from llm_grpo_gains.train.provenance import RunProvenance
 
     # Base model + revision come from the arm config (the source training used), so the
     # base eval is the same weights the gain is measured against.
@@ -295,11 +295,11 @@ def elicitation(task: str = "gsm8k", commit: str | None = None, dirty: bool | No
     """
     from pathlib import Path
 
-    from grpo_gain_decomp.eval.cli import SETS
-    from grpo_gain_decomp.eval.completions import SamplingConfig, write_completion_set
-    from grpo_gain_decomp.eval.generate import generate_completion_set
-    from grpo_gain_decomp.train.config import load_arm_config
-    from grpo_gain_decomp.train.provenance import RunProvenance
+    from llm_grpo_gains.eval.cli import SETS
+    from llm_grpo_gains.eval.completions import SamplingConfig, write_completion_set
+    from llm_grpo_gains.eval.generate import generate_completion_set
+    from llm_grpo_gains.train.config import load_arm_config
+    from llm_grpo_gains.train.provenance import RunProvenance
 
     base_cfg, task_set, _controls, prefix = _eval_task(task)
     base = load_arm_config(Path(base_cfg))
@@ -372,12 +372,12 @@ def elicitation_multiseed(
     """
     from pathlib import Path
 
-    from grpo_gain_decomp.data import dev_slice
-    from grpo_gain_decomp.eval.cli import SETS
-    from grpo_gain_decomp.eval.completions import SamplingConfig, write_completion_set
-    from grpo_gain_decomp.eval.generate import generate_completion_set
-    from grpo_gain_decomp.train.config import load_arm_config
-    from grpo_gain_decomp.train.provenance import RunProvenance
+    from llm_grpo_gains.data import dev_slice
+    from llm_grpo_gains.eval.cli import SETS
+    from llm_grpo_gains.eval.completions import SamplingConfig, write_completion_set
+    from llm_grpo_gains.eval.generate import generate_completion_set
+    from llm_grpo_gains.train.config import load_arm_config
+    from llm_grpo_gains.train.provenance import RunProvenance
 
     base_cfg, task_set, _controls, prefix = _eval_task(task)
     eval_set = set_name or task_set
@@ -530,8 +530,8 @@ def main(
 
 
 # Local git helpers (the entrypoint runs in the `modal` tool env, which can't import
-# grpo_gain_decomp; and the image strips .git, so the container can't read git either). Mirrors
-# grpo_gain_decomp.provenance.git_commit / git_is_dirty.
+# llm_grpo_gains; and the image strips .git, so the container can't read git either). Mirrors
+# llm_grpo_gains.provenance.git_commit / git_is_dirty.
 def _local_git_commit() -> str:
     try:
         result = subprocess.run(

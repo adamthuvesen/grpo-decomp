@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_gain_decomp.report.decomposition import MIN_SEEDS, DecompositionRow, build_decomposition
-from grpo_gain_decomp.report.render import render_table, to_summary_json, write_summary
-from grpo_gain_decomp.report.status import (
+from llm_grpo_gains.report.decomposition import MIN_SEEDS, DecompositionRow, build_decomposition
+from llm_grpo_gains.report.render import render_table, to_summary_json, write_summary
+from llm_grpo_gains.report.status import (
     artifact_scope_for,
     is_preliminary_seed_count,
     preliminary_suffix,
 )
-from grpo_gain_decomp.stats.compare import Comparison
+from llm_grpo_gains.stats.compare import Comparison
 
 
 def _row(

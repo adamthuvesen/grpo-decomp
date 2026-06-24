@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
-from grpo_gain_decomp.schemas import DatasetRef, Problem, ProblemSet
-from grpo_gain_decomp.train.config import ArmConfig
-from grpo_gain_decomp.train.launcher import (
+from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
+from llm_grpo_gains.train.config import ArmConfig
+from llm_grpo_gains.train.launcher import (
     _load_train_and_validation,
     build_prompt,
     prepare_run,
@@ -91,7 +91,7 @@ def test_load_train_and_validation_dispatches_countdown() -> None:
     )
     arm = ArmConfig(name="cd", base_model="m", reward="countdown", dataset="countdown", seed=0)
     with patch(
-        "grpo_gain_decomp.train.launcher.load_countdown", side_effect=[train_set, val_set]
+        "llm_grpo_gains.train.launcher.load_countdown", side_effect=[train_set, val_set]
     ) as mock_load:
         train, validation = _load_train_and_validation(arm)
     assert [call.args[0] for call in mock_load.call_args_list] == ["train", "validation"]

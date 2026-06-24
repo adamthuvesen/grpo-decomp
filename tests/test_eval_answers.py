@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from grpo_gain_decomp.eval.answers import extract_lenient, extract_strict, is_correct
+from llm_grpo_gains.eval.answers import extract_lenient, extract_strict, is_correct
 
 
 def test_strict_extracts_final_boxed() -> None:

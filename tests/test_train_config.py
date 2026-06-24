@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from grpo_gain_decomp.train.config import ArmConfig, GRPOSettings, load_arm_config
+from llm_grpo_gains.train.config import ArmConfig, GRPOSettings, load_arm_config
 
 _CONFIGS = Path(__file__).parents[1] / "configs"
 

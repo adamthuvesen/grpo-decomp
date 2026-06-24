@@ -6,13 +6,13 @@ import importlib
 
 import pytest
 
-from grpo_gain_decomp.eval.completions import SamplingConfig
-from grpo_gain_decomp.eval.generate import generate, resolve_backend
-from grpo_gain_decomp.schemas import DatasetRef, Problem, ProblemSet
+from llm_grpo_gains.eval.completions import SamplingConfig
+from llm_grpo_gains.eval.generate import generate, resolve_backend
+from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
 
 #: The real submodule (via sys.modules), not the `generate` *function* that
-#: `grpo_gain_decomp.eval` re-exports under the same name — that shadows the package attribute.
-_GENERATE_MODULE = importlib.import_module("grpo_gain_decomp.eval.generate")
+#: `llm_grpo_gains.eval` re-exports under the same name — that shadows the package attribute.
+_GENERATE_MODULE = importlib.import_module("llm_grpo_gains.eval.generate")
 
 
 def _problems() -> ProblemSet:

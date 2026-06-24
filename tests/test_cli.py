@@ -8,21 +8,21 @@ from pathlib import Path
 
 import pytest
 
-from grpo_gain_decomp.eval.cli import _discover_checkpoints, main, select_checkpoint
-from grpo_gain_decomp.eval.completions import (
+from llm_grpo_gains.eval.cli import _discover_checkpoints, main, select_checkpoint
+from llm_grpo_gains.eval.completions import (
     CompletionSet,
     GenerationProvenance,
     ProblemCompletions,
     SamplingConfig,
     write_completion_set,
 )
-from grpo_gain_decomp.schemas import DatasetRef, Problem, ProblemSet
-from grpo_gain_decomp.train.config import ArmConfig
-from grpo_gain_decomp.train.provenance import capture_provenance
+from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
+from llm_grpo_gains.train.config import ArmConfig
+from llm_grpo_gains.train.provenance import capture_provenance
 
 #: The real generate submodule (sys.modules), not the re-exported function of the same name.
-_GENERATE_MODULE = importlib.import_module("grpo_gain_decomp.eval.generate")
-_CLI_MODULE = importlib.import_module("grpo_gain_decomp.eval.cli")
+_GENERATE_MODULE = importlib.import_module("llm_grpo_gains.eval.generate")
+_CLI_MODULE = importlib.import_module("llm_grpo_gains.eval.cli")
 
 
 def _ref(*, split: str = "test", revision: str = "rev") -> DatasetRef:
@@ -317,7 +317,7 @@ def test_heldout_writes_curve_and_records_final_selection(tmp_path, monkeypatch,
     for name in ("checkpoint-50", "checkpoint-100", "final"):
         (run / "checkpoints" / name).mkdir(parents=True)
     monkeypatch.setattr(
-        "grpo_gain_decomp.eval.cli._validation_for_run", lambda provenance: _val_problems()
+        "llm_grpo_gains.eval.cli._validation_for_run", lambda provenance: _val_problems()
     )
     monkeypatch.setattr(_GENERATE_MODULE, "generate", _fake_generate_correct_on("final"))
 
@@ -344,7 +344,7 @@ def test_heldout_best_on_validation_records_winner(tmp_path, monkeypatch) -> Non
     for name in ("checkpoint-50", "checkpoint-100", "final"):
         (run / "checkpoints" / name).mkdir(parents=True)
     monkeypatch.setattr(
-        "grpo_gain_decomp.eval.cli._validation_for_run", lambda provenance: _val_problems()
+        "llm_grpo_gains.eval.cli._validation_for_run", lambda provenance: _val_problems()
     )
     monkeypatch.setattr(_GENERATE_MODULE, "generate", _fake_generate_correct_on("checkpoint-100"))
 

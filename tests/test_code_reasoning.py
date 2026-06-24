@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_gain_decomp.eval.code_reasoning import code_reasoning_frequency, is_code_reasoning
+from llm_grpo_gains.eval.code_reasoning import code_reasoning_frequency, is_code_reasoning
 
 
 @pytest.mark.parametrize(

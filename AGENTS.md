@@ -1,6 +1,6 @@
-# AGENTS.md — grpo-gain-decomposition
+# AGENTS.md — llm-grpo-gains
 
-`grpo-gain-decomposition` is a controlled study: train a small model with GRPO on math,
+`llm-grpo-gains` is a controlled study: train a small model with GRPO on math,
 then run an adversarial eval battery that decomposes the benchmark gain into real reasoning
 vs. contamination, formatting, and elicitation. The result is only as trustworthy as the
 controls — "most of this gain was elicitation" beats a confident, uncontrolled "RL works."

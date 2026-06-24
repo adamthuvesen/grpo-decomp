@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from grpo_gain_decomp.eval.completions import (
+from llm_grpo_gains.eval.completions import (
     CompletionSet,
     GenerationProvenance,
     ProblemCompletions,
@@ -13,7 +13,7 @@ from grpo_gain_decomp.eval.completions import (
     load_completion_set,
     write_completion_set,
 )
-from grpo_gain_decomp.schemas import DatasetRef, Problem
+from llm_grpo_gains.schemas import DatasetRef, Problem
 
 
 def _ref() -> DatasetRef:
@@ -30,7 +30,7 @@ def _provenance(*, n: int, n_problems: int) -> GenerationProvenance:
         n_problems=n_problems,
         commit="c" * 40,
         python_version="3.11.0",
-        package_versions={"grpo-gain-decomposition": "0.1.0"},
+        package_versions={"llm-grpo-gains": "0.1.0"},
     )
 
 

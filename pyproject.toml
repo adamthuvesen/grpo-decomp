@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "grpo-gain-decomposition"
+name = "llm-grpo-gains"
 version = "0.1.0"
 description = "Controlled GRPO study: decompose small-model RL reasoning gains into real learning vs. contamination, formatting, and elicitation."
 readme = "README.md"
@@ -41,7 +41,7 @@ generate = [
     "torch>=2.4",
 ]
 train = [
-    "grpo-gain-decomposition[generate]",
+    "llm-grpo-gains[generate]",
     "trl==1.0.0",
     # TRL 1.0.0 supports vLLM 0.10.2–0.17.1; an out-of-range vLLM warns and risks
     # rollout/log-prob drift in GRPO colocate. Pin to the top of the supported window.
@@ -63,7 +63,7 @@ dev = [
 ]
 
 [project.scripts]
-grpo-decomp = "grpo_gain_decomp.eval.cli:main"
+grpo-decomp = "llm_grpo_gains.eval.cli:main"
 
 [tool.ruff]
 line-length = 100
@@ -73,7 +73,7 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["grpo_gain_decomp"]
+known-first-party = ["llm_grpo_gains"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -83,7 +83,7 @@ markers = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/grpo_gain_decomp"]
+packages = ["src/llm_grpo_gains"]
 
 # Required for the eval-audit git dependency (not published to PyPI).
 [tool.hatch.metadata]

@@ -7,14 +7,14 @@ import pytest
 from pydantic import ValidationError
 from scipy.stats import t
 
-from grpo_gain_decomp.eval.completions import (
+from llm_grpo_gains.eval.completions import (
     CompletionSet,
     GenerationProvenance,
     ProblemCompletions,
     SamplingConfig,
 )
-from grpo_gain_decomp.report.passk_seeds import Pass8MultiSeed, aggregate_passk_seeds
-from grpo_gain_decomp.schemas import DatasetRef, Problem
+from llm_grpo_gains.report.passk_seeds import Pass8MultiSeed, aggregate_passk_seeds
+from llm_grpo_gains.schemas import DatasetRef, Problem
 
 _REF = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="rev")
 _C7, _C9, _WRONG = r"\boxed{7}", r"\boxed{9}", r"\boxed{0}"
