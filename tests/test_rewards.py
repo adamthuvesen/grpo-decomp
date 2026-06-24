@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_gain_decomp.rewards import (
+from llm_grpo_gains.rewards import (
     PLACEBO_REWARD,
     SELECTABLE,
     correct,

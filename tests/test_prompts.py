@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from grpo_gain_decomp.prompts import build_prompt
-from grpo_gain_decomp.train.launcher import build_prompt as train_build_prompt
+from llm_grpo_gains.prompts import build_prompt
+from llm_grpo_gains.train.launcher import build_prompt as train_build_prompt
 
 
 def test_prompt_contains_question_and_box_format() -> None:
@@ -14,7 +14,7 @@ def test_prompt_contains_question_and_box_format() -> None:
 
 def test_train_and_eval_share_one_prompt_builder() -> None:
     # The launcher re-exports the shared builder, so eval generation (which imports
-    # grpo_gain_decomp.prompts) and training cannot drift apart.
+    # llm_grpo_gains.prompts) and training cannot drift apart.
     assert train_build_prompt is build_prompt
 
 

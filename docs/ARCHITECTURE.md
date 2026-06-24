@@ -1,6 +1,6 @@
-# grpo-gain-decomposition architecture
+# llm-grpo-gains architecture
 
-`grpo-gain-decomposition` is a controlled study that trains a small language model
+`llm-grpo-gains` is a controlled study that trains a small language model
 with reinforcement learning on math, then runs an adversarial evaluation that tries
 to explain away the benchmark gain. The question it answers is "how much of the gain
 is real reasoning, and how much is elicitation, contamination, formatting, or noise?".
@@ -413,8 +413,8 @@ controls and uses `countdown-`-prefixed runs.
 ## Repository layout
 
 ```
-grpo-gain-decomposition/
-├── src/grpo_gain_decomp/
+llm-grpo-gains/
+├── src/llm_grpo_gains/
 │   ├── schemas.py            # frozen shared types
 │   ├── prompts.py            # the one prompt template
 │   ├── provenance.py         # git + dependency fingerprint

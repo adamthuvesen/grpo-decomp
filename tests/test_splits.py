@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_gain_decomp.data.splits import dev_slice, validation_split
-from grpo_gain_decomp.schemas import DatasetRef, Problem, ProblemSet
+from llm_grpo_gains.data.splits import dev_slice, validation_split
+from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
 
 
 def _problem_set(n: int, split: str = "train") -> ProblemSet:

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_gain_decomp.stats.bootstrap import bootstrap_mean_ci
-from grpo_gain_decomp.stats.compare import compare
-from grpo_gain_decomp.stats.significance import holm_correction, mcnemar
+from llm_grpo_gains.stats.bootstrap import bootstrap_mean_ci
+from llm_grpo_gains.stats.compare import compare
+from llm_grpo_gains.stats.significance import holm_correction, mcnemar
 
 
 def _by_id(values: list[bool]) -> dict[str, bool]:

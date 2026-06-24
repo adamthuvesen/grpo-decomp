@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_gain_decomp.report.control_seeds import aggregate_control_rows
-from grpo_gain_decomp.stats.compare import Comparison
+from llm_grpo_gains.report.control_seeds import aggregate_control_rows
+from llm_grpo_gains.stats.compare import Comparison
 
 
 def _cmp(base_acc: float, correct_acc: float) -> Comparison:

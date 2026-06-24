@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_gain_decomp.eval.battery import grade
-from grpo_gain_decomp.report.decomposition import DecompositionRow, build_decomposition
-from grpo_gain_decomp.report.render import render_table
-from grpo_gain_decomp.schemas import DatasetRef, Problem, ProblemSet
-from grpo_gain_decomp.stats.compare import compare
+from llm_grpo_gains.eval.battery import grade
+from llm_grpo_gains.report.decomposition import DecompositionRow, build_decomposition
+from llm_grpo_gains.report.render import render_table
+from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
+from llm_grpo_gains.stats.compare import compare
 
 _REF = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="rev")
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_gain_decomp.data.gsm8k import CONFIG, REVISION, load_gsm8k
+from llm_grpo_gains.data.gsm8k import CONFIG, REVISION, load_gsm8k
 
 pytestmark = pytest.mark.integration
 

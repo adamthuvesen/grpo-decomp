@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from grpo_gain_decomp.eval.cot import chain_is_valid, has_verifiable_chain, verify_steps
+from llm_grpo_gains.eval.cot import chain_is_valid, has_verifiable_chain, verify_steps
 
 
 def test_verify_steps_counts_correct_and_total() -> None:

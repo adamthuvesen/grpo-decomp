@@ -1,4 +1,4 @@
-# grpo-gain-decomposition decontamination (the GSM8K elicitation finding off the memorizable distribution)
+# llm-grpo-gains decontamination (the GSM8K elicitation finding off the memorizable distribution)
 
 The skeptic's attack on the GSM8K headline: *"base pass@8 is 94% because Qwen2.5-Math memorized
 GSM8K — your elicitation verdict is contamination, not latent reasoning."* This re-runs the

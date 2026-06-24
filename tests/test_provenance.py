@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from grpo_gain_decomp.provenance import package_versions
-from grpo_gain_decomp.schemas import DatasetRef
-from grpo_gain_decomp.train.config import ArmConfig
-from grpo_gain_decomp.train.provenance import capture_provenance
+from llm_grpo_gains.provenance import package_versions
+from llm_grpo_gains.schemas import DatasetRef
+from llm_grpo_gains.train.config import ArmConfig
+from llm_grpo_gains.train.provenance import capture_provenance
 
 
 def _arm() -> ArmConfig:
@@ -17,8 +17,8 @@ def _dataset() -> DatasetRef:
 
 
 def test_package_versions_marks_missing_as_absent() -> None:
-    versions = package_versions(["grpo-gain-decomposition", "definitely-not-a-real-package-xyz"])
-    assert versions["grpo-gain-decomposition"]  # an installed version string
+    versions = package_versions(["llm-grpo-gains", "definitely-not-a-real-package-xyz"])
+    assert versions["llm-grpo-gains"]  # an installed version string
     assert versions["definitely-not-a-real-package-xyz"] == "absent"
 
 
@@ -40,7 +40,7 @@ def test_capture_records_environment() -> None:
     prov = capture_provenance(_arm(), _dataset(), train_size=7217, validation_size=256)
     assert prov.python_version.count(".") == 2  # e.g. "3.12.7"
     assert prov.commit == "unknown" or len(prov.commit) == 40  # git SHA or sentinel
-    assert prov.package_versions["grpo-gain-decomposition"]
+    assert prov.package_versions["llm-grpo-gains"]
     # TRL is not installed in the CPU dev env -> recorded as absent, not crashing.
     assert prov.package_versions["trl"] == "absent"
     assert isinstance(prov.dirty, bool)  # worktree cleanliness recorded

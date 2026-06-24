@@ -10,7 +10,7 @@ import re
 
 import pytest
 
-from grpo_gain_decomp.data import load_gsm8k_platinum, load_gsm_plus, load_gsm_symbolic
+from llm_grpo_gains.data import load_gsm8k_platinum, load_gsm_plus, load_gsm_symbolic
 
 pytestmark = pytest.mark.integration
 
