@@ -16,7 +16,7 @@ def test_transformers_backend_end_to_end(tmp_path) -> None:
     from llm_grpo_gains.eval.generate import generate
     from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
 
-    ref = DatasetRef(name="toy", config=None, split="test", revision="rev")
+    ref = DatasetRef(name="synthetic", config=None, split="test", revision="rev")
     problems = ProblemSet(
         source=ref,
         problems=(
