@@ -1,4 +1,4 @@
-"""End-to-end seam test: grade -> compare -> decomposition (no network)."""
+"""End-to-end boundary test: grade -> compare -> decomposition (no network)."""
 
 from __future__ import annotations
 

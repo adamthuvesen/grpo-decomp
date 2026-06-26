@@ -1,4 +1,4 @@
-"""The completion artifact: the seam between generation (GPU) and analysis (CPU).
+"""The completion artifact: the boundary between generation (GPU) and analysis (CPU).
 
 `generate` (on whatever box holds the model) writes a `CompletionSet`; `report`
 (on a cheap CPU box, no generation backend) reads it and feeds the battery and

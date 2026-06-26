@@ -2,7 +2,7 @@
 
 Every loader reduces its source to the same canonical schema; the differences are
 where the gold answer lives and how it is normalized. Keeping the assembly and the
-gold parsers here means the fragile parsing seam is written and tested once, not
+gold parsers here means the fragile parsing boundary is written and tested once, not
 copied per dataset.
 """
 
