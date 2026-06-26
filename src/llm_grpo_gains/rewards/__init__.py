@@ -22,7 +22,7 @@ from llm_grpo_gains.rewards.countdown import countdown
 from llm_grpo_gains.rewards.placebo import make_random_reward
 
 #: Config value for the correctness-blind placebo reward. Kept as "random" for
-#: backward-compatible arm YAMLs; named here so callers do not treat it as a toy baseline.
+#: backward-compatible arm YAMLs; named here so callers do not treat it as a placeholder baseline.
 PLACEBO_REWARD = "random"
 
 #: Shared reward signature: completions + forwarded columns -> one score per

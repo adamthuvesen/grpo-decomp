@@ -48,7 +48,7 @@ def test_grade_compare_decompose_end_to_end() -> None:
         placebo=DecompositionRow(
             control="placebo", probes="reward-signal gain", comparison=comparison
         ),
-        elicitation_note="n/a (toy)",
+        elicitation_note="n/a (synthetic fixture)",
     )
     assert "rl beats base" in render_table(decomposition)
 
