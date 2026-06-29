@@ -1,82 +1,83 @@
 # llm-grpo-gains
 
-`llm-grpo-gains` is a controlled GRPO study. It trains small Qwen models with
-verifiable rewards, then asks a stricter question than "did benchmark accuracy go up?":
+`llm-grpo-gains` is a small controlled study of GRPO on math. It trains Qwen
+models with verifiable rewards, then asks the question the reward curve cannot
+answer:
 
-**How much of the gain is new capability, and how much is reliability, formatting,
-contamination, or a placebo effect?**
+**Did the model learn new reasoning, or did training mostly make existing answers
+come out more often?**
 
-The answer on GSM8K is deliberately unglamorous: GRPO gives a real gain, but mostly by
-making the model more reliable on problems it could already solve. The same measurement
-detects genuine expansion on Countdown, a generated search task where the base model has
-real headroom.
+On GSM8K, the answer is mostly the second one. GRPO gives a real gain, but the
+base model already has nearly all of the coverage at pass@8. The training mainly
+turns reachable answers into more reliable first tries.
 
-## Headline Result
+Countdown is the sanity check. It uses the same protocol on a generated search
+task where the base model actually lacks coverage, and there GRPO does expand
+what the model can solve.
 
-On GSM8K, the correctness reward beats a random-reward placebo by **+3.9 pp, 95% CI
-[2.3, 5.6]** across six seeds. That is a statistically clear improvement, not just
-formatting or noise. It is also not much evidence of new reasoning.
+## Result
 
-- **The base already has the coverage.** base pass@8 (94.0%) is above correct pass@1
-  (76.2%).
+On GSM8K, the correctness reward beats a random-reward placebo by **+3.9 pp,
+95% CI [2.3, 5.6]** across six seeds. That is a real effect. It is not, by
+itself, much evidence of new reasoning.
+
+Why:
+
+- **The base already has the coverage.** base pass@8 (94.0%) is above correct
+  pass@1 (76.2%).
 - **Coverage barely moves.** correct pass@8 changes by Δ +0.7 pp, with propagated
   95% CI [-0.4, +1.9].
-- **Per problem, 0.0% of the GSM8K gain is new capability.** The trained model makes
-  reachable problems more reliable; it does not solve a new slice outside the base
-  pass@8 envelope.
+- **Per problem, 0.0% of the GSM8K gain is new capability.** The trained model
+  gets more reliable on problems inside the base pass@8 envelope.
 - **The envelope survives decontamination.** On renumbered GSM-Symbolic problems,
   base pass@8 holds at 90.8%.
-- **CoT-gated pass@k is uninformative here.** Qwen has 0.0% verifiable-chain coverage
-  in these completions, so the `<<a op b = c>>` proxy never fires.
+- **CoT-gated pass@k is not useful for these completions.** Qwen has 0.0%
+  verifiable-chain coverage here, so the `<<a op b = c>>` proxy never fires.
 
 ![GSM8K decomposition](results/fig-gsm8k-decomposition.svg)
 
-Countdown is the control that keeps this from being a null result dressed up as a
-method. With the same protocol, the base lacks coverage and GRPO expands what it can
-solve: the placebo comparison is **+46.5 pp, 95% CI [21.4, 71.6]**, and pass@8 moves
-by **Δ +41.0 pp, 95% CI [38.3, 43.7]**: base 53.6% → correct 94.6%. Per problem,
-**10.9% on Countdown** is genuinely new capability.
+Countdown checks that the method can detect real expansion. With the same
+measurement, the placebo comparison is **+46.5 pp, 95% CI [21.4, 71.6]**, and
+pass@8 moves by **Δ +41.0 pp, 95% CI [38.3, 43.7]**: base 53.6% → correct 94.6%.
+Per problem, **10.9% on Countdown** is genuinely new capability.
 
 ![GSM8K vs Countdown](results/fig-task-contrast.svg)
 
-The committed findings are in [`results/FINDINGS.md`](results/FINDINGS.md), with the
-Countdown panel in [`results/countdown/FINDINGS.md`](results/countdown/FINDINGS.md) and
-the decontamination panel in [`results/decontam/FINDINGS.md`](results/decontam/FINDINGS.md).
+The detailed writeups are in:
 
-## What This Repository Contains
+- [`results/FINDINGS.md`](results/FINDINGS.md) for the main GSM8K panel
+- [`results/countdown/FINDINGS.md`](results/countdown/FINDINGS.md) for Countdown
+- [`results/decontam/FINDINGS.md`](results/decontam/FINDINGS.md) for decontamination
 
-The repo is the full measurement stack for the study:
+## What Is In The Repo
 
-- deterministic data loaders for GSM8K, GSM-Symbolic, GSM-Plus, GSM8K-Platinum, and
-  generated Countdown;
-- verifiable rewards for math correctness, Countdown correctness, and a seeded random
-  placebo;
-- a GRPO training launcher and Modal entrypoint for single-GPU runs;
-- `CompletionSet` artifacts that separate model generation from offline analysis;
-- an eval battery for strict/lenient grading, pass@k, CoT-gated pass@k, and simple
-  behavior detectors;
-- paired statistics: bootstrap confidence intervals, McNemar tests, seed aggregation,
-  and Holm correction for controls;
-- committed result JSON, figures, and documentation consistency tests.
+This repo contains the measurement stack, not a general RL framework:
 
-Trained checkpoints and full completion sets are not committed. They live on the Modal
-`assay-runs` volume. The checked-in JSON under [`results/`](results/) is enough to
-verify the published numbers and rebuild the figures.
+- loaders for GSM8K, GSM-Symbolic, GSM-Plus, GSM8K-Platinum, and generated Countdown
+- verifiable rewards for correctness, Countdown, and a seeded random placebo
+- GRPO training config plus a Modal launcher for single-GPU runs
+- `CompletionSet` artifacts that separate generation from offline analysis
+- grading, pass@k, CoT-gated pass@k, behavior checks, and paired statistics
+- committed result JSON and figures
 
-## How The Measurement Works
+Full trained checkpoints and completion sets are not committed. They live on the
+Modal `assay-runs` volume. The JSON under [`results/`](results/) is enough to
+check the published numbers and rebuild the figures.
 
-Training and analysis are deliberately separated.
+## How It Works
+
+Training and analysis are separate.
 
 1. Train one arm: base model, reward, seed, and dataset are recorded in provenance.
 2. Generate completions from the base model and trained checkpoints.
 3. Freeze those completions as `CompletionSet` directories.
-4. Run all grading, statistics, and reporting offline on CPU.
+4. Run grading, statistics, and reporting offline on CPU.
 
-Only generation needs a model backend. Once a `CompletionSet` exists, the analysis is
-deterministic and does not need a GPU, network access, or Hugging Face.
+Only generation needs a model backend. Once a `CompletionSet` exists, analysis is
+deterministic and needs no GPU, no network, and no Hugging Face access.
 
-The architecture is documented in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-The training procedure is in [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+For the machinery, read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). For Modal
+training and result regeneration, read [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ## Install
 
@@ -84,44 +85,42 @@ The training procedure is in [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 make install
 ```
 
-This installs the CPU environment: data, rewards, eval, stats, reports, tests, and
-developer tools.
+This installs the CPU environment: data, rewards, eval, stats, reports, and tests.
 
 Optional extras:
 
 ```bash
-uv sync --extra generate  # transformers backend for local CPU/MPS generation
+uv sync --extra generate  # local transformers generation
 uv sync --extra train     # GPU training stack: TRL + vLLM + wandb
 ```
 
-## Verify The Checked-In Results
+## Check The Results
+
+Rebuild the figures and check README/FINDINGS numbers against the JSON artifacts:
 
 ```bash
 make results
 ```
 
-This rebuilds the figures from `results/*.json` and checks that headline README and
-findings numbers trace back to committed artifacts. It does not load a model, download a
-dataset, use Modal, or require a GPU.
-
-Run the normal project gate:
+Run the normal local gate:
 
 ```bash
 make check
 ```
 
-That runs Ruff, unit tests, and the docs-to-JSON consistency guard.
+`make check` runs Ruff, unit tests, and the docs-to-JSON guard.
 
-## Try The Eval Path Without A GPU
+## Try The Eval Path
 
-`make demo` scores two tiny committed `CompletionSet` fixtures:
+`make demo` scores two tiny committed `CompletionSet` fixtures. It does not load a
+model.
 
 ```bash
 make demo
 ```
 
-Expected: base `strict_accuracy = 0.3333333333333333`; correct `strict_accuracy = 0.5`.
-Both fixtures have 12 problems and 4 samples per problem. No model is loaded.
+Expected: base `strict_accuracy = 0.3333333333333333`; correct
+`strict_accuracy = 0.5`.
 
 To generate a small local completion set with `transformers`:
 
@@ -137,22 +136,22 @@ grpo-decomp battery --completions runs/base__dev --k 1
 
 ## CLI
 
-The `grpo-decomp` CLI exposes the artifact boundary directly:
+`grpo-decomp` exposes the artifact boundary directly.
 
-- `generate`: load a model and write a `CompletionSet`;
-- `battery`: score a `CompletionSet`;
-- `report`: build the single-seed decomposition table;
-- `report-seeds`, `report-passk-seeds`, `report-mechanism`, `report-control-seeds`:
-  aggregate the multi-seed panels;
-- `heldout`: select checkpoints from held-out accuracy, not reward curves.
+- `generate`: load a model and write a `CompletionSet`
+- `battery`: score a `CompletionSet`
+- `report`: build a single-seed decomposition table
+- `report-seeds`, `report-passk-seeds`, `report-mechanism`,
+  `report-control-seeds`: aggregate the multi-seed panels
+- `heldout`: select checkpoints from held-out accuracy, not reward curves
 
-Example report generation from local completion directories:
+Example:
 
 ```bash
 grpo-decomp report --completions-dir runs/ --out results/
 ```
 
-The expected layout is `<arm>__<set>`, for example `base__gsm8k-test` and
+The expected local layout is `<arm>__<set>`, for example `base__gsm8k-test` and
 `correct__gsm-symbolic`.
 
 ## Training
@@ -166,19 +165,17 @@ modal run --detach modal_app.py --arm configs/correct.yaml
 modal run --detach modal_app.py --arm configs/correct.yaml --command heldout
 ```
 
-The full procedure, including Modal auth, the W&B secret, smoke runs, Volume pulls, and
-JSON regeneration from completions, is in [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+For Modal auth, the W&B secret, smoke runs, volume pulls, and JSON regeneration,
+use [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
-## Reproducibility Rules
+## Rules Of The Study
 
-The study is built around a few constraints:
-
-- report no headline gain without controls, confidence intervals, and paired tests;
-- aggregate over seeds before making a claim;
-- keep dataset revisions, model revisions, config, commit, dependency versions, and
-  sampling settings in artifacts;
-- treat reward curves as debugging signals, not evidence;
-- make skipped records, malformed artifacts, and unparseable completions visible.
+- no headline gain without controls, confidence intervals, and paired tests
+- aggregate over seeds before making a claim
+- record dataset revisions, model revisions, config, commit, dependency versions,
+  and sampling settings
+- treat reward curves as debugging signals, not evidence
+- make skipped records, malformed artifacts, and unparseable completions visible
 
 ## Stack
 
