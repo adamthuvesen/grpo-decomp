@@ -11,10 +11,10 @@ def test_transformers_backend_end_to_end(tmp_path) -> None:
     pytest.importorskip("torch")
     pytest.importorskip("transformers")
 
-    from llm_grpo_gains.eval.battery import run_battery
-    from llm_grpo_gains.eval.completions import SamplingConfig
-    from llm_grpo_gains.eval.generate import generate
-    from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
+    from grpo_decomp.eval.battery import run_battery
+    from grpo_decomp.eval.completions import SamplingConfig
+    from grpo_decomp.eval.generate import generate
+    from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 
     ref = DatasetRef(name="synthetic", config=None, split="test", revision="rev")
     problems = ProblemSet(

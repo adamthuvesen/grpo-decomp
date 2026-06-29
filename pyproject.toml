@@ -67,7 +67,13 @@ dev = [
 ]
 
 [project.scripts]
-grpo-decomp = "llm_grpo_gains.eval.cli:main"
+grpo-decomp = "grpo_decomp.eval.cli:main"
+
+# The reference study registers its datasets/rewards/task profiles into the harness via
+# this entry point; the harness discovers it at runtime (see grpo_decomp.plugins) without
+# importing the study, keeping the dependency one-way.
+[project.entry-points."grpo_decomp.plugins"]
+gsm8k = "llm_grpo_gains.registration:register"
 
 [tool.ruff]
 line-length = 100
@@ -77,7 +83,7 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["llm_grpo_gains"]
+known-first-party = ["grpo_decomp", "llm_grpo_gains"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -88,7 +94,7 @@ markers = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/llm_grpo_gains"]
+packages = ["src/grpo_decomp", "src/llm_grpo_gains"]
 
 # Required for the eval-audit git dependency (not published to PyPI).
 [tool.hatch.metadata]

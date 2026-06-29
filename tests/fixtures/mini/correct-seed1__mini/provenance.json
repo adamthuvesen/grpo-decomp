@@ -12,6 +12,7 @@
   "model_revision": null,
   "n_problems": 12,
   "package_versions": {},
+  "prompt_strategy": "r1_zero",
   "python_version": "3.11",
   "sampling": {
     "max_new_tokens": 64,

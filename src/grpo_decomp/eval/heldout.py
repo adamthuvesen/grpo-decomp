@@ -8,11 +8,11 @@ from pathlib import Path
 
 from pydantic import Field
 
-from llm_grpo_gains.data import load_countdown, load_gsm8k, validation_split
-from llm_grpo_gains.eval.battery import grade
-from llm_grpo_gains.eval.completions import SamplingConfig
-from llm_grpo_gains.schemas import ProblemSet, Record
-from llm_grpo_gains.train.provenance import RunProvenance
+from grpo_decomp.eval.battery import grade
+from grpo_decomp.eval.completions import SamplingConfig
+from grpo_decomp.registries import VALIDATION_RECONSTRUCTORS
+from grpo_decomp.schemas import ProblemSet, Record
+from grpo_decomp.train.provenance import RunProvenance
 
 
 class HeldoutPoint(Record):
@@ -66,15 +66,20 @@ def select_checkpoint(
 
 
 def validation_for_run(provenance: RunProvenance) -> ProblemSet:
-    """Reconstruct the exact held-out split a run used (deterministic from the source)."""
-    ref = provenance.dataset
-    if ref.name == "countdown":
-        return load_countdown("validation")
-    if ref.name == "openai/gsm8k":
-        train = load_gsm8k(ref.split, revision=ref.revision)
-        _, validation = validation_split(train, n=provenance.validation_size, seed=provenance.seed)
-        return validation
-    raise ValueError(f"held-out reconstruction supports gsm8k train or countdown, got {ref.name!r}")
+    """Reconstruct the exact held-out split a run used (deterministic from the source).
+
+    Dispatches on ``DatasetRef.name`` to the reconstructor a study registered with
+    :func:`grpo_decomp.registries.register_validation_reconstructor`.
+    """
+    name = provenance.dataset.name
+    try:
+        reconstruct = VALIDATION_RECONSTRUCTORS[name]
+    except KeyError as exc:
+        raise ValueError(
+            f"no held-out reconstructor registered for dataset {name!r}; "
+            f"registered: {tuple(sorted(VALIDATION_RECONSTRUCTORS))}"
+        ) from exc
+    return reconstruct(provenance)
 
 
 def discover_checkpoints(run_dir: Path) -> list[Path]:
@@ -105,7 +110,7 @@ def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) ->
     The model backend import stays lazy so report-only commands can import this module
     without loading GPU dependencies.
     """
-    from llm_grpo_gains.eval.generate import generate
+    from grpo_decomp.eval.generate import generate
 
     run_dir = Path(run_dir)
     provenance = RunProvenance.model_validate_json(
@@ -115,7 +120,15 @@ def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) ->
 
     points: list[HeldoutPoint] = []
     for checkpoint in discover_checkpoints(run_dir):
-        samples = generate(str(checkpoint), validation, config, backend=backend)
+        # Score on the SAME prompt strategy the run trained on, or checkpoint selection
+        # would compare an off-distribution prompt against the training distribution.
+        samples = generate(
+            str(checkpoint),
+            validation,
+            config,
+            backend=backend,
+            prompt_strategy=provenance.prompt_strategy,
+        )
         graded = grade(validation, {pid: s[0] for pid, s in samples.items()}, policy="lenient")
         n_correct = sum(graded.values())
         accuracy = n_correct / len(graded)

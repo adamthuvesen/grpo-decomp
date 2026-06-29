@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from llm_grpo_gains.eval.completions import (
+from grpo_decomp.eval.completions import (
     CompletionSet,
     GenerationProvenance,
     ProblemCompletions,
@@ -13,7 +13,7 @@ from llm_grpo_gains.eval.completions import (
     load_completion_set,
     write_completion_set,
 )
-from llm_grpo_gains.schemas import DatasetRef, Problem
+from grpo_decomp.schemas import DatasetRef, Problem
 
 
 def _ref() -> DatasetRef:

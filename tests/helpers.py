@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from llm_grpo_gains.eval.completions import (
+from grpo_decomp.eval.completions import (
     CompletionSet,
     GenerationProvenance,
     ProblemCompletions,
     SamplingConfig,
     write_completion_set,
 )
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 
 
 def dataset_ref(*, split: str = "test", revision: str = "rev") -> DatasetRef:
@@ -36,6 +36,7 @@ def write_completion_set_dir(
     n: int = 1,
     temperature: float = 0.0,
     ref: DatasetRef | None = None,
+    prompt_strategy: str = "r1_zero",
 ) -> None:
     items = tuple(
         ProblemCompletions(
@@ -48,6 +49,7 @@ def write_completion_set_dir(
         model=model,
         model_revision=None,
         backend="transformers",
+        prompt_strategy=prompt_strategy,
         sampling=SamplingConfig(temperature=temperature, n=n),
         dataset=ref or dataset_ref(),
         n_problems=len(ids),

@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from llm_grpo_gains.eval.completions import load_completion_set
-from llm_grpo_gains.report.mechanism import build_mechanism
-from llm_grpo_gains.report.passk_seeds import aggregate_passk_seeds
+from grpo_decomp.eval.completions import load_completion_set
+from grpo_decomp.report.mechanism import build_mechanism
+from grpo_decomp.report.passk_seeds import aggregate_passk_seeds
 
 _MINI = Path(__file__).parent / "fixtures" / "mini"
 

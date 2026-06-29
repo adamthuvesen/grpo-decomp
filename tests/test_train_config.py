@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from llm_grpo_gains.train.config import ArmConfig, GRPOSettings, load_arm_config
+from grpo_decomp.train.config import ArmConfig, GRPOSettings, load_arm_config
 
 _CONFIGS = Path(__file__).parents[1] / "configs"
 
@@ -60,15 +60,17 @@ def test_load_countdown_arm_configs(file: str, reward: str) -> None:
     assert arm.grpo.max_completion_length == 1024
 
 
-def test_arm_rejects_non_selectable_reward() -> None:
-    # `format` is intentionally disabled and must not be selectable.
-    with pytest.raises(ValidationError):
-        ArmConfig(name="fmt", base_model="m", reward="format", seed=0)
+def test_reward_and_dataset_are_free_registry_keys() -> None:
+    # `reward`/`dataset` are registry keys, not a fixed enum: ArmConfig accepts any string
+    # (an unknown key is caught at launch time, by get_reward / the train-dataset registry).
+    arm = ArmConfig(name="x", base_model="m", reward="my_reward", dataset="my_task", seed=0)
+    assert arm.reward == "my_reward"
+    assert arm.dataset == "my_task"
 
 
-def test_arm_rejects_unknown_dataset() -> None:
-    with pytest.raises(ValidationError):
-        ArmConfig(name="x", base_model="m", reward="correct", seed=0, dataset="mnist")
+def test_prompt_strategy_defaults_to_r1_zero() -> None:
+    arm = ArmConfig(name="x", base_model="m", reward="correct", seed=0)
+    assert arm.prompt_strategy == "r1_zero"
 
 
 def test_arm_rejects_non_train_split() -> None:

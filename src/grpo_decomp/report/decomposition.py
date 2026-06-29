@@ -14,17 +14,17 @@ from collections.abc import Sequence
 
 from pydantic import Field
 
-from llm_grpo_gains.eval.battery import BatteryResult, run_battery
-from llm_grpo_gains.eval.completions import CompletionSet
-from llm_grpo_gains.eval.registry import PROBES
-from llm_grpo_gains.eval.report_inputs import greedy_pass1
-from llm_grpo_gains.report.status import (
+from grpo_decomp.eval.battery import BatteryResult, run_battery
+from grpo_decomp.eval.completions import CompletionSet
+from grpo_decomp.eval.report_inputs import greedy_pass1
+from grpo_decomp.registries import PROBES
+from grpo_decomp.report.status import (
     artifact_scope_for,
     is_preliminary_seed_count,
     preliminary_caveat_for,
 )
-from llm_grpo_gains.schemas import Record
-from llm_grpo_gains.stats.compare import Comparison, compare
+from grpo_decomp.schemas import Record
+from grpo_decomp.stats.compare import Comparison, compare
 
 
 class DecompositionRow(Record):

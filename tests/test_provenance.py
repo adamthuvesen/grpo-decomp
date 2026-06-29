@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from llm_grpo_gains.provenance import package_versions
-from llm_grpo_gains.schemas import DatasetRef
-from llm_grpo_gains.train.config import ArmConfig
-from llm_grpo_gains.train.provenance import capture_provenance
+from grpo_decomp.provenance import package_versions
+from grpo_decomp.schemas import DatasetRef
+from grpo_decomp.train.config import ArmConfig
+from grpo_decomp.train.provenance import capture_provenance
 
 
 def _arm() -> ArmConfig:

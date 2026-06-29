@@ -1,6 +1,6 @@
-"""Canonical, strict data schemas shared across llm_grpo_gains.
+"""Canonical, strict data schemas shared across grpo_decomp.
 
-Every dataset llm_grpo_gains touches — GSM8K and its perturbation/clean-label controls —
+Every dataset grpo_decomp touches — GSM8K and its perturbation/clean-label controls —
 is reduced to the same `Problem` shape and served as a `ProblemSet` that carries
 its own pinned `DatasetRef`. One eval path then runs over every set without
 special-casing the source.
@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Record(BaseModel):
-    """Base for all llm_grpo_gains records: immutable, and unknown fields are an error."""
+    """Base for all grpo_decomp records: immutable, and unknown fields are an error."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -37,7 +37,7 @@ class DatasetRef(Record):
 
 
 class Problem(Record):
-    """One math problem in llm_grpo_gains's canonical schema, identical across all datasets.
+    """One math problem in grpo_decomp's canonical schema, identical across all datasets.
 
     `gold_answer` is the normalized final answer in string form. String — not
     float — because the family spans integers, decimals, and fractions, and

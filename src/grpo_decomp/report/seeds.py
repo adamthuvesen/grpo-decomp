@@ -13,10 +13,10 @@ from collections.abc import Sequence
 import numpy as np
 from pydantic import Field
 
-from llm_grpo_gains.report.status import MIN_HEADLINE_SEEDS
-from llm_grpo_gains.schemas import Record
-from llm_grpo_gains.stats.compare import Comparison
-from llm_grpo_gains.stats.seed_aggregate import seed_level_mean_ci
+from grpo_decomp.report.status import MIN_HEADLINE_SEEDS
+from grpo_decomp.schemas import Record
+from grpo_decomp.stats.compare import Comparison
+from grpo_decomp.stats.seed_aggregate import seed_level_mean_ci
 
 
 class SeedPlaceboComparison(Record):

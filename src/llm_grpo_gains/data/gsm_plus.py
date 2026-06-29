@@ -21,8 +21,8 @@ from typing import Any
 
 from datasets import load_dataset
 
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from llm_grpo_gains.data._common import parse_numeric_gold
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
 
 logger = logging.getLogger(__name__)
 

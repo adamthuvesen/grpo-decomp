@@ -12,7 +12,7 @@ import re
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 
 # A signed integer or decimal with optional thousands separators, anchored on a
 # digit so a sign- or comma-only body (e.g. ',') never matches as a "number".

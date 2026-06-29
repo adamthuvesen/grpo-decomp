@@ -13,14 +13,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from llm_grpo_gains.eval.completions import (
+from grpo_decomp.eval.completions import (
     CompletionSet,
     ProblemCompletions,
     SamplingConfig,
     capture_generation_provenance,
 )
-from llm_grpo_gains.prompts import build_prompt, prepare_qwen_tokenizer
-from llm_grpo_gains.schemas import ProblemSet
+from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, PromptStrategy, get_prompt_strategy
+from grpo_decomp.schemas import ProblemSet
 
 #: Prompts per forward pass on the transformers backend (CPU/MPS memory-bound).
 _BATCH_SIZE = 16
@@ -45,11 +45,13 @@ def generate(
     *,
     backend: str = "auto",
     model_revision: str | None = None,
+    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY,
 ) -> dict[str, list[str]]:
     """Sample `config.n` completions per problem; return `problem id -> samples`.
 
     The result is uniform in n (every problem gets exactly `config.n` samples) — a
-    backend that returns a different count is an explicit error.
+    backend that returns a different count is an explicit error. `prompt_strategy` MUST
+    match the strategy the arm trained on, or eval measures an off-distribution prompt.
     """
     if config.temperature == 0.0 and config.n > 1:
         raise ValueError(
@@ -57,10 +59,13 @@ def generate(
             "raise temperature for n>1 sampling"
         )
     resolved = resolve_backend(backend)
-    prompts = [build_prompt(problem.question) for problem in problems]
+    strategy = get_prompt_strategy(prompt_strategy)
+    prompts = [strategy.build_prompt(problem.question) for problem in problems]
 
     if resolved == "transformers":
-        raw = _generate_transformers(model, prompts, config, revision=model_revision)
+        raw = _generate_transformers(
+            model, prompts, config, revision=model_revision, strategy=strategy
+        )
     else:
         raw = _generate_vllm(model, prompts, config, revision=model_revision)
 
@@ -85,17 +90,26 @@ def generate_completion_set(
     *,
     backend: str = "auto",
     model_revision: str | None = None,
+    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY,
     commit: str | None = None,
     dirty: bool | None = None,
 ) -> CompletionSet:
     """Sample completions and package them as a provenance-carrying `CompletionSet`.
 
     The one assembly path for the generation artifact (items in problem order, the
-    resolved backend recorded), shared by the CLI and every Modal eval function.
-    `commit`/`dirty` override git-derived provenance (Modal images strip `.git`).
+    resolved backend and prompt strategy recorded), shared by the CLI and every Modal
+    eval function. `commit`/`dirty` override git-derived provenance (Modal images strip
+    `.git`).
     """
     resolved = resolve_backend(backend)
-    samples = generate(model, problems, config, backend=resolved, model_revision=model_revision)
+    samples = generate(
+        model,
+        problems,
+        config,
+        backend=resolved,
+        model_revision=model_revision,
+        prompt_strategy=prompt_strategy,
+    )
     items = tuple(
         ProblemCompletions(problem=problem, samples=tuple(samples[problem.id]))
         for problem in problems
@@ -107,6 +121,7 @@ def generate_completion_set(
         backend=resolved,
         n_problems=len(problems),
         model_revision=model_revision,
+        prompt_strategy=prompt_strategy,
         commit=commit,
         dirty=dirty,
     )
@@ -132,14 +147,19 @@ def _transformers_device() -> str:
 
 
 def _generate_transformers(
-    model: str, prompts: Sequence[str], config: SamplingConfig, *, revision: str | None
+    model: str,
+    prompts: Sequence[str],
+    config: SamplingConfig,
+    *,
+    revision: str | None,
+    strategy: PromptStrategy,
 ) -> list[list[str]]:
     """CPU/MPS backend: batched `model.generate`, native EOS, left-padded."""
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(model, revision=revision)
-    prepare_qwen_tokenizer(tokenizer)
+    strategy.prepare_tokenizer(tokenizer)
 
     language_model = AutoModelForCausalLM.from_pretrained(model, revision=revision)
     language_model.eval()

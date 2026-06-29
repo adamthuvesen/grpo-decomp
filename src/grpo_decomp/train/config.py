@@ -16,7 +16,8 @@ from typing import Literal
 import yaml
 from pydantic import Field
 
-from llm_grpo_gains.schemas import Record
+from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY
+from grpo_decomp.schemas import Record
 
 
 class GRPOSettings(Record):
@@ -50,16 +51,22 @@ class GRPOSettings(Record):
 
 
 class ArmConfig(Record):
-    """One training arm. `dataset` and `reward` are constrained to the selectable sets."""
+    """One training arm: base model + reward + dataset + prompt strategy + seed + GRPO config.
+
+    `reward`, `dataset`, and `prompt_strategy` are registry keys (resolved at launch time
+    from :mod:`grpo_decomp.registries`), not a fixed enum — a new task plugs in its own
+    without editing the harness. An unknown key is an explicit error when the run starts.
+    """
 
     name: str
     base_model: str
-    reward: Literal["correct", "random", "countdown"]
+    reward: str
     seed: int
-    # The training task. `gsm8k` (default) carves a validation split from train; `countdown`
-    # uses its own generated, seed-independent validation split. Default keeps existing
-    # GSM8K arm configs unchanged.
-    dataset: Literal["gsm8k", "countdown"] = "gsm8k"
+    # The training task: a key into the train-dataset registry (e.g. `gsm8k`, `countdown`).
+    dataset: str = "gsm8k"
+    # The prompt strategy: a key into the prompt-strategy registry (defaults to the harness
+    # `r1_zero`). Training and eval MUST use the same strategy.
+    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY
     base_model_revision: str | None = None
     train_split: Literal["train"] = "train"
     # Pre-registered (anti-peeking) rule for which checkpoint feeds the decomposition.

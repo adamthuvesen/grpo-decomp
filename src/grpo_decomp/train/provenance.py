@@ -13,14 +13,14 @@ from collections.abc import Sequence
 
 from pydantic import Field
 
-from llm_grpo_gains.provenance import (
+from grpo_decomp.provenance import (
     PROVENANCE_PACKAGES,
     git_commit,
     git_is_dirty,
     package_versions,
 )
-from llm_grpo_gains.schemas import DatasetRef, Record
-from llm_grpo_gains.train.config import ArmConfig, GRPOSettings
+from grpo_decomp.schemas import DatasetRef, Record
+from grpo_decomp.train.config import ArmConfig, GRPOSettings
 
 
 class RunProvenance(Record):
@@ -30,6 +30,7 @@ class RunProvenance(Record):
     base_model: str
     base_model_revision: str | None
     reward: str
+    prompt_strategy: str
     dataset: DatasetRef
     train_size: int
     validation_size: int
@@ -70,6 +71,7 @@ def capture_provenance(
         base_model=arm.base_model,
         base_model_revision=arm.base_model_revision,
         reward=arm.reward,
+        prompt_strategy=arm.prompt_strategy,
         dataset=dataset,
         train_size=train_size,
         validation_size=validation_size,

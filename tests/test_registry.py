@@ -1,16 +1,21 @@
-"""Contract tests for the eval registry."""
+"""Contract tests for the harness registries once the study has registered into them."""
 
 from __future__ import annotations
 
-from llm_grpo_gains.eval.registry import ARMS, CONTROL_SETS, PROBES, SETS
+from grpo_decomp.registries import ARMS, CONTROL_SETS, EVAL_SETS, PROBES, REWARDS, TASKS
 
 
 def test_sets_include_task_and_controls() -> None:
-    assert "gsm8k-test" in SETS
-    assert "countdown-test" in SETS
+    assert "gsm8k-test" in EVAL_SETS
+    assert "countdown-test" in EVAL_SETS
     for slug in CONTROL_SETS:
-        assert slug in SETS
+        assert slug in EVAL_SETS
         assert slug in PROBES
+
+
+def test_study_registered_rewards_and_tasks() -> None:
+    assert {"correct", "countdown", "random"} <= set(REWARDS)
+    assert {"gsm8k", "countdown"} <= set(TASKS)
 
 
 def test_arms_are_the_decomposition_triplet() -> None:

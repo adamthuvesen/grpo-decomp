@@ -10,6 +10,16 @@ from fractions import Fraction
 
 import pytest
 
+from grpo_decomp.eval.answers import is_correct
+from grpo_decomp.eval.battery import grade, verifier_for
+from grpo_decomp.eval.completions import (
+    CompletionSet,
+    ProblemCompletions,
+    SamplingConfig,
+    capture_generation_provenance,
+)
+from grpo_decomp.report.decomposition import elicitation_note
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from llm_grpo_gains.data.countdown import (
     DEFAULT_COUNTDOWN_CONFIG,
     CountdownConfig,
@@ -24,16 +34,6 @@ from llm_grpo_gains.data.countdown import (
     reachable_targets,
     solve_countdown,
 )
-from llm_grpo_gains.eval.answers import is_correct
-from llm_grpo_gains.eval.battery import grade, verifier_for
-from llm_grpo_gains.eval.completions import (
-    CompletionSet,
-    ProblemCompletions,
-    SamplingConfig,
-    capture_generation_provenance,
-)
-from llm_grpo_gains.report.decomposition import elicitation_note
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
 
 #: Tiny config so generator tests stay fast.
 _SMALL = CountdownConfig(sizes={"train": 8, "validation": 4, "test": 6, "dev": 3})

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from llm_grpo_gains.rewards import RewardFn
+    from grpo_decomp.registries import RewardFn
 
 
 def make_random_reward(seed: int) -> RewardFn:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from llm_grpo_gains.report.seeds import aggregate_placebo_comparison
-from llm_grpo_gains.stats.compare import compare
+from grpo_decomp.report.seeds import aggregate_placebo_comparison
+from grpo_decomp.stats.compare import compare
 
 
 def _placebo_comparison(n: int, k_correct: int):

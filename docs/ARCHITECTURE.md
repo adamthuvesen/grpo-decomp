@@ -1,12 +1,35 @@
-# llm-grpo-gains architecture
+# Architecture: grpo-decomp + llm-grpo-gains
 
-`llm-grpo-gains` is a controlled study that trains a small language model
-with reinforcement learning on math, then runs an adversarial evaluation that tries
-to explain away the benchmark gain. The question it answers is "how much of the gain
-is real reasoning, and how much is elicitation, contamination, formatting, or noise?".
+The codebase is **two packages with a one-way boundary**:
 
-Everything in the codebase serves that question. The controls are the product; a
-headline number without its controls is treated as worthless.
+- **`grpo_decomp`** — the harness. It trains a GRPO arm, samples completions, grades them,
+  and runs an adversarial decomposition that tries to explain away the benchmark gain:
+  "how much of the gain is real reasoning, and how much is elicitation, contamination,
+  formatting, or noise?". It is task- and model-agnostic.
+- **`llm_grpo_gains`** — the reference study. It instantiates the harness on GSM8K (the
+  primary panel) and a generated Countdown positive control, supplying the datasets,
+  verifiable rewards, configs, results, and the `registration.py` that wires them in.
+
+The controls are the product; a headline number without its controls is treated as
+worthless. The harness never imports the study — a study (or a new RL task) injects its
+concrete pieces through the registries in `grpo_decomp/registries.py`, discovered at
+startup via a `grpo_decomp.plugins` entry point (`grpo_decomp/plugins.py`). That seam is
+what lets the harness point at your own model and task without a fork.
+
+```mermaid
+flowchart LR
+    subgraph study["llm_grpo_gains (study)"]
+        REG["registration.py<br/>register()"]
+        DATA["data/ + rewards/<br/>GSM8K · Countdown"]
+        DATA --> REG
+    end
+    subgraph harness["grpo_decomp (harness)"]
+        RG["registries.py<br/>eval sets · datasets · rewards<br/>verifiers · prompt strategies · tasks"]
+        ENG["train · generate · battery<br/>stats · report"]
+        RG --> ENG
+    end
+    REG -->|"grpo_decomp.plugins entry point"| RG
+```
 
 ---
 
@@ -70,24 +93,37 @@ they do.
 
 ## Module map
 
-| Module          | Responsibility                                                                                              |
-| --------------- | ----------------------------------------------------------------------------------------------------------- |
-| `schemas.py`    | The shared frozen types: `DatasetRef`, `Problem`, `ProblemSet`.                                             |
-| `prompts.py`    | The one prompt template. Train and eval use the _same_ wording.                                             |
-| `provenance.py` | Git commit/dirty state and pinned dependency versions.                                                      |
-| `data/`         | Load or generate each source as a canonical `ProblemSet`.                                                   |
-| `rewards/`      | The graders, one shared signature, selected by name.                                                        |
-| `train/`        | GRPO config, the run launcher, and run provenance.                                                          |
-| `eval/`         | Generation, the completion artifact, grading, pass@k, detectors, CLI.                                       |
-| `stats/`        | Paired comparison: delta + bootstrap CI (via `eval-audit`), McNemar and Holm (local).                       |
-| `report/`       | The single-seed decomposition table plus the multi-seed aggregators (placebo, pass@k, mechanism, controls). |
-| `configs/`      | One YAML per (arm, seed).                                                                                   |
-| `results/`      | Committed outputs: decomposition table, `summary.json`, findings.                                           |
-| `modal_app.py`  | Rents an A100 on Modal and runs the GPU steps.                                                              |
+Harness — `src/grpo_decomp/`:
 
-The dependency direction is one-way: `data` and `schemas` sit at the bottom,
-`eval`/`train` depend on them, `stats` depends on nothing GPU, and `report` sits on
-top of `stats` and `eval`. Heavy GPU imports (`trl`, `vllm`, `torch`) are lazy —
+| Module           | Responsibility                                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| `schemas.py`     | The shared frozen types: `DatasetRef`, `Problem`, `ProblemSet`.                                             |
+| `registries.py`  | The plug-in surface: eval sets, train datasets, rewards, verifiers, validation reconstructors, prompt strategies, task profiles + `ARMS`. |
+| `plugins.py`     | Loads study `register()`s from the `grpo_decomp.plugins` entry-point group.                                 |
+| `prompts.py`     | Prompt strategies (`PromptStrategy`); ships the built-in `r1_zero`. Train and eval use the _same_ strategy. |
+| `splits.py`      | Deterministic `dev_slice` / `validation_split` over a `ProblemSet`.                                         |
+| `provenance.py`  | Git commit/dirty state and pinned dependency versions.                                                      |
+| `rewards/`       | `get_reward` (registry-resolved) + the harness-provided `random` placebo control.                          |
+| `train/`         | GRPO config, the run launcher, and run provenance.                                                          |
+| `eval/`          | Generation, the completion artifact, grading, pass@k, detectors, CLI.                                       |
+| `stats/`         | Paired comparison: delta + bootstrap CI (via `eval-audit`), McNemar and Holm (local).                       |
+| `report/`        | The single-seed decomposition table plus the multi-seed aggregators (placebo, pass@k, mechanism, controls). |
+
+Study — `src/llm_grpo_gains/` (+ repo-root `configs/`, `results/`, `modal_app.py`):
+
+| Module             | Responsibility                                                                            |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `data/`            | Load or generate each source (GSM8K family, Countdown) as a canonical `ProblemSet`.       |
+| `rewards/`         | The verifiable graders `correct` and `countdown` (one shared signature).                  |
+| `registration.py`  | `register()`: wires the study's datasets/rewards/verifiers/task profiles into the harness. |
+| `configs/`         | One YAML per (arm, seed).                                                                  |
+| `results/`         | Committed outputs: decomposition table, `summary.json`, findings.                          |
+| `modal_app.py`     | Rents an A100 on Modal and runs the GPU steps (loads the study plugin).                    |
+
+The dependency direction is one-way: the study depends on the harness, never the reverse
+(a standalone-import smoke enforces it). Within the harness, `schemas`/`registries` sit at
+the bottom, `eval`/`train` depend on them, `stats` depends on nothing GPU, and `report`
+sits on top of `stats` and `eval`. Heavy GPU imports (`trl`, `vllm`, `torch`) are lazy —
 imported inside the function that needs them — so the analysis path imports on a
 laptop with no CUDA.
 
@@ -142,23 +178,29 @@ classDiagram
 All rewards share one signature: they take the generated `completions` plus
 forwarded dataset columns (such as `gold_answer`) and return one score per
 completion (or `None` to skip a sample). An arm differs from another arm by exactly
-one word in its config. `correct`, `countdown`, and `random` are selectable.
+one word in its config (`ArmConfig.reward`), resolved through the reward registry by
+`grpo_decomp.rewards.get_reward`. The harness provides the **placebo**; the study
+registers the verifiable rewards.
 
-- **`correct`**: verifiable exact-match correctness on math, no partial credit.
+- **`random`** (harness, `grpo_decomp/rewards/placebo.py`): the placebo. A uniform value
+  in `[0, 1)` per completion from a seeded RNG, blind to both the completion and the gold.
+  Built once per run so the RNG sequence is reproducible. This is the control the whole
+  method leans on, so it lives in the harness, not a study.
+- **`correct`** (study): verifiable exact-match correctness on math, no partial credit.
   The answer is read from the final `\\boxed{...}` via the same `extract_strict`
   path as headline strict accuracy (then graded with `math-verify`, so `1,000` equals
   `1000` and `3/4` equals `0.75`). Unparseable (unboxed) completions score
   `0.0` (treated as wrong, not skipped) because under `beta=0` there is no KL
   anchor to discourage degenerate output. A high unparseable rate is logged as a
   reward-hacking warning.
-- **`countdown`**: verifiable search correctness for the positive control. Parses
+- **`countdown`** (study): verifiable search correctness for the positive control. Parses
   the model's boxed expression with the restricted evaluator in `data/countdown.py`
   and checks it reaches the target using each source number at most once.
-- **`random`**: the placebo. A uniform value in `[0, 1)` per completion from a
-  seeded RNG, blind to both the completion and the gold. Built once per run so the
-  RNG sequence is reproducible. This is the control the whole study leans on.
-- **`format`**: specified but deliberately not selectable, because on this model
-  a format reward is itself a confound.
+
+Grading at eval time mirrors this: `grpo_decomp.registries.verifier_for(source)` returns
+the harness default (math-verify on the boxed answer) unless a study registered an override
+for that `DatasetRef.name` (Countdown does). A format reward is deliberately absent — on
+this substrate it is itself a confound.
 
 ---
 
@@ -422,31 +464,38 @@ controls and uses `countdown-`-prefixed runs.
 
 ```
 llm-grpo-gains/
-├── src/llm_grpo_gains/
-│   ├── schemas.py            # frozen shared types
-│   ├── prompts.py            # the one prompt template
-│   ├── provenance.py         # git + dependency fingerprint
-│   ├── data/                 # GSM8K + control-set loaders (pinned) + generated Countdown
-│   ├── rewards/              # correct, countdown, placebo (random), format disabled
-│   ├── train/                # config, launcher, run provenance
-│   ├── eval/                 # generate, completions, battery, passk,
-│   │                         #   cot, code_reasoning, answers, cli
-│   ├── stats/                # compare, bootstrap, significance (McNemar + Holm)
-│   └── report/               # decomposition, render, seeds, passk_seeds,
-│                             #   mechanism, control_seeds
-├── configs/                  # one YAML per (arm, seed)
-├── results/                  # committed tables, summary.json, findings
-├── modal_app.py              # Modal image + GPU functions + entrypoint
-└── docs/                     # this document
+├── src/grpo_decomp/             # the harness (task-agnostic)
+│   ├── schemas.py               # frozen shared types
+│   ├── registries.py            # the plug-in surface (datasets, rewards, verifiers, ...)
+│   ├── plugins.py               # entry-point loader for study register()s
+│   ├── prompts.py               # PromptStrategy + the built-in r1_zero
+│   ├── splits.py                # dev_slice, validation_split
+│   ├── provenance.py            # git + dependency fingerprint
+│   ├── rewards/                 # get_reward + the random placebo control
+│   ├── train/                   # config, launcher, run provenance
+│   ├── eval/                    # generate, completions, battery, passk,
+│   │                            #   cot, code_reasoning, answers, cli
+│   ├── stats/                   # compare, bootstrap, significance (McNemar + Holm)
+│   └── report/                  # decomposition, render, seeds, passk_seeds,
+│                                #   mechanism, control_seeds
+├── src/llm_grpo_gains/          # the reference study (depends on grpo_decomp)
+│   ├── data/                    # GSM8K + control-set loaders (pinned) + generated Countdown
+│   ├── rewards/                 # correct, countdown (verifiable graders)
+│   └── registration.py          # wires the study into the harness registries
+├── configs/                     # one YAML per (arm, seed)
+├── results/                     # committed tables, summary.json, findings
+├── modal_app.py                 # Modal image + GPU functions + entrypoint
+└── docs/                        # this document
 ```
 
 ## A reader's path through the code
 
-1. `schemas.py` and `data/gsm8k.py`: what a problem is and where it comes from.
-2. `rewards/correct.py` and `rewards/placebo.py`: the real grader and the placebo.
-3. `train/config.py` and `train/launcher.py`: how an arm is configured and run.
-4. `eval/completions.py`: the artifact that separates generation from analysis.
-5. `eval/cli.py`: how generation, grading, and the report are driven.
-6. `stats/compare.py` and `report/decomposition.py`: how a gain becomes a claim.
-7. `report/seeds.py` and its siblings (`passk_seeds`, `mechanism`,
+1. `grpo_decomp/schemas.py` and `llm_grpo_gains/data/gsm8k.py`: what a problem is and where it comes from.
+2. `grpo_decomp/registries.py` and `llm_grpo_gains/registration.py`: the plug-in seam and how the study fills it.
+3. `llm_grpo_gains/rewards/correct.py` and `grpo_decomp/rewards/placebo.py`: the real grader and the placebo.
+4. `grpo_decomp/train/config.py` and `grpo_decomp/train/launcher.py`: how an arm is configured and run.
+5. `grpo_decomp/eval/completions.py`: the artifact that separates generation from analysis.
+6. `grpo_decomp/eval/cli.py`: how generation, grading, and the report are driven.
+7. `grpo_decomp/stats/compare.py` and `grpo_decomp/report/decomposition.py`: how a gain becomes a claim.
+8. `grpo_decomp/report/seeds.py` and its siblings (`passk_seeds`, `mechanism`,
    `control_seeds`): how claims survive run-to-run variance.

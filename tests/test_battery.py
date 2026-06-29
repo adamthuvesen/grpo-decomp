@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from llm_grpo_gains.eval.battery import (
+from grpo_decomp.eval.battery import (
     cot_counts_by_problem,
     lenient_counts_by_problem,
     run_battery,
 )
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 
 _REF = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="rev")
 

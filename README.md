@@ -1,19 +1,25 @@
-# llm-grpo-gains
+# grpo-decomp + llm-grpo-gains
 
-`llm-grpo-gains` is a small controlled study of GRPO on math. It trains Qwen
-models with verifiable rewards, then asks the question the reward curve cannot
-answer:
+This repo is two packages with one boundary:
+
+- **`grpo_decomp`** — a controls-first **harness** for decomposing a GRPO benchmark gain
+  into real reasoning vs. contamination, formatting, and elicitation. It is task- and
+  model-agnostic: bring your own model and task and plug them in through registries.
+- **`llm_grpo_gains`** — the **reference study** that exercises the harness on GSM8K (the
+  primary panel) plus a generated Countdown positive control.
+
+The harness asks the question the reward curve cannot answer:
 
 **Did the model learn new reasoning, or did training mostly make existing answers
 come out more often?**
 
-On GSM8K, the answer is mostly the second one. GRPO gives a real gain, but the
-base model already has nearly all of the coverage at pass@8. The training mainly
-turns reachable answers into more reliable first tries.
+On GSM8K (the reference study), the answer is mostly the second one. GRPO gives a real
+gain, but the base model already has nearly all of the coverage at pass@8. The training
+mainly turns reachable answers into more reliable first tries.
 
 Countdown is the sanity check. It uses the same protocol on a generated search
 task where the base model actually lacks coverage, and there GRPO does expand
-what the model can solve.
+what the model can solve — proving the method detects real expansion when it exists.
 
 ## Result
 
@@ -51,18 +57,45 @@ The detailed writeups are in:
 
 ## What Is In The Repo
 
-This repo contains the measurement stack, not a general RL framework:
+The **harness** (`src/grpo_decomp/`) is the measurement method, not a general RL framework:
 
-- loaders for GSM8K, GSM-Symbolic, GSM-Plus, GSM8K-Platinum, and generated Countdown
-- verifiable rewards for correctness, Countdown, and a seeded random placebo
-- GRPO training config plus a Modal launcher for single-GPU runs
+- GRPO training launcher + config, and generation (transformers / vLLM backends)
 - `CompletionSet` artifacts that separate generation from offline analysis
 - grading, pass@k, CoT-gated pass@k, behavior checks, and paired statistics
-- committed result JSON and figures
+- the seeded **random placebo** reward (the control the whole method leans on)
+- the registries (`grpo_decomp/registries.py`) a task plugs into: eval sets, train
+  datasets, rewards, verifiers, held-out reconstructors, prompt strategies, task profiles
+
+The **study** (`src/llm_grpo_gains/`) is what makes those numbers concrete:
+
+- loaders for GSM8K, GSM-Symbolic, GSM-Plus, GSM8K-Platinum, and generated Countdown
+- verifiable rewards for correctness and Countdown
+- the arm `configs/`, committed result JSON and figures, and `registration.py` (the wiring)
 
 Full trained checkpoints and completion sets are not committed. They live on the
 Modal `assay-runs` volume. The JSON under [`results/`](results/) is enough to
 check the published numbers and rebuild the figures.
+
+## Plug In Your Own Model + Task
+
+The harness is built to take your own RL'd model and task without a fork. Point `--model`
+(or `ArmConfig.base_model`) at any Hugging Face id or checkpoint path, and register the
+task by writing a `register()` that fills the harness registries:
+
+```python
+from grpo_decomp.registries import register_eval_set, register_train_dataset, register_reward
+
+def register() -> None:
+    register_eval_set("my-test", load_my_test)            # a `generate --set` target
+    register_train_dataset(TrainDataset("my-task", load_my_train_and_validation))
+    register_reward("my-reward", lambda seed: my_reward)  # verifiable; share the signature
+    # ...register_verifier / register_validation_reconstructor / register_prompt_strategy as needed
+```
+
+Declare it under the `grpo_decomp.plugins` entry-point group (see `pyproject.toml`) so the
+CLI and Modal discover it. The chat-template case is one `register_prompt_strategy` away;
+the default `r1_zero` strategy is for base models with no chat template.
+[`src/llm_grpo_gains/registration.py`](src/llm_grpo_gains/registration.py) is the worked example.
 
 ## How It Works
 

@@ -16,14 +16,15 @@ from pathlib import Path
 
 from pydantic import Field, model_validator
 
-from llm_grpo_gains.prompts import EVAL_MAX_NEW_TOKENS
-from llm_grpo_gains.provenance import (
+from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
+from grpo_decomp.provenance import (
     PROVENANCE_PACKAGES,
     git_commit,
     git_is_dirty,
     package_versions,
 )
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet, Record
+from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet, Record
 
 PROVENANCE_FILE = "provenance.json"
 COMPLETIONS_FILE = "completions.jsonl"
@@ -45,6 +46,10 @@ class GenerationProvenance(Record):
     model: str = Field(description="Model id or checkpoint path.")
     model_revision: str | None
     backend: str = Field(description="'transformers' or 'vllm'.")
+    prompt_strategy: str = Field(
+        default=DEFAULT_PROMPT_STRATEGY,
+        description="Prompt strategy used to build prompts (must match training).",
+    )
     sampling: SamplingConfig
     dataset: DatasetRef
     n_problems: int
@@ -104,6 +109,7 @@ def capture_generation_provenance(
     backend: str,
     n_problems: int,
     model_revision: str | None = None,
+    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY,
     commit: str | None = None,
     dirty: bool | None = None,
     packages: Sequence[str] = PROVENANCE_PACKAGES,
@@ -118,6 +124,7 @@ def capture_generation_provenance(
         model=model,
         model_revision=model_revision,
         backend=backend,
+        prompt_strategy=prompt_strategy,
         sampling=sampling,
         dataset=dataset,
         n_problems=n_problems,

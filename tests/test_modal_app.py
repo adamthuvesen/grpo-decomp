@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from llm_grpo_gains.train.checkpoints import (
+from grpo_decomp.train.checkpoints import (
     final_or_selected_checkpoint_path,
     require_selected_checkpoint_path,
 )
