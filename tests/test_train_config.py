@@ -61,7 +61,7 @@ def test_load_countdown_arm_configs(file: str, reward: str) -> None:
 
 
 def test_arm_rejects_non_selectable_reward() -> None:
-    # `format` is deferred and must not be selectable.
+    # `format` is intentionally disabled and must not be selectable.
     with pytest.raises(ValidationError):
         ArmConfig(name="fmt", base_model="m", reward="format", seed=0)
 

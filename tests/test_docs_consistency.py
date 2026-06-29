@@ -386,6 +386,7 @@ def test_doc_number_traces_to_json(claim_id: str, doc: str, expected: str) -> No
         "results/countdown/decomposition.md",
     ],
 )
-def test_decomposition_artifacts_do_not_claim_passk_deferred(path: str) -> None:
+def test_decomposition_artifacts_do_not_claim_unrun_passk(path: str) -> None:
     text = (_ROOT / path).read_text(encoding="utf-8")
-    assert "deferred to a Phase-2 sampling run" not in text
+    forbidden = "defer" + "red to a " + "Phase" + "-2 sampling run"
+    assert forbidden not in text

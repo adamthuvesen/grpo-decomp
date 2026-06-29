@@ -8,7 +8,7 @@ which reward `get_reward` returns:
 - ``countdown`` — verifiable search correctness for the Countdown positive control.
 - ``random``    — the seeded placebo control.
 
-``format`` (a small answer-format bonus) is specified but deferred and deliberately not
+``format`` (a small answer-format bonus) is specified but deliberately not
 selectable here: on the Qwen substrate a format reward is itself a confound.
 """
 
@@ -27,7 +27,7 @@ PLACEBO_REWARD = "random"
 #: Shared reward signature: completions + forwarded columns -> one score per completion.
 RewardFn = Callable[..., list[float]]
 
-#: The rewards a training arm may select. `format` is deferred (see module docstring).
+#: The rewards a training arm may select. `format` is intentionally disabled (see module docstring).
 SELECTABLE = ("correct", "countdown", PLACEBO_REWARD)
 
 

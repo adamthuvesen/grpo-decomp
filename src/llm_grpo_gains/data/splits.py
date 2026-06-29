@@ -27,7 +27,7 @@ def _subset(problem_set: ProblemSet, indices: list[int]) -> ProblemSet:
 
 
 def dev_slice(problem_set: ProblemSet, *, n: int = 50, seed: int = 0) -> ProblemSet:
-    """A small fixed subset for Phase 0 pipeline testing without a GPU.
+    """A small fixed subset for local pipeline testing without a GPU.
 
     Deterministic: the same `n` and `seed` return the same problem ids every time.
     """

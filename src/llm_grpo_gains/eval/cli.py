@@ -1,10 +1,10 @@
 """`grpo-decomp`: generate completions, score a checkpoint, drive the decomposition.
 
-Three subcommands, split along the phase contract:
+Three core subcommands, split along the artifact contract:
 
 - ``generate`` — the only model-loading command (a generation backend required). One
   model (base or checkpoint) over one problem set -> a `CompletionSet` artifact.
-- ``battery``  — a `CompletionSet` -> a `BatteryResult` (the Phase-0 base-model smoke
+- ``battery``  — a `CompletionSet` -> a `BatteryResult` (the local smoke
   and the eval-battery end-to-end check). CPU-only.
 - ``report``   — `CompletionSet`s across arms (base/correct/random) and sets ->
   the deterministic decomposition table + ``summary.json``. CPU-only, offline.

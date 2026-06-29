@@ -81,8 +81,8 @@ modal volume ls  assay-runs
 modal volume get assay-runs correct-seed0 ./runs/correct-seed0    # pull for local analysis
 ```
 
-Then Phase 2: `grpo-decomp generate --backend vllm` on base + both checkpoints across the eval
-sets, and `grpo-decomp report` for the decomposition table (see the README).
+Then generate with `grpo-decomp generate --backend vllm` on base + both checkpoints across the eval
+sets, and run `grpo-decomp report` for the decomposition table (see the README).
 
 ## Reproduce the decomposition (CPU only, no training)
 

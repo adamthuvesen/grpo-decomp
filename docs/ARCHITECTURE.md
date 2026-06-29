@@ -12,10 +12,10 @@ headline number without its controls is treated as worthless.
 
 ## Study Design
 
-Three phases. Phase 1 produces models, phase 2 turns models into graded answers,
-phase 3 turns graded answers into a defensible claim. The boundary between phase 2
-and phase 3 is a self-contained artifact (`CompletionSet`), so generation runs on a
-GPU and all analysis runs offline on a CPU.
+Three workflow stages. Training produces models, generation turns models into
+graded answers, and offline analysis turns graded answers into a defensible claim.
+The boundary between generation and analysis is a self-contained artifact
+(`CompletionSet`), so generation runs on a GPU and all analysis runs offline on a CPU.
 
 The same pipeline runs two tasks. **GSM8K** (grade-school math on the
 `Qwen2.5-Math-1.5B` base) is the primary decomposition. **Countdown** (a generated
@@ -26,18 +26,18 @@ battery, and statistics below; only the dataset and reward change.
 
 ```mermaid
 flowchart LR
-    subgraph p1["Phase 1: Train (GPU)"]
+    subgraph p1["Train (GPU)"]
         D["data/<br/>GSM8K or Countdown train"] --> P["prompts.py<br/>shared prompt"]
         P --> T["train/<br/>GRPO trainer"]
         R["rewards/<br/>correct / random / countdown"] --> T
         T --> M["trained<br/>checkpoint"]
     end
-    subgraph p2["Phase 2: Evaluate (GPU)"]
+    subgraph p2["Generate (GPU)"]
         BASE["base model"] --> G["eval/generate<br/>sample answers"]
         M --> G
         G --> CS["CompletionSet<br/>(problems + samples + provenance)"]
     end
-    subgraph p3["Phase 3: Judge (CPU, offline)"]
+    subgraph p3["Analyze (CPU, offline)"]
         CS --> B["eval/battery<br/>grade, pass@k, detectors"]
         CS --> C["stats/compare<br/>delta, bootstrap CI, McNemar"]
         B --> REP["report/<br/>decomposition + seed aggregation"]
@@ -157,8 +157,8 @@ one word in its config. `correct`, `countdown`, and `random` are selectable.
 - **`random`**: the placebo. A uniform value in `[0, 1)` per completion from a
   seeded RNG, blind to both the completion and the gold. Built once per run so the
   RNG sequence is reproducible. This is the control the whole study leans on.
-- **`format`**: specified but deferred, and deliberately not selectable, because on
-  this model a format reward is itself a confound.
+- **`format`**: specified but deliberately not selectable, because on this model
+  a format reward is itself a confound.
 
 ---
 
@@ -234,7 +234,7 @@ classDiagram
 ```
 
 - `generate.py`: one interface, two backends. `transformers` for CPU/MPS (the
-  Phase-0 smoke), `vllm` for CUDA (the real runs). Both draw on the same training
+  local smoke), `vllm` for CUDA (the real runs). Both draw on the same training
   prompt and stop on the model's native end-of-text token, so evaluation measures
   the model on the distribution it trained on. Greedy decoding with `n>1` raises an
   explicit error (it would return identical samples).
@@ -407,7 +407,7 @@ eval set, control sets, and run-name prefix. GSM8K carries the three
 perturbation/clean-label controls and unprefixed run dirs; Countdown has no
 controls and uses `countdown-`-prefixed runs.
 
-### Two Modal gotchas, learned the hard way
+### Modal Launch Notes
 
 - **Do not launch several `modal run`s that need the same uncached image at once.**
   Concurrent first-time builds of one image race and one fails with
@@ -427,7 +427,7 @@ llm-grpo-gains/
 │   ├── prompts.py            # the one prompt template
 │   ├── provenance.py         # git + dependency fingerprint
 │   ├── data/                 # GSM8K + control-set loaders (pinned) + generated Countdown
-│   ├── rewards/              # correct, countdown, placebo (random), [format = deferred]
+│   ├── rewards/              # correct, countdown, placebo (random), format disabled
 │   ├── train/                # config, launcher, run provenance
 │   ├── eval/                 # generate, completions, battery, passk,
 │   │                         #   cot, code_reasoning, answers, cli

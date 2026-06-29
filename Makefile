@@ -18,7 +18,7 @@ test:  ## Run unit tests (network tests deselected)
 test-integration:  ## Run network/HuggingFace integration tests
 	uv run pytest -m integration
 
-check: lint test test-docs  ## The Phase 0 gate: lint + unit tests + docs consistency
+check: lint test test-docs  ## Local gate: lint + unit tests + docs consistency
 
 test-docs:  ## Docs <-> JSON consistency for committed headline numbers
 	uv run pytest tests/test_docs_consistency.py -q
@@ -33,7 +33,7 @@ results:  ## Regenerate the committed figures from JSON, then verify docs <-> JS
 	uv run --with matplotlib python results/make_figures.py
 	uv run pytest tests/test_docs_consistency.py -q
 
-aggregate:  ## Re-derive the committed JSON from local completions (needs runs/ pulled; see RUNBOOK)
+aggregate:  ## Re-derive the committed JSON from local completions (needs runs/ pulled; see docs/RUNBOOK)
 	uv run grpo-decomp report-passk-seeds  --completions-dir runs/passk-multiseed           --task-set gsm8k-test     --out results/pass8-multiseed.json
 	uv run grpo-decomp report-passk-seeds  --completions-dir runs/passk-multiseed-countdown --task-set countdown-test  --out results/countdown/pass8-multiseed.json
 	uv run grpo-decomp report-passk-seeds  --completions-dir runs/passk-multiseed           --task-set gsm-symbolic    --out results/decontam/pass8-symbolic.json

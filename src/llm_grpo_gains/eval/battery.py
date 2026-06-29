@@ -1,8 +1,8 @@
 """Run the full eval battery over a checkpoint's completions and report results.
 
 Operates on already-generated completions (problem id -> its `n` samples); the
-generation backend (vLLM / transformers) is the GPU-side concern, deferred to
-Phase 1/2. pass@k coverage uses *lenient* extraction so capability is not
+generation backend (vLLM / transformers) is the GPU-side concern. pass@k
+coverage uses *lenient* extraction so capability is not
 undercounted on formatting — which makes the k=1 vanilla pass@k equal the lenient
 accuracy by construction. CoT-gated pass@k additionally requires a valid chain, so
 it is always <= the vanilla value.

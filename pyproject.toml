@@ -34,7 +34,7 @@ dependencies = [
 # the eval/analysis layer can run on a cheap box. Pin TRL — its GRPO defaults move.
 [project.optional-dependencies]
 # Completion generation for the eval battery. transformers+torch only, so the
-# base-model Phase-0 smoke installs on a Mac/CPU box (no CUDA, no vLLM). The vLLM
+# base-model smoke installs on a Mac/CPU box (no CUDA, no vLLM). The vLLM
 # GPU backend is imported lazily and ships with `train`.
 generate = [
     "transformers>=4.48",

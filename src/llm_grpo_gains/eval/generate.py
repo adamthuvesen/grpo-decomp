@@ -1,7 +1,7 @@
 """Sample completions from a model, backend-agnostically.
 
-One interface, two backends: `transformers` (CPU/MPS — the Phase-0 base-model smoke)
-and `vllm` (CUDA — the high-n Phase-2 pass). The heavy dependency for each backend
+One interface, two backends: `transformers` (CPU/MPS local smoke)
+and `vllm` (CUDA high-n generation). The heavy dependency for each backend
 is imported *inside its branch*, so this module imports on a host with no CUDA and no
 vLLM, and the `transformers` path runs without vLLM ever being touched.
 
@@ -90,7 +90,7 @@ def generate_completion_set(
 ) -> CompletionSet:
     """Sample completions and package them as a provenance-carrying `CompletionSet`.
 
-    The one assembly path for the phase-2 artifact (items in problem order, the
+    The one assembly path for the generation artifact (items in problem order, the
     resolved backend recorded), shared by the CLI and every Modal eval function.
     `commit`/`dirty` override git-derived provenance (Modal images strip `.git`).
     """

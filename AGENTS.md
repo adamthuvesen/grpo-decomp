@@ -13,11 +13,11 @@ defaults and is _not_ duplicated here.
 
 ```bash
 make install        # CPU env: data, rewards, eval, stats, report
-make check          # ruff + unit tests (the Phase-0 gate)
+make check          # ruff + unit tests + docs consistency
 make demo           # score committed mini CompletionSets; no model load
 make results        # rebuild figures from results/*.json + docs<->JSON consistency check
 
-modal run --detach modal_app.py --arm configs/correct.yaml  # train one arm on an A100 (see RUNBOOK.md)
+modal run --detach modal_app.py --arm configs/correct.yaml  # train one arm on an A100 (see docs/RUNBOOK.md)
 grpo-decomp battery --completions runs/base__dev --k 1      # grade a CompletionSet (CPU)
 grpo-decomp report  --completions-dir runs/ --out results/  # <arm>__<set> dirs -> table + summary.json
 ```
@@ -44,4 +44,4 @@ lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#design-rules-that-shaped-
 | Topic                                                | Doc                                          |
 | ---------------------------------------------------- | -------------------------------------------- |
 | Architecture, data flow, module map, Modal execution | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Training a GRPO arm on Modal, reproducing results    | [RUNBOOK.md](RUNBOOK.md)                     |
+| Training a GRPO arm on Modal, reproducing results    | [docs/RUNBOOK.md](docs/RUNBOOK.md)           |

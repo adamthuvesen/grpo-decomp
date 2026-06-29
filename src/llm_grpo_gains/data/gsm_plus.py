@@ -10,7 +10,7 @@ against the pinned revision:
 3. The "critical thinking" perturbation (1319 rows) is intentionally
    *unanswerable*, with gold ``"None"``. v1's decomposition is numeric
    exact-match, so these are excluded and logged explicitly, never silently dropped.
-   Recognizing unanswerability is a separate task, deferred to v2.
+   Recognizing unanswerability is a separate task outside this study.
 """
 
 from __future__ import annotations
