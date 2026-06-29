@@ -11,9 +11,9 @@ from collections.abc import Mapping
 import numpy as np
 from pydantic import Field
 
-from llm_grpo_gains.schemas import Record
-from llm_grpo_gains.stats.bootstrap import PAIRED_BOOTSTRAP_SEED, paired_bootstrap_ci
-from llm_grpo_gains.stats.significance import mcnemar
+from grpo_decomp.schemas import Record
+from grpo_decomp.stats.bootstrap import PAIRED_BOOTSTRAP_SEED, paired_bootstrap_ci
+from grpo_decomp.stats.significance import mcnemar
 
 
 class Comparison(Record):

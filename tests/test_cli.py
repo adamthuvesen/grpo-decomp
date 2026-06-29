@@ -8,22 +8,22 @@ from pathlib import Path
 
 import pytest
 
-from llm_grpo_gains.eval.cli import main
-from llm_grpo_gains.eval.completions import (
+from grpo_decomp.eval.cli import main
+from grpo_decomp.eval.completions import (
     CompletionSet,
     GenerationProvenance,
     ProblemCompletions,
     SamplingConfig,
     write_completion_set,
 )
-from llm_grpo_gains.eval.heldout import discover_checkpoints, select_checkpoint
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
-from llm_grpo_gains.train.config import ArmConfig
-from llm_grpo_gains.train.provenance import capture_provenance
+from grpo_decomp.eval.heldout import discover_checkpoints, select_checkpoint
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
+from grpo_decomp.train.config import ArmConfig
+from grpo_decomp.train.provenance import capture_provenance
 
 #: The real generate submodule (sys.modules), not the re-exported function of the same name.
-_GENERATE_MODULE = importlib.import_module("llm_grpo_gains.eval.generate")
-_CLI_MODULE = importlib.import_module("llm_grpo_gains.eval.cli")
+_GENERATE_MODULE = importlib.import_module("grpo_decomp.eval.generate")
+_CLI_MODULE = importlib.import_module("grpo_decomp.eval.cli")
 
 
 def _ref(*, split: str = "test", revision: str = "rev") -> DatasetRef:
@@ -72,7 +72,7 @@ def _write_cs(
 
 def _patch_report_sets(monkeypatch, **sets: ProblemSet) -> None:
     for slug, problems in sets.items():
-        monkeypatch.setitem(_CLI_MODULE.SETS, slug, lambda problems=problems: problems)
+        monkeypatch.setitem(_CLI_MODULE.EVAL_SETS, slug, lambda problems=problems: problems)
 
 
 def test_battery_emits_result_json(tmp_path, capsys) -> None:
@@ -381,7 +381,7 @@ def test_heldout_writes_curve_and_records_final_selection(tmp_path, monkeypatch,
     for name in ("checkpoint-50", "checkpoint-100", "final"):
         (run / "checkpoints" / name).mkdir(parents=True)
     monkeypatch.setattr(
-        "llm_grpo_gains.eval.heldout.validation_for_run", lambda provenance: _val_problems()
+        "grpo_decomp.eval.heldout.validation_for_run", lambda provenance: _val_problems()
     )
     monkeypatch.setattr(_GENERATE_MODULE, "generate", _fake_generate_correct_on("final"))
 
@@ -409,7 +409,7 @@ def test_heldout_best_on_validation_records_winner(tmp_path, monkeypatch) -> Non
     for name in ("checkpoint-50", "checkpoint-100", "final"):
         (run / "checkpoints" / name).mkdir(parents=True)
     monkeypatch.setattr(
-        "llm_grpo_gains.eval.heldout.validation_for_run", lambda provenance: _val_problems()
+        "grpo_decomp.eval.heldout.validation_for_run", lambda provenance: _val_problems()
     )
     monkeypatch.setattr(_GENERATE_MODULE, "generate", _fake_generate_correct_on("checkpoint-100"))
 
@@ -421,7 +421,7 @@ def test_heldout_best_on_validation_records_winner(tmp_path, monkeypatch) -> Non
 
 
 def test_select_checkpoint_final_takes_end_of_training() -> None:
-    from llm_grpo_gains.eval.heldout import HeldoutPoint
+    from grpo_decomp.eval.heldout import HeldoutPoint
 
     points = [
         HeldoutPoint(checkpoint="checkpoint-50", step=50, accuracy=0.9, n_correct=9, n=10),
@@ -431,7 +431,7 @@ def test_select_checkpoint_final_takes_end_of_training() -> None:
 
 
 def test_select_checkpoint_final_requires_final_checkpoint() -> None:
-    from llm_grpo_gains.eval.heldout import HeldoutPoint
+    from grpo_decomp.eval.heldout import HeldoutPoint
 
     points = [HeldoutPoint(checkpoint="checkpoint-100", step=100, accuracy=0.9, n_correct=9, n=10)]
     with pytest.raises(ValueError, match="final checkpoint"):
@@ -439,7 +439,7 @@ def test_select_checkpoint_final_requires_final_checkpoint() -> None:
 
 
 def test_select_checkpoint_best_on_validation_picks_max() -> None:
-    from llm_grpo_gains.eval.heldout import HeldoutPoint
+    from grpo_decomp.eval.heldout import HeldoutPoint
 
     points = [
         HeldoutPoint(checkpoint="checkpoint-50", step=50, accuracy=0.4, n_correct=4, n=10),

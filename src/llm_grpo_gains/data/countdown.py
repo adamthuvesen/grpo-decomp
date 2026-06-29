@@ -30,7 +30,7 @@ from functools import lru_cache
 
 from pydantic import Field, field_validator
 
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet, Record
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet, Record
 
 # --- The canonical answer key (encoded in Problem.gold_answer) --------------------------
 

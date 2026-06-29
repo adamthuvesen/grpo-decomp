@@ -1,13 +1,25 @@
-# AGENTS.md — llm-grpo-gains
+# AGENTS.md — grpo-decomp + llm-grpo-gains
 
-`llm-grpo-gains` is a controlled study: train a small model with GRPO on math,
-then run an adversarial eval battery that decomposes the benchmark gain into real reasoning
-vs. contamination, formatting, and elicitation. The result is only as trustworthy as the
-controls — "most of this gain was elicitation" beats a confident, uncontrolled "RL works."
+This repo is **two packages, one boundary**:
 
-This is a focused, narrow study, not an RL framework. Keep it that way; do not turn it into
-a platform. User-level guidance (tone, principles, git etiquette) lives in the user's agent
-defaults and is _not_ duplicated here.
+- **`grpo_decomp`** (`src/grpo_decomp/`) — the harness: a controls-first method for
+  decomposing a GRPO benchmark gain into real reasoning vs. contamination, formatting, and
+  elicitation. Task- and model-agnostic; knows nothing about GSM8K or Countdown. Tasks plug
+  in through the registries in `grpo_decomp/registries.py`.
+- **`llm_grpo_gains`** (`src/llm_grpo_gains/`) — the reference study that exercises the
+  harness: GSM8K (primary) + a generated Countdown positive control. It supplies datasets,
+  the `correct`/`countdown` rewards, configs, results, and a `registration.py` that wires
+  itself into the harness via a `grpo_decomp.plugins` entry point.
+
+The result is only as trustworthy as the controls — "most of this gain was elicitation"
+beats a confident, uncontrolled "RL works."
+
+**Keep the boundary one-way.** The harness must never import the study (verified by a
+standalone-import smoke). Put generic measurement machinery in `grpo_decomp`; put anything
+GSM8K/Countdown-specific in `llm_grpo_gains`. The harness is a narrow measurement harness,
+not a general RL platform — add extension points (registry entries), not a framework.
+User-level guidance (tone, principles, git etiquette) lives in the user's agent defaults
+and is _not_ duplicated here.
 
 ## Quickstart
 
@@ -35,9 +47,24 @@ Only `generate` (and training) needs a model/GPU; `battery`, `report`, and `make
 - **Pin TRL** — its GRPO defaults move between versions; re-verify config at build time. Same for vLLM (`==0.17.1`, TRL 1.0.0's supported max).
 - No new runtime deps without asking. Stack is TRL + transformers + vLLM + datasets (train) and `eval-audit` (stats); no broad RL/agent frameworks.
 - Python 3.11+, `uv`, ruff (line length 100), strict Pydantic for result schemas. `CLAUDE.md` is a symlink to this file.
+- **Respect the boundary.** Harness code imports only `grpo_decomp.*`; study code may import both. A new GSM8K/Countdown-shaped knob is a registry entry in `llm_grpo_gains/registration.py`, not an `if task == ...` in the harness.
 
 The rationale behind these rules (why the reward curve lies, why seeds, why strict schemas)
 lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#design-rules-that-shaped-the-code).
+
+## Plug In Your Own Model + Task
+
+The harness already takes any model (`base_model` / `--model` is a free HF id or path) and
+any task through registries — no fork required:
+
+1. Write a `register()` that calls `register_eval_set`, `register_train_dataset`,
+   `register_reward`, `register_verifier` (if not boxed-math), and
+   `register_validation_reconstructor` (for held-out selection). Optionally
+   `register_prompt_strategy` for a chat-template model; the harness default is `r1_zero`.
+2. Declare it under the `grpo_decomp.plugins` entry-point group so the CLI/Modal discover it.
+3. Point an `ArmConfig` at your `base_model` + your registered `reward`/`dataset`/`prompt_strategy`.
+
+`llm_grpo_gains/registration.py` is the worked example.
 
 ## Read The Docs First
 

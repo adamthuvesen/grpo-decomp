@@ -6,13 +6,13 @@ import importlib
 
 import pytest
 
-from llm_grpo_gains.eval.completions import SamplingConfig
-from llm_grpo_gains.eval.generate import generate, resolve_backend
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
+from grpo_decomp.eval.completions import SamplingConfig
+from grpo_decomp.eval.generate import generate, resolve_backend
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 
 #: The real submodule (via sys.modules), not the `generate` *function* that
-#: `llm_grpo_gains.eval` re-exports under the same name — that shadows the package attribute.
-_GENERATE_MODULE = importlib.import_module("llm_grpo_gains.eval.generate")
+#: `grpo_decomp.eval` re-exports under the same name — that shadows the package attribute.
+_GENERATE_MODULE = importlib.import_module("grpo_decomp.eval.generate")
 
 
 def _problems() -> ProblemSet:
@@ -25,7 +25,7 @@ def _problems() -> ProblemSet:
 
 
 def _fake_backend(samples_per_prompt: int):
-    def backend(model, prompts, config, *, revision):
+    def backend(model, prompts, config, *, revision, strategy=None):
         return [
             [f"{model}:{i}:s{j}" for j in range(samples_per_prompt)] for i in range(len(prompts))
         ]

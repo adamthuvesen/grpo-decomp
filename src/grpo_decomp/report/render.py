@@ -9,12 +9,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from llm_grpo_gains.report.control_seeds import ControlDecomposition
-from llm_grpo_gains.report.decomposition import Decomposition, DecompositionRow
-from llm_grpo_gains.report.mechanism import MechanismReport
-from llm_grpo_gains.report.passk_seeds import PassKMultiSeed
-from llm_grpo_gains.report.seeds import SeedPlaceboComparison
-from llm_grpo_gains.report.status import preliminary_suffix
+from grpo_decomp.report.control_seeds import ControlDecomposition
+from grpo_decomp.report.decomposition import Decomposition, DecompositionRow
+from grpo_decomp.report.mechanism import MechanismReport
+from grpo_decomp.report.passk_seeds import PassKMultiSeed
+from grpo_decomp.report.seeds import SeedPlaceboComparison
+from grpo_decomp.report.status import preliminary_suffix
 
 
 def _row_cells(row: DecompositionRow) -> str:

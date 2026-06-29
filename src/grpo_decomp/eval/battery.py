@@ -10,29 +10,17 @@ it is always <= the vanilla value.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import NamedTuple
 
 from pydantic import Field
 
-from llm_grpo_gains.data.countdown import countdown_is_correct
-from llm_grpo_gains.eval.answers import extract_lenient, extract_strict, is_correct
-from llm_grpo_gains.eval.code_reasoning import is_code_reasoning
-from llm_grpo_gains.eval.cot import chain_is_valid, has_verifiable_chain
-from llm_grpo_gains.eval.passk import estimate_pass_at_k
-from llm_grpo_gains.schemas import DatasetRef, ProblemSet, Record
-
-#: Signature shared by the math (`is_correct`) and Countdown (`countdown_is_correct`)
-#: graders: an extracted answer + the gold key -> correct?
-Verifier = Callable[[str | None, str], bool]
-
-
-def verifier_for(source: DatasetRef) -> Verifier:
-    """Select the grading verifier by task: the Countdown checker for generated Countdown
-    sets, math-verify for the GSM8K family. Both consume the same extracted boxed answer,
-    so strict/lenient extraction still applies uniformly.
-    """
-    return countdown_is_correct if source.name == "countdown" else is_correct
+from grpo_decomp.eval.answers import extract_lenient, extract_strict
+from grpo_decomp.eval.code_reasoning import is_code_reasoning
+from grpo_decomp.eval.cot import chain_is_valid, has_verifiable_chain
+from grpo_decomp.eval.passk import estimate_pass_at_k
+from grpo_decomp.registries import verifier_for
+from grpo_decomp.schemas import ProblemSet, Record
 
 
 class PassK(Record):

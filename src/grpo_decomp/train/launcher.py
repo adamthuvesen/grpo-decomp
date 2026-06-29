@@ -19,35 +19,38 @@ from pathlib import Path
 
 from datasets import Dataset
 
-from llm_grpo_gains.data import dev_slice, load_countdown, load_gsm8k, validation_split
-from llm_grpo_gains.prompts import build_prompt, prepare_qwen_tokenizer
-from llm_grpo_gains.rewards import get_reward
-from llm_grpo_gains.schemas import ProblemSet
-from llm_grpo_gains.train.config import ArmConfig
-from llm_grpo_gains.train.provenance import capture_provenance
+from grpo_decomp.registries import TRAIN_DATASETS, PromptStrategy, get_prompt_strategy
+from grpo_decomp.rewards import get_reward
+from grpo_decomp.schemas import ProblemSet
+from grpo_decomp.splits import dev_slice
+from grpo_decomp.train.config import ArmConfig
+from grpo_decomp.train.provenance import capture_provenance
 
 
 def _load_train_and_validation(arm: ArmConfig) -> tuple[ProblemSet, ProblemSet]:
-    """Load the train and held-out splits for an arm, dispatched by its dataset.
+    """Load an arm's ``(train, validation)`` splits from the registered train dataset.
 
-    GSM8K carves a per-seed validation split from its train split; Countdown ships a
-    dedicated, seed-independent `validation` split (the dataset is fixed across seeds, so
-    only GRPO's own randomness varies by seed — mirroring the GSM8K placebo comparison).
+    How the validation split is derived is the dataset's concern (GSM8K carves a per-seed
+    split from train; Countdown ships a fixed, seed-independent one) — the launcher just
+    asks the registered dataset to ``load(seed)``.
     """
-    if arm.dataset == "countdown":
-        return load_countdown("train"), load_countdown("validation")
-    train = load_gsm8k(arm.train_split)
-    return validation_split(train, seed=arm.seed)
+    try:
+        dataset = TRAIN_DATASETS[arm.dataset]
+    except KeyError as exc:
+        raise ValueError(
+            f"unknown dataset {arm.dataset!r}; registered: {tuple(sorted(TRAIN_DATASETS))}"
+        ) from exc
+    return dataset.load(arm.seed)
 
 
-def to_dataset(problems: ProblemSet) -> Dataset:
-    """Turn a `ProblemSet` into a TRL GRPO dataset.
+def to_dataset(problems: ProblemSet, strategy: PromptStrategy) -> Dataset:
+    """Turn a `ProblemSet` into a TRL GRPO dataset using the arm's prompt strategy.
 
     A ``prompt`` column drives generation; ``gold_answer`` is forwarded by the
     trainer to the reward function.
     """
     rows = [
-        {"prompt": build_prompt(problem.question), "gold_answer": problem.gold_answer}
+        {"prompt": strategy.build_prompt(problem.question), "gold_answer": problem.gold_answer}
         for problem in problems
     ]
     return Dataset.from_list(rows)
@@ -130,7 +133,8 @@ def launch(
         commit=commit,
         dirty=dirty,
     )
-    dataset = to_dataset(train_problems)
+    strategy = get_prompt_strategy(arm.prompt_strategy)
+    dataset = to_dataset(train_problems, strategy)
     reward = get_reward(arm.reward, seed=arm.seed)
 
     # Lazy GPU imports: only present with the `train` extra on Linux/CUDA.
@@ -138,7 +142,7 @@ def launch(
     from trl import GRPOConfig, GRPOTrainer
 
     tokenizer = AutoTokenizer.from_pretrained(arm.base_model, revision=arm.base_model_revision)
-    prepare_qwen_tokenizer(tokenizer)
+    strategy.prepare_tokenizer(tokenizer)
 
     config = GRPOConfig(
         output_dir=str(run_dir / "checkpoints"),

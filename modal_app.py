@@ -23,15 +23,20 @@ from pathlib import Path
 
 import modal
 
-from llm_grpo_gains.eval.completions import SamplingConfig
-from llm_grpo_gains.eval.registry import SETS, get_task_profile
-from llm_grpo_gains.prompts import EVAL_MAX_NEW_TOKENS
-from llm_grpo_gains.provenance import git_commit, git_is_dirty
-from llm_grpo_gains.schemas import ProblemSet
-from llm_grpo_gains.train.checkpoints import (
+from grpo_decomp.eval.completions import SamplingConfig
+from grpo_decomp.plugins import load_plugins
+from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
+from grpo_decomp.provenance import git_commit, git_is_dirty
+from grpo_decomp.registries import EVAL_SETS, get_task_profile
+from grpo_decomp.schemas import ProblemSet
+from grpo_decomp.train.checkpoints import (
     final_or_selected_checkpoint_path,
     require_selected_checkpoint_path,
 )
+
+# Populate the harness registries with the study's eval sets and task profiles, both
+# locally (entrypoint arg handling) and inside each Modal container (module import).
+load_plugins()
 
 APP_NAME = "llm-grpo-gains"
 CUDA_IMAGE = "nvidia/cuda:12.4.1-devel-ubuntu22.04"
@@ -95,7 +100,7 @@ class _CompletionJob:
 
 
 def _load_run_provenance(run_dir: Path):
-    from llm_grpo_gains.train.provenance import RunProvenance
+    from grpo_decomp.train.provenance import RunProvenance
 
     return RunProvenance.model_validate_json(
         (run_dir / "provenance.json").read_text(encoding="utf-8")
@@ -112,8 +117,8 @@ def _generate_completion_set_to_volume(
     dirty: bool | None,
     model_revision: str | None = None,
 ) -> Path:
-    from llm_grpo_gains.eval.completions import write_completion_set
-    from llm_grpo_gains.eval.generate import generate_completion_set
+    from grpo_decomp.eval.completions import write_completion_set
+    from grpo_decomp.eval.generate import generate_completion_set
 
     completion_set = generate_completion_set(
         model_ref,
@@ -137,7 +142,7 @@ def _run_completion_jobs(
     dirty: bool | None,
 ) -> None:
     for job in jobs:
-        problems = job.problems if job.problems is not None else SETS[job.set_name]()
+        problems = job.problems if job.problems is not None else EVAL_SETS[job.set_name]()
         out = _generate_completion_set_to_volume(
             model_ref=job.model_ref,
             problems=problems,
@@ -175,8 +180,8 @@ def train_arm(
     """
     from pathlib import Path
 
-    from llm_grpo_gains.train.config import load_arm_config
-    from llm_grpo_gains.train.launcher import launch
+    from grpo_decomp.train.config import load_arm_config
+    from grpo_decomp.train.launcher import launch
 
     arm = load_arm_config(Path(arm_yaml))
     run_dir = launch(
@@ -201,8 +206,8 @@ def heldout_arm(arm_yaml: str) -> str:
     """Held-out accuracy curve over a finished arm's checkpoints (check this, not reward)."""
     from pathlib import Path
 
-    from llm_grpo_gains.eval.heldout import run_heldout_curve, write_selected_provenance
-    from llm_grpo_gains.train.config import load_arm_config
+    from grpo_decomp.eval.heldout import run_heldout_curve, write_selected_provenance
+    from grpo_decomp.train.config import load_arm_config
 
     arm = load_arm_config(Path(arm_yaml))
     run_dir = Path(RUNS_DIR) / f"{arm.name}-seed{arm.seed}"
@@ -243,7 +248,7 @@ def eval_matrix(
     """
     from pathlib import Path
 
-    from llm_grpo_gains.train.config import load_arm_config
+    from grpo_decomp.train.config import load_arm_config
 
     profile = get_task_profile(task)
     base = load_arm_config(Path(profile.base_config))
@@ -315,7 +320,7 @@ def elicitation(task: str = "gsm8k", commit: str | None = None, dirty: bool | No
     """
     from pathlib import Path
 
-    from llm_grpo_gains.train.config import load_arm_config
+    from grpo_decomp.train.config import load_arm_config
 
     profile = get_task_profile(task)
     base = load_arm_config(Path(profile.base_config))
@@ -376,13 +381,13 @@ def elicitation_multiseed(
     """
     from pathlib import Path
 
-    from llm_grpo_gains.data import dev_slice
-    from llm_grpo_gains.train.config import load_arm_config
+    from grpo_decomp.splits import dev_slice
+    from grpo_decomp.train.config import load_arm_config
 
     profile = get_task_profile(task)
     eval_set = set_name or profile.task_set
-    if eval_set not in SETS:
-        raise ValueError(f"unknown set {eval_set!r}; known sets are {tuple(sorted(SETS))}")
+    if eval_set not in EVAL_SETS:
+        raise ValueError(f"unknown set {eval_set!r}; known sets are {tuple(sorted(EVAL_SETS))}")
     if limit is not None and limit < 1:
         raise ValueError(f"limit must be >= 1, got {limit}")
     seeds = [int(s) for s in correct_seeds.split(",") if s.strip() != ""]
@@ -398,7 +403,7 @@ def elicitation_multiseed(
         )
 
     out_root = Path(RUNS_DIR) / profile.passk_multiseed_root
-    problems = SETS[eval_set]()
+    problems = EVAL_SETS[eval_set]()
     if limit is not None:
         problems = dev_slice(problems, n=limit, seed=0)
 

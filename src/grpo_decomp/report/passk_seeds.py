@@ -17,15 +17,15 @@ from typing import NamedTuple
 import numpy as np
 from pydantic import Field
 
-from llm_grpo_gains.eval.battery import cot_counts_by_problem, lenient_counts_by_problem
-from llm_grpo_gains.eval.code_reasoning import code_reasoning_frequency
-from llm_grpo_gains.eval.completions import CompletionSet
-from llm_grpo_gains.eval.cot import has_verifiable_chain
-from llm_grpo_gains.eval.passk import estimate_pass_at_k, pass_at_k
-from llm_grpo_gains.report.status import MIN_HEADLINE_SEEDS
-from llm_grpo_gains.schemas import Record
-from llm_grpo_gains.stats.bootstrap import bootstrap_mean_ci
-from llm_grpo_gains.stats.seed_aggregate import seed_level_t_half_width
+from grpo_decomp.eval.battery import cot_counts_by_problem, lenient_counts_by_problem
+from grpo_decomp.eval.code_reasoning import code_reasoning_frequency
+from grpo_decomp.eval.completions import CompletionSet
+from grpo_decomp.eval.cot import has_verifiable_chain
+from grpo_decomp.eval.passk import estimate_pass_at_k, pass_at_k
+from grpo_decomp.report.status import MIN_HEADLINE_SEEDS
+from grpo_decomp.schemas import Record
+from grpo_decomp.stats.bootstrap import bootstrap_mean_ci
+from grpo_decomp.stats.seed_aggregate import seed_level_t_half_width
 
 #: Propagated pass@k Δ above this (pp) with CI excluding zero reads as expansion, not elicitation.
 EXPANSION_DELTA_THRESHOLD = 0.10

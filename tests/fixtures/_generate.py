@@ -13,14 +13,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from llm_grpo_gains.eval.completions import (
+from grpo_decomp.eval.completions import (
     CompletionSet,
     GenerationProvenance,
     ProblemCompletions,
     SamplingConfig,
     write_completion_set,
 )
-from llm_grpo_gains.schemas import DatasetRef, Problem
+from grpo_decomp.schemas import DatasetRef, Problem
 
 _REF = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="frozen-fixture")
 _FIX = Path(__file__).parent / "mini"

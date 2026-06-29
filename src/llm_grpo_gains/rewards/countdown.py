@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 
+from grpo_decomp.rewards._score import score_strict_boxed
 from llm_grpo_gains.data.countdown import countdown_is_correct
-from llm_grpo_gains.rewards._score import score_strict_boxed
 
 logger = logging.getLogger(__name__)
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Sequence
 
-from llm_grpo_gains.eval.answers import extract_strict
-from llm_grpo_gains.rewards._warn import log_unparseable_fraction
+from grpo_decomp.eval.answers import extract_strict
+from grpo_decomp.rewards._warn import log_unparseable_fraction
 
 
 def score_strict_boxed(

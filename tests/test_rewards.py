@@ -4,15 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from llm_grpo_gains.eval.answers import extract_strict, is_correct
-from llm_grpo_gains.rewards import (
-    PLACEBO_REWARD,
-    SELECTABLE,
-    correct,
-    countdown,
-    get_reward,
-    make_random_reward,
-)
+from grpo_decomp.eval.answers import extract_strict, is_correct
+from grpo_decomp.registries import REWARDS
+from grpo_decomp.rewards import PLACEBO_REWARD, get_reward, make_random_reward
+from llm_grpo_gains.rewards import correct, countdown
 
 
 def test_correct_boxed_exact_match_scores_one() -> None:
@@ -110,14 +105,14 @@ def test_countdown_reusing_a_number_scores_zero() -> None:
 def test_get_reward_selects_by_name() -> None:
     assert get_reward("correct") is correct
     assert get_reward("countdown") is countdown
-    assert "countdown" in SELECTABLE
+    assert "countdown" in REWARDS
     assert PLACEBO_REWARD == "random"
-    assert PLACEBO_REWARD in SELECTABLE
+    assert PLACEBO_REWARD in REWARDS
     assert get_reward(PLACEBO_REWARD, seed=0)(["a"]) == make_random_reward(0)(["a"])
 
 
 def test_get_reward_rejects_format_and_unknown() -> None:
-    assert "format" not in SELECTABLE
+    assert "format" not in REWARDS
     with pytest.raises(ValueError, match="format"):
         get_reward("format")
     with pytest.raises(ValueError, match="unknown reward"):

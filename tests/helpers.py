@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from llm_grpo_gains.eval.completions import (
+from grpo_decomp.eval.completions import (
     CompletionSet,
     GenerationProvenance,
     ProblemCompletions,
     SamplingConfig,
     write_completion_set,
 )
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 
 
 def dataset_ref(*, split: str = "test", revision: str = "rev") -> DatasetRef:

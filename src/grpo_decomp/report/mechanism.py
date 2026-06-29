@@ -22,10 +22,10 @@ from collections.abc import Sequence
 
 from pydantic import Field
 
-from llm_grpo_gains.eval.battery import lenient_counts_by_problem
-from llm_grpo_gains.eval.completions import CompletionSet
-from llm_grpo_gains.eval.passk import pass_at_k
-from llm_grpo_gains.schemas import Record
+from grpo_decomp.eval.battery import lenient_counts_by_problem
+from grpo_decomp.eval.completions import CompletionSet
+from grpo_decomp.eval.passk import pass_at_k
+from grpo_decomp.schemas import Record
 
 #: Default pass-rate cutoff for classifying a problem as first-try reliable.
 DEFAULT_RELIABILITY_TAU = 0.5

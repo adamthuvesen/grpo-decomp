@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from helpers import dataset_ref, write_completion_set_dir
 
-from llm_grpo_gains.eval.report_inputs import (
+from grpo_decomp.eval.report_inputs import (
     discover_completion_sets,
     seed_label,
     validate_report_artifacts,

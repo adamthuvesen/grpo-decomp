@@ -6,14 +6,14 @@ from collections.abc import Sequence
 
 import pytest
 
-from llm_grpo_gains.eval.completions import (
+from grpo_decomp.eval.completions import (
     CompletionSet,
     GenerationProvenance,
     ProblemCompletions,
     SamplingConfig,
 )
-from llm_grpo_gains.report.mechanism import build_mechanism
-from llm_grpo_gains.schemas import DatasetRef, Problem
+from grpo_decomp.report.mechanism import build_mechanism
+from grpo_decomp.schemas import DatasetRef, Problem
 
 _REF = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="rev")
 _C, _W = r"\boxed{7}", r"\boxed{0}"  # correct vs wrong, gold is "7"

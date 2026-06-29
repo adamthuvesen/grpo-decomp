@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from llm_grpo_gains.eval.battery import grade
-from llm_grpo_gains.eval.completions import CompletionSet, load_completion_set
-from llm_grpo_gains.eval.registry import ARMS, SETS
-from llm_grpo_gains.schemas import ProblemSet
+from grpo_decomp.eval.battery import grade
+from grpo_decomp.eval.completions import CompletionSet, load_completion_set
+from grpo_decomp.registries import ARMS, EVAL_SETS
+from grpo_decomp.schemas import ProblemSet
 
 
 def base_and_correct_seeds(
@@ -65,9 +65,11 @@ def discover_completion_sets(root: Path) -> dict[str, dict[str, CompletionSet]]:
 def validate_report_artifacts(grouped: dict[str, dict[str, CompletionSet]]) -> None:
     """Require report artifacts to match the registered eval sets they claim to be."""
     for slug, arms in grouped.items():
-        if slug not in SETS:
-            raise ValueError(f"unknown report set {slug!r}; known sets are {tuple(sorted(SETS))}")
-        expected = SETS[slug]()
+        if slug not in EVAL_SETS:
+            raise ValueError(
+                f"unknown report set {slug!r}; known sets are {tuple(sorted(EVAL_SETS))}"
+            )
+        expected = EVAL_SETS[slug]()
         for arm, completion_set in arms.items():
             validate_completion_set(slug, arm, completion_set, expected)
 

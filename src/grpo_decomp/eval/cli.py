@@ -19,39 +19,46 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from llm_grpo_gains.data import dev_slice
-from llm_grpo_gains.eval.battery import run_battery
-from llm_grpo_gains.eval.completions import (
+from grpo_decomp.eval.battery import run_battery
+from grpo_decomp.eval.completions import (
     SamplingConfig,
     load_completion_set,
     write_completion_set,
 )
-from llm_grpo_gains.eval.heldout import (
+from grpo_decomp.eval.heldout import (
     run_heldout_curve,
     write_selected_provenance,
 )
-from llm_grpo_gains.eval.registry import ARMS, CONTROL_SETS, PROBES, SETS
-from llm_grpo_gains.eval.report_inputs import (
+from grpo_decomp.eval.report_inputs import (
     base_and_correct_seeds as _base_and_correct_seeds,
 )
-from llm_grpo_gains.eval.report_inputs import (
+from grpo_decomp.eval.report_inputs import (
     discover_completion_sets as _discover_completion_sets,
 )
-from llm_grpo_gains.eval.report_inputs import (
+from grpo_decomp.eval.report_inputs import (
     greedy_pass1 as _pass1,
 )
-from llm_grpo_gains.eval.report_inputs import (
+from grpo_decomp.eval.report_inputs import (
     seed_label as _seed_label,
 )
-from llm_grpo_gains.eval.report_inputs import (
+from grpo_decomp.eval.report_inputs import (
     validate_report_artifacts as _validate_report_artifacts,
 )
-from llm_grpo_gains.prompts import EVAL_MAX_NEW_TOKENS
-from llm_grpo_gains.report.control_seeds import aggregate_control_rows
-from llm_grpo_gains.report.decomposition import build_single_seed_decomposition
-from llm_grpo_gains.report.mechanism import build_mechanism
-from llm_grpo_gains.report.passk_seeds import aggregate_passk_seeds
-from llm_grpo_gains.report.render import (
+from grpo_decomp.plugins import load_plugins
+from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
+from grpo_decomp.registries import (
+    ARMS,
+    CONTROL_SETS,
+    DEFAULT_PROMPT_STRATEGY,
+    EVAL_SETS,
+    PROBES,
+    PROMPT_STRATEGIES,
+)
+from grpo_decomp.report.control_seeds import aggregate_control_rows
+from grpo_decomp.report.decomposition import build_single_seed_decomposition
+from grpo_decomp.report.mechanism import build_mechanism
+from grpo_decomp.report.passk_seeds import aggregate_passk_seeds
+from grpo_decomp.report.render import (
     render_control_decomposition,
     render_mechanism,
     render_passk_multiseed,
@@ -59,13 +66,17 @@ from llm_grpo_gains.report.render import (
     render_table,
     write_summary,
 )
-from llm_grpo_gains.report.seeds import aggregate_placebo_comparison
-from llm_grpo_gains.schemas import Record
-from llm_grpo_gains.stats.compare import Comparison, compare
+from grpo_decomp.report.seeds import aggregate_placebo_comparison
+from grpo_decomp.schemas import Record
+from grpo_decomp.splits import dev_slice
+from grpo_decomp.stats.compare import Comparison, compare
 
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the `grpo-decomp` console script."""
+    # Load study plugins first so the registries (eval sets, task profiles) are populated
+    # before the parser reads `--set` choices from them.
+    load_plugins()
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
@@ -85,8 +96,15 @@ def _build_parser() -> argparse.ArgumentParser:
     gen = sub.add_parser("generate", help="sample completions from a model over a set")
     gen.add_argument("--model", required=True, help="model id or checkpoint path")
     gen.add_argument("--revision", default=None, help="model revision (HF only)")
-    gen.add_argument("--set", required=True, choices=sorted(SETS), dest="set_name")
+    gen.add_argument("--set", required=True, choices=sorted(EVAL_SETS), dest="set_name")
     gen.add_argument("--backend", default="auto", choices=("auto", "transformers", "vllm"))
+    gen.add_argument(
+        "--prompt-strategy",
+        default=DEFAULT_PROMPT_STRATEGY,
+        choices=sorted(PROMPT_STRATEGIES),
+        dest="prompt_strategy",
+        help="prompt strategy (must match the arm's training strategy)",
+    )
     gen.add_argument("--n", type=int, default=1, help="completions per problem")
     gen.add_argument("--temperature", type=float, default=0.0)
     gen.add_argument("--top-p", type=float, default=1.0, dest="top_p")
@@ -209,7 +227,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _cmd_generate(args: argparse.Namespace) -> int:
     # Lazy import: only `generate` needs a backend, so `battery`/`report` stay CPU-only.
-    from llm_grpo_gains.eval.generate import generate_completion_set
+    from grpo_decomp.eval.generate import generate_completion_set
 
     config = SamplingConfig(
         temperature=args.temperature,
@@ -220,12 +238,17 @@ def _cmd_generate(args: argparse.Namespace) -> int:
     )
     if args.limit is not None and args.limit < 1:
         raise ValueError(f"--limit must be >= 1, got {args.limit}")
-    problems = SETS[args.set_name]()
+    problems = EVAL_SETS[args.set_name]()
     if args.limit is not None:
         problems = dev_slice(problems, n=args.limit, seed=config.seed)
 
     completion_set = generate_completion_set(
-        args.model, problems, config, backend=args.backend, model_revision=args.revision
+        args.model,
+        problems,
+        config,
+        backend=args.backend,
+        model_revision=args.revision,
+        prompt_strategy=args.prompt_strategy,
     )
     out = write_completion_set(completion_set, args.out)
     print(f"wrote {len(completion_set.items)} problems x {config.n} samples to {out}")

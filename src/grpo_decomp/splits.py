@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import random
 
-from llm_grpo_gains.schemas import ProblemSet
+from grpo_decomp.schemas import ProblemSet
 
 
 def _select(problem_set: ProblemSet, n: int, seed: int) -> list[int]:

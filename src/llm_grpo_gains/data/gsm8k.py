@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from datasets import load_dataset
 
+from grpo_decomp.schemas import DatasetRef, ProblemSet
 from llm_grpo_gains.data._common import build_problem_set, extract_marker_gold
-from llm_grpo_gains.schemas import DatasetRef, ProblemSet
 
 SLUG = "gsm8k"
 NAME = "openai/gsm8k"

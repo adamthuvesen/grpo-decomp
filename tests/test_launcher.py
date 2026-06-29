@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import patch
 
-from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
-from llm_grpo_gains.train.config import ArmConfig
-from llm_grpo_gains.train.launcher import (
+import pytest
+
+from grpo_decomp.registries import TrainDataset, get_prompt_strategy, register_train_dataset
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
+from grpo_decomp.train.config import ArmConfig
+from grpo_decomp.train.launcher import (
     _load_train_and_validation,
     prepare_run,
     smoke_overrides,
@@ -24,7 +26,7 @@ def _problems() -> ProblemSet:
 
 
 def test_to_dataset_exposes_prompt_and_forwarded_gold() -> None:
-    dataset = to_dataset(_problems())
+    dataset = to_dataset(_problems(), get_prompt_strategy("r1_zero"))
     assert dataset.column_names == ["prompt", "gold_answer"]
     assert dataset[0]["gold_answer"] == "4"
     assert "What is 2+2?" in dataset[0]["prompt"]
@@ -72,21 +74,36 @@ def test_smoke_overrides_is_a_noop_without_max_steps() -> None:
     assert smoke_overrides(arm, None) is arm
 
 
-def test_load_train_and_validation_dispatches_countdown() -> None:
-    # A countdown arm draws its own train + (seed-independent) validation splits.
-    train_ref = DatasetRef(name="countdown", config="x", split="train", revision="r")
-    val_ref = DatasetRef(name="countdown", config="x", split="validation", revision="r")
+def test_load_train_and_validation_uses_registered_dataset() -> None:
+    # The launcher dispatches on ArmConfig.dataset via the train-dataset registry; how the
+    # (train, validation) split is derived is the registered dataset's concern.
+    train_ref = DatasetRef(name="dummy", config="x", split="train", revision="r")
+    val_ref = DatasetRef(name="dummy", config="x", split="validation", revision="r")
     train_set = ProblemSet(
         source=train_ref, problems=(Problem(id="t0", question="q", gold_answer="k"),)
     )
     val_set = ProblemSet(
         source=val_ref, problems=(Problem(id="v0", question="q", gold_answer="k"),)
     )
-    arm = ArmConfig(name="cd", base_model="m", reward="countdown", dataset="countdown", seed=0)
-    with patch(
-        "llm_grpo_gains.train.launcher.load_countdown", side_effect=[train_set, val_set]
-    ) as mock_load:
-        train, validation = _load_train_and_validation(arm)
-    assert [call.args[0] for call in mock_load.call_args_list] == ["train", "validation"]
+    seen: list[int] = []
+
+    def _load(seed: int) -> tuple[ProblemSet, ProblemSet]:
+        seen.append(seed)
+        return train_set, val_set
+
+    register_train_dataset(TrainDataset(name="__launcher_test__", load=_load))
+    arm = ArmConfig(
+        name="cd", base_model="m", reward="correct", dataset="__launcher_test__", seed=7
+    )
+    train, validation = _load_train_and_validation(arm)
+    assert seen == [7]
     assert train is train_set
     assert validation is val_set
+
+
+def test_load_train_and_validation_rejects_unknown_dataset() -> None:
+    arm = ArmConfig(
+        name="x", base_model="m", reward="correct", dataset="nope-not-registered", seed=0
+    )
+    with pytest.raises(ValueError, match="unknown dataset"):
+        _load_train_and_validation(arm)
