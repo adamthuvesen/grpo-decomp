@@ -358,7 +358,9 @@ def _write_run_provenance(run_dir: Path, *, rule: str = "final") -> None:
 def _fake_generate_correct_on(needle: str):
     """Fake generate: a checkpoint whose path contains `needle` answers correctly (gold=4)."""
 
-    def fake(model, problems, config, *, backend="auto", model_revision=None):
+    def fake(
+        model, problems, config, *, backend="auto", model_revision=None, prompt_strategy="r1_zero"
+    ):
         boxed = "4" if needle in str(model) else "9"
         return {p.id: [f"\\boxed{{{boxed}}}"] for p in problems}
 

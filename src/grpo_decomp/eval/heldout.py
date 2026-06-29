@@ -120,7 +120,15 @@ def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) ->
 
     points: list[HeldoutPoint] = []
     for checkpoint in discover_checkpoints(run_dir):
-        samples = generate(str(checkpoint), validation, config, backend=backend)
+        # Score on the SAME prompt strategy the run trained on, or checkpoint selection
+        # would compare an off-distribution prompt against the training distribution.
+        samples = generate(
+            str(checkpoint),
+            validation,
+            config,
+            backend=backend,
+            prompt_strategy=provenance.prompt_strategy,
+        )
         graded = grade(validation, {pid: s[0] for pid, s in samples.items()}, policy="lenient")
         n_correct = sum(graded.values())
         accuracy = n_correct / len(graded)

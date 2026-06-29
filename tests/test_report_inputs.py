@@ -32,6 +32,23 @@ def test_validate_report_artifacts_rejects_unknown_set(tmp_path, monkeypatch) ->
         validate_report_artifacts(grouped)
 
 
+def test_validate_report_artifacts_rejects_mixed_prompt_strategies(tmp_path) -> None:
+    ref = dataset_ref()
+    write_completion_set_dir(
+        tmp_path / "base__gsm8k-test", model="base", boxed="4", ref=ref, prompt_strategy="r1_zero"
+    )
+    write_completion_set_dir(
+        tmp_path / "correct__gsm8k-test",
+        model="correct",
+        boxed="4",
+        ref=ref,
+        prompt_strategy="chat_template",
+    )
+    grouped = discover_completion_sets(tmp_path)
+    with pytest.raises(ValueError, match="different prompt strategies"):
+        validate_report_artifacts(grouped)
+
+
 def test_seed_label_from_battery_dir() -> None:
     assert seed_label(Path("battery")) == 0
     assert seed_label(Path("battery-seed2")) == 2

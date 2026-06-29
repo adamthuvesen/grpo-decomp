@@ -63,11 +63,24 @@ def discover_completion_sets(root: Path) -> dict[str, dict[str, CompletionSet]]:
 
 
 def validate_report_artifacts(grouped: dict[str, dict[str, CompletionSet]]) -> None:
-    """Require report artifacts to match the registered eval sets they claim to be."""
+    """Require report artifacts to match the registered eval sets they claim to be.
+
+    Also require all arms compared within a set to share one prompt strategy: comparing a
+    base arm generated with one strategy against a trained arm generated with another is
+    exactly the distribution shift the decomposition must not silently absorb.
+    """
     for slug, arms in grouped.items():
         if slug not in EVAL_SETS:
             raise ValueError(
                 f"unknown report set {slug!r}; known sets are {tuple(sorted(EVAL_SETS))}"
+            )
+        strategies = {
+            arm: completion_set.provenance.prompt_strategy for arm, completion_set in arms.items()
+        }
+        if len(set(strategies.values())) > 1:
+            raise ValueError(
+                f"{slug}: arms were generated with different prompt strategies {strategies}; "
+                "a decomposition must compare arms on the same prompt distribution"
             )
         expected = EVAL_SETS[slug]()
         for arm, completion_set in arms.items():

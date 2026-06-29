@@ -27,7 +27,7 @@ from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.plugins import load_plugins
 from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.provenance import git_commit, git_is_dirty
-from grpo_decomp.registries import EVAL_SETS, get_task_profile
+from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, EVAL_SETS, get_task_profile
 from grpo_decomp.schemas import ProblemSet
 from grpo_decomp.train.checkpoints import (
     final_or_selected_checkpoint_path,
@@ -97,6 +97,9 @@ class _CompletionJob:
     set_name: str
     config: SamplingConfig
     problems: ProblemSet | None = None
+    # The prompt strategy this arm trained on; eval MUST match it or the decomposition
+    # compares a model against an off-distribution prompt.
+    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY
 
 
 def _load_run_provenance(run_dir: Path):
@@ -116,6 +119,7 @@ def _generate_completion_set_to_volume(
     commit: str | None,
     dirty: bool | None,
     model_revision: str | None = None,
+    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY,
 ) -> Path:
     from grpo_decomp.eval.completions import write_completion_set
     from grpo_decomp.eval.generate import generate_completion_set
@@ -126,6 +130,7 @@ def _generate_completion_set_to_volume(
         config,
         backend="vllm",
         model_revision=model_revision,
+        prompt_strategy=prompt_strategy,
         commit=commit,
         dirty=dirty,
     )
@@ -151,6 +156,7 @@ def _run_completion_jobs(
             commit=commit,
             dirty=dirty,
             model_revision=job.model_revision,
+            prompt_strategy=job.prompt_strategy,
         )
         print(f"  wrote {job.arm}__{job.set_name}: n={job.config.n} -> {out}")
 
@@ -253,38 +259,36 @@ def eval_matrix(
     profile = get_task_profile(task)
     base = load_arm_config(Path(profile.base_config))
 
-    def selected_checkpoint(role: str) -> str:
+    def selected_checkpoint(role: str) -> tuple[str, str]:
+        """Return (checkpoint path, the prompt strategy that run trained on)."""
         run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}{role}-seed{seed}"
         prov = _load_run_provenance(run_dir)
-        return final_or_selected_checkpoint_path(
+        checkpoint = final_or_selected_checkpoint_path(
             run_dir, prov.selected_checkpoint, prov.checkpoint_selection
         )
+        return checkpoint, prov.prompt_strategy
+
+    base_row = ("base", base.base_model, base.base_model_revision, base.prompt_strategy)
+
+    def trained_row(role: str) -> tuple[str, str, None, str]:
+        checkpoint, strategy = selected_checkpoint(role)
+        return role, checkpoint, None, strategy
 
     if scope == "full":
         matrix = [
-            (
-                "base",
-                base.base_model,
-                base.base_model_revision,
-                [profile.task_set, *profile.control_sets],
-            ),
-            (
-                "correct",
-                selected_checkpoint("correct"),
-                None,
-                [profile.task_set, *profile.control_sets],
-            ),
-            ("random", selected_checkpoint("random"), None, [profile.task_set]),
+            (*base_row, [profile.task_set, *profile.control_sets]),
+            (*trained_row("correct"), [profile.task_set, *profile.control_sets]),
+            (*trained_row("random"), [profile.task_set]),
         ]
     elif scope == "placebo":
         matrix = [
-            ("correct", selected_checkpoint("correct"), None, [profile.task_set]),
-            ("random", selected_checkpoint("random"), None, [profile.task_set]),
+            (*trained_row("correct"), [profile.task_set]),
+            (*trained_row("random"), [profile.task_set]),
         ]
     elif scope == "controls":
         if not profile.control_sets:
             raise ValueError(f"scope 'controls' needs control sets; task {task!r} has none")
-        matrix = [("correct", selected_checkpoint("correct"), None, list(profile.control_sets))]
+        matrix = [(*trained_row("correct"), list(profile.control_sets))]
     else:
         raise ValueError(f"scope must be 'full', 'placebo', or 'controls', got {scope!r}")
 
@@ -296,8 +300,8 @@ def eval_matrix(
     )
 
     jobs = [
-        _CompletionJob(arm, model_ref, revision, set_name, config)
-        for arm, model_ref, revision, set_names in matrix
+        _CompletionJob(arm, model_ref, revision, set_name, config, prompt_strategy=strategy)
+        for arm, model_ref, revision, strategy, set_names in matrix
         for set_name in set_names
     ]
     _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
@@ -325,23 +329,25 @@ def elicitation(task: str = "gsm8k", commit: str | None = None, dirty: bool | No
     profile = get_task_profile(task)
     base = load_arm_config(Path(profile.base_config))
 
-    def selected_checkpoint(role: str) -> str:
+    def selected_checkpoint(role: str) -> tuple[str, str]:
         run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}{role}-seed0"
         prov = _load_run_provenance(run_dir)
-        return require_selected_checkpoint_path(run_dir, prov.selected_checkpoint)
+        checkpoint = require_selected_checkpoint_path(run_dir, prov.selected_checkpoint)
+        return checkpoint, prov.prompt_strategy
 
     config = SamplingConfig(
         temperature=0.7, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=8, seed=0
     )
+    correct_checkpoint, correct_strategy = selected_checkpoint("correct")
     matrix = [
-        ("base", base.base_model, base.base_model_revision),
-        ("correct", selected_checkpoint("correct"), None),
+        ("base", base.base_model, base.base_model_revision, base.prompt_strategy),
+        ("correct", correct_checkpoint, None, correct_strategy),
     ]
     out_root = Path(RUNS_DIR) / profile.elicitation_root
 
     jobs = [
-        _CompletionJob(arm, model_ref, revision, profile.task_set, config)
-        for arm, model_ref, revision in matrix
+        _CompletionJob(arm, model_ref, revision, profile.task_set, config, prompt_strategy=strategy)
+        for arm, model_ref, revision, strategy in matrix
     ]
     _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
@@ -395,12 +401,13 @@ def elicitation_multiseed(
         raise ValueError(f"no correct seeds parsed from {correct_seeds!r}")
     base = load_arm_config(Path(profile.base_config))
 
-    def selected_checkpoint(seed: int) -> str:
+    def selected_checkpoint(seed: int) -> tuple[str, str]:
         run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}correct-seed{seed}"
         prov = _load_run_provenance(run_dir)
-        return final_or_selected_checkpoint_path(
+        checkpoint = final_or_selected_checkpoint_path(
             run_dir, prov.selected_checkpoint, prov.checkpoint_selection
         )
+        return checkpoint, prov.prompt_strategy
 
     out_root = Path(RUNS_DIR) / profile.passk_multiseed_root
     problems = EVAL_SETS[eval_set]()
@@ -412,6 +419,18 @@ def elicitation_multiseed(
             temperature=0.7, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=n, seed=0
         )
 
+    def correct_job(seed: int) -> _CompletionJob:
+        checkpoint, strategy = selected_checkpoint(seed)
+        return _CompletionJob(
+            f"correct-seed{seed}",
+            checkpoint,
+            None,
+            eval_set,
+            sampled_config(n_correct),
+            problems,
+            prompt_strategy=strategy,
+        )
+
     jobs = [
         _CompletionJob(
             "base",
@@ -420,18 +439,9 @@ def elicitation_multiseed(
             eval_set,
             sampled_config(n_base),
             problems,
+            prompt_strategy=base.prompt_strategy,
         ),
-        *(
-            _CompletionJob(
-                f"correct-seed{seed}",
-                selected_checkpoint(seed),
-                None,
-                eval_set,
-                sampled_config(n_correct),
-                problems,
-            )
-            for seed in seeds
-        ),
+        *(correct_job(seed) for seed in seeds),
     ]
     _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
