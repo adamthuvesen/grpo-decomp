@@ -2,8 +2,8 @@
 
 A single run's CI reflects eval-sampling noise only. The headline must also clear
 run-to-run (seed) variance, so we compute the placebo delta per seed and aggregate at
-the seed level: the mean delta with a t-based CI over seeds. Below `MIN_SEEDS` the
-seed-level interval is wide (or undefined at one seed) and the result stays preliminary.
+the seed level: the mean delta with a t-based CI over seeds. Below `MIN_HEADLINE_SEEDS`
+the seed-level interval is wide (or undefined at one seed) and the result stays preliminary.
 """
 
 from __future__ import annotations
@@ -12,11 +12,11 @@ from collections.abc import Sequence
 
 import numpy as np
 from pydantic import Field
-from scipy.stats import t
 
-from llm_grpo_gains.report.decomposition import MIN_SEEDS
+from llm_grpo_gains.report.status import MIN_HEADLINE_SEEDS
 from llm_grpo_gains.schemas import Record
 from llm_grpo_gains.stats.compare import Comparison
+from llm_grpo_gains.stats.seed_aggregate import seed_level_mean_ci
 
 
 class SeedPlaceboComparison(Record):
@@ -33,12 +33,12 @@ class SeedPlaceboComparison(Record):
     ci_low: float
     ci_high: float
     ci_kind: str = Field(description="How the CI was formed (seed-level t, or single-seed eval).")
-    preliminary: bool = Field(description=f"True below {MIN_SEEDS} seeds.")
+    preliminary: bool = Field(description=f"True below {MIN_HEADLINE_SEEDS} seeds.")
 
     def headline(self) -> str:
         """The atomic seed-aggregated claim for the report header."""
         verb = "beats" if self.mean_delta >= 0 else "trails"
-        tag = f"  [PRELIMINARY <{MIN_SEEDS} seeds]" if self.preliminary else ""
+        tag = f"  [PRELIMINARY <{MIN_HEADLINE_SEEDS} seeds]" if self.preliminary else ""
         return (
             f"over {self.n_seeds} seed(s) on {self.task}, correct {verb} random by "
             f"{abs(self.mean_delta) * 100:.1f}% "
@@ -63,16 +63,8 @@ def aggregate_placebo_comparison(
 
     deltas = np.array([c.delta for c in comparisons], dtype=float)
     n = len(deltas)
-    mean = float(deltas.mean())
-    if n >= 2:
-        sem: float | None = float(deltas.std(ddof=1) / np.sqrt(n))
-        half = float(t.ppf(0.975, n - 1)) * sem
-        ci_low, ci_high = mean - half, mean + half
-        ci_kind = f"seed-level t, df={n - 1}"
-    else:
-        sem = None
-        ci_low, ci_high = comparisons[0].ci_low, comparisons[0].ci_high
-        ci_kind = "single-seed eval bootstrap (no seed variance)"
+    single_ci = (comparisons[0].ci_low, comparisons[0].ci_high) if n == 1 else None
+    mean, sem, ci_low, ci_high, ci_kind = seed_level_mean_ci(deltas, single_seed_ci=single_ci)
 
     return SeedPlaceboComparison(
         task=task,
@@ -86,5 +78,5 @@ def aggregate_placebo_comparison(
         ci_low=float(ci_low),
         ci_high=float(ci_high),
         ci_kind=ci_kind,
-        preliminary=n < MIN_SEEDS,
+        preliminary=n < MIN_HEADLINE_SEEDS,
     )

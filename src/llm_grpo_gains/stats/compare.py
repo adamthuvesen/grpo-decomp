@@ -12,7 +12,7 @@ import numpy as np
 from pydantic import Field
 
 from llm_grpo_gains.schemas import Record
-from llm_grpo_gains.stats.bootstrap import paired_bootstrap_ci
+from llm_grpo_gains.stats.bootstrap import PAIRED_BOOTSTRAP_SEED, paired_bootstrap_ci
 from llm_grpo_gains.stats.significance import mcnemar
 
 
@@ -47,7 +47,7 @@ def compare(
     label_b: str,
     correct_b: Mapping[str, bool],
     *,
-    seed: int = 42,
+    seed: int = PAIRED_BOOTSTRAP_SEED,
 ) -> Comparison:
     """Compare B against baseline A on per-problem paired correctness.
 

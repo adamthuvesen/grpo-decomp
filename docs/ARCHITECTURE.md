@@ -27,9 +27,9 @@ battery, and statistics below; only the dataset and reward change.
 ```mermaid
 flowchart LR
     subgraph p1["Phase 1: Train (GPU)"]
-        D["data/<br/>GSM8K train"] --> P["prompts.py<br/>shared prompt"]
+        D["data/<br/>GSM8K or Countdown train"] --> P["prompts.py<br/>shared prompt"]
         P --> T["train/<br/>GRPO trainer"]
-        R["rewards/<br/>correct OR random"] --> T
+        R["rewards/<br/>correct / random / countdown"] --> T
         T --> M["trained<br/>checkpoint"]
     end
     subgraph p2["Phase 2: Evaluate (GPU)"]
@@ -70,20 +70,20 @@ they do.
 
 ## Module map
 
-| Module          | Responsibility                                                        |
-| --------------- | --------------------------------------------------------------------- |
-| `schemas.py`    | The shared frozen types: `DatasetRef`, `Problem`, `ProblemSet`.       |
-| `prompts.py`    | The one prompt template. Train and eval use the _same_ wording.       |
-| `provenance.py` | Git commit/dirty state and pinned dependency versions.                |
-| `data/`         | Load or generate each source as a canonical `ProblemSet`.             |
-| `rewards/`      | The graders, one shared signature, selected by name.                  |
-| `train/`        | GRPO config, the run launcher, and run provenance.                    |
-| `eval/`         | Generation, the completion artifact, grading, pass@k, detectors, CLI. |
-| `stats/`        | Paired comparison: delta + bootstrap CI (via `eval-audit`), McNemar and Holm (local). |
+| Module          | Responsibility                                                                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `schemas.py`    | The shared frozen types: `DatasetRef`, `Problem`, `ProblemSet`.                                             |
+| `prompts.py`    | The one prompt template. Train and eval use the _same_ wording.                                             |
+| `provenance.py` | Git commit/dirty state and pinned dependency versions.                                                      |
+| `data/`         | Load or generate each source as a canonical `ProblemSet`.                                                   |
+| `rewards/`      | The graders, one shared signature, selected by name.                                                        |
+| `train/`        | GRPO config, the run launcher, and run provenance.                                                          |
+| `eval/`         | Generation, the completion artifact, grading, pass@k, detectors, CLI.                                       |
+| `stats/`        | Paired comparison: delta + bootstrap CI (via `eval-audit`), McNemar and Holm (local).                       |
 | `report/`       | The single-seed decomposition table plus the multi-seed aggregators (placebo, pass@k, mechanism, controls). |
-| `configs/`      | One YAML per (arm, seed).                                             |
-| `results/`      | Committed outputs: decomposition table, `summary.json`, findings.     |
-| `modal_app.py`  | Rents an A100 on Modal and runs the GPU steps.                        |
+| `configs/`      | One YAML per (arm, seed).                                                                                   |
+| `results/`      | Committed outputs: decomposition table, `summary.json`, findings.                                           |
+| `modal_app.py`  | Rents an A100 on Modal and runs the GPU steps.                                                              |
 
 The dependency direction is one-way: `data` and `schemas` sit at the bottom,
 `eval`/`train` depend on them, `stats` depends on nothing GPU, and `report` sits on
@@ -145,10 +145,12 @@ completion (or `None` to skip a sample). An arm differs from another arm by exac
 one word in its config. `correct`, `countdown`, and `random` are selectable.
 
 - **`correct`**: verifiable exact-match correctness on math, no partial credit.
-  Verification is delegated to `math-verify` (so `1,000` equals `1000` and `3/4`
-  equals `0.75`). Unparseable completions score `0.0` (treated as wrong, not
-  skipped) because under `beta=0` there is no KL anchor to discourage degenerate
-  output. A high unparseable rate is logged as a reward-hacking warning.
+  The answer is read from the final `\\boxed{...}` via the same `extract_strict`
+  path as headline strict accuracy (then graded with `math-verify`, so `1,000` equals
+  `1000` and `3/4` equals `0.75`). Unparseable (unboxed) completions score
+  `0.0` (treated as wrong, not skipped) because under `beta=0` there is no KL
+  anchor to discourage degenerate output. A high unparseable rate is logged as a
+  reward-hacking warning.
 - **`countdown`**: verifiable search correctness for the positive control. Parses
   the model's boxed expression with the restricted evaluator in `data/countdown.py`
   and checks it reaches the target using each source number at most once.
@@ -254,8 +256,14 @@ classDiagram
 The **held-out curve** (`heldout` / `heldout_arm`) scores every saved checkpoint of
 a finished run on its validation split, writes `heldout.json`, then realizes the
 pre-registered `checkpoint_selection` rule and records the chosen step back into the
-run's provenance. This is the only signal used to pick a checkpoint, never the
-training reward.
+run's provenance. This is the only signal used to pick a checkpoint when the rule is
+`best_on_validation`; production arms default to `final` (end-of-training checkpoint)
+and skip held-out selection unless configured otherwise. Never use the training reward
+for checkpoint choice.
+
+Generation and held-out scoring share one token budget: `EVAL_MAX_NEW_TOKENS` (1024),
+matching `max_completion_length`, so checkpoint curves and the decomposition battery
+use the same completion length.
 
 ---
 
@@ -308,12 +316,12 @@ Each FINDINGS number traces to one aggregator → one JSON in `results/` (the
 `make_figures.py` figures and the docs↔JSON consistency test read these, never the
 single-seed table):
 
-| Aggregator (`grpo-decomp …`) | Module | Artifact | What it backs |
-| --- | --- | --- | --- |
-| `report-seeds` | `report/seeds.py` | `seed-placebo-comparison.json` | The confirmatory placebo delta (correct − random), seed-level t CI. |
-| `report-passk-seeds` | `report/passk_seeds.py` | `pass8-multiseed.json` | pass@k coverage: base anchor (problem-bootstrap CI) vs per-seed correct, with the propagated Δ interval and the CoT-gated twin. |
-| `report-mechanism` | `report/mechanism.py` | `mechanism.json` | Per-problem migration vs new capability + the completion-length shift. |
-| `report-control-seeds` | `report/control_seeds.py` | `decomposition-multiseed.json` | The §3 controls (gsm-symbolic / gsm-plus / gsm8k-platinum), Holm-corrected across the family. |
+| Aggregator (`grpo-decomp …`) | Module                    | Artifact                       | What it backs                                                                                                                   |
+| ---------------------------- | ------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `report-seeds`               | `report/seeds.py`         | `seed-placebo-comparison.json` | The confirmatory placebo delta (correct − random), seed-level t CI.                                                             |
+| `report-passk-seeds`         | `report/passk_seeds.py`   | `pass8-multiseed.json`         | pass@k coverage: base anchor (problem-bootstrap CI) vs per-seed correct, with the propagated Δ interval and the CoT-gated twin. |
+| `report-mechanism`           | `report/mechanism.py`     | `mechanism.json`               | Per-problem migration vs new capability + the completion-length shift.                                                          |
+| `report-control-seeds`       | `report/control_seeds.py` | `decomposition-multiseed.json` | The §3 controls (gsm-symbolic / gsm-plus / gsm8k-platinum), Holm-corrected across the family.                                   |
 
 The Countdown positive control and the decontamination panels reuse the same
 aggregators over `countdown/` and `decontam/` `CompletionSet`s.

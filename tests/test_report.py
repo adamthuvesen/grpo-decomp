@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from llm_grpo_gains.report.decomposition import MIN_SEEDS, DecompositionRow, build_decomposition
+from llm_grpo_gains.report.decomposition import DecompositionRow, build_decomposition
 from llm_grpo_gains.report.render import render_table, to_summary_json, write_summary
 from llm_grpo_gains.report.status import (
+    MIN_HEADLINE_SEEDS,
     artifact_scope_for,
     is_preliminary_seed_count,
     preliminary_suffix,
@@ -52,15 +53,15 @@ def _build(seeds: int):
 
 def test_preliminary_flag_tracks_min_seeds() -> None:
     assert _build(1).preliminary is True
-    assert _build(MIN_SEEDS - 1).preliminary is True
-    assert _build(MIN_SEEDS).preliminary is False
+    assert _build(MIN_HEADLINE_SEEDS - 1).preliminary is True
+    assert _build(MIN_HEADLINE_SEEDS).preliminary is False
 
 
 def test_claim_status_helpers_are_the_shared_policy() -> None:
     assert is_preliminary_seed_count(1) is True
-    assert is_preliminary_seed_count(MIN_SEEDS) is False
+    assert is_preliminary_seed_count(MIN_HEADLINE_SEEDS) is False
     assert "Single-seed descriptive decomposition" in artifact_scope_for(1)
-    assert "Seed-aggregated decomposition" in artifact_scope_for(MIN_SEEDS)
+    assert "Seed-aggregated decomposition" in artifact_scope_for(MIN_HEADLINE_SEEDS)
     assert preliminary_suffix(True) == " [PRELIMINARY]"
     assert preliminary_suffix(False) == ""
 
@@ -101,7 +102,7 @@ def test_render_table_is_deterministic_and_has_panels() -> None:
 
 
 def test_render_omits_preliminary_with_enough_seeds() -> None:
-    assert "[PRELIMINARY]" not in render_table(_build(MIN_SEEDS))
+    assert "[PRELIMINARY]" not in render_table(_build(MIN_HEADLINE_SEEDS))
 
 
 def test_write_summary_writes_the_serialized_json(tmp_path) -> None:

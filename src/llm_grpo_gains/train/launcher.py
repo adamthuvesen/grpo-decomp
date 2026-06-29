@@ -6,9 +6,9 @@ provenance recording, and reward selection are GPU-independent and unit-tested; 
 trainer construction and `train()` run on the rented instance.
 
 Box-side items intentionally left to the GPU instance (they need real generation):
-periodic held-out accuracy logging via a TRL callback over the validation split,
-vLLM-colocate memory tuning, and a ``completions/clipped_ratio`` smoke check on the
-day-1 run (a non-zero ratio means the trainer's EOS and vLLM's stop token disagree).
+periodic held-out accuracy is scored post-hoc via `grpo-decomp heldout`, vLLM-colocate
+memory tuning, and a ``completions/clipped_ratio`` smoke check on the day-1 run (a non-zero
+ratio means the trainer's EOS and vLLM's stop token disagree).
 The per-step unparseable rate is already logged by the `correct` reward.
 """
 
@@ -16,12 +16,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from datasets import Dataset
 
 from llm_grpo_gains.data import dev_slice, load_countdown, load_gsm8k, validation_split
-from llm_grpo_gains.prompts import build_prompt
+from llm_grpo_gains.prompts import build_prompt, prepare_qwen_tokenizer
 from llm_grpo_gains.rewards import get_reward
 from llm_grpo_gains.schemas import ProblemSet
 from llm_grpo_gains.train.config import ArmConfig
@@ -139,7 +138,7 @@ def launch(
     from trl import GRPOConfig, GRPOTrainer
 
     tokenizer = AutoTokenizer.from_pretrained(arm.base_model, revision=arm.base_model_revision)
-    _prepare_tokenizer(tokenizer)
+    prepare_qwen_tokenizer(tokenizer)
 
     config = GRPOConfig(
         output_dir=str(run_dir / "checkpoints"),
@@ -178,19 +177,3 @@ def _shutdown_distributed() -> None:
 
     if dist.is_available() and dist.is_initialized():
         dist.destroy_process_group()
-
-
-def _prepare_tokenizer(tokenizer: Any) -> None:
-    """Default the pad token to EOS and left-pad for batched generation.
-
-    v1 trains the base model on a raw (non-chat) prompt, so its **native** EOS
-    (``<|endoftext|>`` for Qwen2.5-Math) is the correct terminator — and the one
-    vLLM colocate stops on, since it loads the model's own ``generation_config``.
-    We deliberately do NOT override EOS to ``<|im_end|>``: that would desync the
-    trainer's stop token from vLLM's, and with ``mask_truncated_completions`` it
-    silently masks the gradient. A v2 chat-template arm that wants ``<|im_end|>``
-    must also pass ``stop_token_ids`` to vLLM via ``generation_kwargs``.
-    """
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"

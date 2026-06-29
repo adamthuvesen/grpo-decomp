@@ -24,7 +24,7 @@
     "control": "placebo (correct - random)",
     "probes": "non-correctness-driven gain"
   },
-  "elicitation_note": "pass@1: base=0.14, correct=0.49; high-n pass@k coverage deferred to a Phase-2 sampling run",
+  "elicitation_note": "pass@1: base=0.14, correct=0.49; pass@k coverage is reported in the separate multi-seed panel (pass8-multiseed.json via grpo-decomp report-passk-seeds)",
   "preliminary": true,
   "rows": [
     {

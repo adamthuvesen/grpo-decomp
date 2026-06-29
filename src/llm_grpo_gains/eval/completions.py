@@ -16,6 +16,7 @@ from pathlib import Path
 
 from pydantic import Field, model_validator
 
+from llm_grpo_gains.prompts import EVAL_MAX_NEW_TOKENS
 from llm_grpo_gains.provenance import (
     PROVENANCE_PACKAGES,
     git_commit,
@@ -33,7 +34,7 @@ class SamplingConfig(Record):
 
     temperature: float = Field(default=0.0, ge=0.0, description="0 = greedy (pass@1).")
     top_p: float = Field(default=1.0, gt=0.0, le=1.0)
-    max_new_tokens: int = Field(default=512, gt=0)
+    max_new_tokens: int = Field(default=EVAL_MAX_NEW_TOKENS, gt=0)
     n: int = Field(default=1, gt=0, description="Completions sampled per problem (uniform).")
     seed: int = 0
 

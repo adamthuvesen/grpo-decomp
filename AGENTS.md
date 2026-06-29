@@ -7,7 +7,7 @@ controls — "most of this gain was elicitation" beats a confident, uncontrolled
 
 This is a focused, narrow study, not an RL framework. Keep it that way; do not turn it into
 a platform. User-level guidance (tone, principles, git etiquette) lives in the user's agent
-defaults and is *not* duplicated here.
+defaults and is _not_ duplicated here.
 
 ## Quickstart
 
@@ -17,7 +17,7 @@ make check          # ruff + unit tests (the Phase-0 gate)
 make demo           # score committed mini CompletionSets; no model load
 make results        # rebuild figures from results/*.json + docs<->JSON consistency check
 
-modal run modal_app.py --arm configs/correct.yaml          # train one arm on an A100 (see RUNBOOK.md)
+modal run --detach modal_app.py --arm configs/correct.yaml  # train one arm on an A100 (see RUNBOOK.md)
 grpo-decomp battery --completions runs/base__dev --k 1      # grade a CompletionSet (CPU)
 grpo-decomp report  --completions-dir runs/ --out results/  # <arm>__<set> dirs -> table + summary.json
 ```
@@ -41,7 +41,7 @@ lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#design-rules-that-shaped-
 
 ## Read The Docs First
 
-| Topic | Doc |
-| --- | --- |
+| Topic                                                | Doc                                          |
+| ---------------------------------------------------- | -------------------------------------------- |
 | Architecture, data flow, module map, Modal execution | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Training a GRPO arm on Modal, reproducing results | [RUNBOOK.md](RUNBOOK.md) |
+| Training a GRPO arm on Modal, reproducing results    | [RUNBOOK.md](RUNBOOK.md)                     |

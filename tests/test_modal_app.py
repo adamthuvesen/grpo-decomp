@@ -8,6 +8,11 @@ from pathlib import Path
 
 import pytest
 
+from llm_grpo_gains.train.checkpoints import (
+    final_or_selected_checkpoint_path,
+    require_selected_checkpoint_path,
+)
+
 
 class _FakeImage:
     @classmethod
@@ -79,36 +84,36 @@ def _modal_app(monkeypatch):
 
 
 def test_selected_checkpoint_path_requires_heldout(monkeypatch) -> None:
-    modal_app = _modal_app(monkeypatch)
+    _modal_app(monkeypatch)
     run_dir = Path("/runs/correct-seed0")
 
     with pytest.raises(ValueError, match="heldout"):
-        modal_app._selected_checkpoint_path(run_dir, None)
+        require_selected_checkpoint_path(run_dir, None)
 
     assert (
-        modal_app._selected_checkpoint_path(run_dir, "final")
+        require_selected_checkpoint_path(run_dir, "final")
         == "/runs/correct-seed0/checkpoints/final"
     )
 
 
 def test_final_or_selected_checkpoint_realizes_the_final_rule(monkeypatch) -> None:
-    modal_app = _modal_app(monkeypatch)
+    _modal_app(monkeypatch)
     run_dir = Path("/runs/correct-seed3")
 
     # Recorded selection wins when present.
     assert (
-        modal_app._final_or_selected_checkpoint(run_dir, "checkpoint-400", "best_on_validation")
+        final_or_selected_checkpoint_path(run_dir, "checkpoint-400", "best_on_validation")
         == "/runs/correct-seed3/checkpoints/checkpoint-400"
     )
     # Unset selection + 'final' rule resolves to final without a held-out curve (the
     # replicate-seed case: rule 'final', selection None — what the published artifacts used).
     assert (
-        modal_app._final_or_selected_checkpoint(run_dir, None, "final")
+        final_or_selected_checkpoint_path(run_dir, None, "final")
         == "/runs/correct-seed3/checkpoints/final"
     )
     # Unset selection under any other rule is an explicit error.
     with pytest.raises(ValueError, match="heldout"):
-        modal_app._final_or_selected_checkpoint(run_dir, None, "best_on_validation")
+        final_or_selected_checkpoint_path(run_dir, None, "best_on_validation")
 
 
 def test_elicitation_multiseed_rejects_unknown_set(monkeypatch) -> None:

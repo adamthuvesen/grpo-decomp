@@ -71,9 +71,3 @@ def test_generate_detects_backend_count_mismatch(monkeypatch) -> None:
     monkeypatch.setattr(_GENERATE_MODULE, "_generate_transformers", _fake_backend(2))
     with pytest.raises(ValueError, match="expected n=1"):
         generate("m", _problems(), SamplingConfig(temperature=0.0, n=1), backend="transformers")
-
-
-def test_interface_is_callable_without_cuda() -> None:
-    # The module imported on a CUDA-free host and exposes the interface.
-    assert callable(generate)
-    assert callable(resolve_backend)

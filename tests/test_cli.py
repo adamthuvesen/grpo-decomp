@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from llm_grpo_gains.eval.cli import _discover_checkpoints, main, select_checkpoint
+from llm_grpo_gains.eval.cli import main
 from llm_grpo_gains.eval.completions import (
     CompletionSet,
     GenerationProvenance,
@@ -16,6 +16,7 @@ from llm_grpo_gains.eval.completions import (
     SamplingConfig,
     write_completion_set,
 )
+from llm_grpo_gains.eval.heldout import discover_checkpoints, select_checkpoint
 from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
 from llm_grpo_gains.train.config import ArmConfig
 from llm_grpo_gains.train.provenance import capture_provenance
@@ -209,6 +210,69 @@ def test_report_passk_seeds_aggregates_panel(tmp_path, capsys) -> None:
     assert panel["preliminary"] is True  # 2 < MIN_SEEDS
 
 
+def test_report_seeds_happy_path(tmp_path, capsys) -> None:
+    battery = tmp_path / "battery"
+    _write_cs(battery / "correct__gsm8k-test", model="correct", boxed="4")
+    _write_cs(battery / "random__gsm8k-test", model="random", boxed="0")
+    out = tmp_path / "placebo.json"
+
+    assert main(["report-seeds", "--battery-dirs", str(battery), "--out", str(out)]) == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["n_seeds"] == 1
+    assert "Placebo comparison" in capsys.readouterr().out
+
+
+def test_report_mechanism_happy_path(tmp_path, capsys) -> None:
+    root = tmp_path / "passk"
+    _write_cs(root / "base__gsm8k-test", model="base", boxed="0", n=2, temperature=0.7)
+    _write_cs(root / "correct-seed0__gsm8k-test", model="c0", boxed="4", n=2, temperature=0.7)
+    out = tmp_path / "mechanism.json"
+
+    assert (
+        main(
+            [
+                "report-mechanism",
+                "--completions-dir",
+                str(root),
+                "--k",
+                "1",
+                "--out",
+                str(out),
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["task"] == "gsm8k-test"
+    assert "Mechanism" in capsys.readouterr().out
+
+
+def test_report_control_seeds_happy_path(tmp_path, capsys) -> None:
+    battery = tmp_path / "battery"
+    ref = _ref()
+    _write_cs(battery / "base__gsm-symbolic", model="base", boxed="4", ref=ref)
+    _write_cs(battery / "correct__gsm-symbolic", model="correct", boxed="4", ref=ref)
+    out = tmp_path / "controls.json"
+
+    assert (
+        main(
+            [
+                "report-control-seeds",
+                "--battery-dirs",
+                str(battery),
+                "--control-sets",
+                "gsm-symbolic",
+                "--out",
+                str(out),
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["rows"][0]["control"] == "gsm-symbolic"
+    assert "Multi-seed controls" in capsys.readouterr().out
+
+
 def test_report_passk_seeds_requires_correct_seed_dirs(tmp_path, capsys) -> None:
     root = tmp_path / "passk"
     _write_cs(root / "base__gsm8k-test", model="base", boxed="0", n=2, temperature=0.7)
@@ -269,14 +333,14 @@ def test_missing_subcommand_errors() -> None:
 def test_discover_checkpoints_orders_by_step_with_final_last(tmp_path) -> None:
     for name in ("checkpoint-100", "checkpoint-50", "final", "not-a-checkpoint"):
         (tmp_path / "checkpoints" / name).mkdir(parents=True)
-    found = [p.name for p in _discover_checkpoints(tmp_path)]
+    found = [p.name for p in discover_checkpoints(tmp_path)]
     assert found == ["checkpoint-50", "checkpoint-100", "final"]
 
 
 def test_discover_checkpoints_errors_when_empty(tmp_path) -> None:
     (tmp_path / "checkpoints").mkdir()
     with pytest.raises(ValueError, match="no 'checkpoint"):
-        _discover_checkpoints(tmp_path)
+        discover_checkpoints(tmp_path)
 
 
 def _write_run_provenance(run_dir: Path, *, rule: str = "final") -> None:
@@ -317,7 +381,7 @@ def test_heldout_writes_curve_and_records_final_selection(tmp_path, monkeypatch,
     for name in ("checkpoint-50", "checkpoint-100", "final"):
         (run / "checkpoints" / name).mkdir(parents=True)
     monkeypatch.setattr(
-        "llm_grpo_gains.eval.cli._validation_for_run", lambda provenance: _val_problems()
+        "llm_grpo_gains.eval.heldout.validation_for_run", lambda provenance: _val_problems()
     )
     monkeypatch.setattr(_GENERATE_MODULE, "generate", _fake_generate_correct_on("final"))
 
@@ -325,6 +389,7 @@ def test_heldout_writes_curve_and_records_final_selection(tmp_path, monkeypatch,
 
     payload = json.loads((run / "heldout.json").read_text(encoding="utf-8"))
     assert payload["validation_size"] == 2
+    assert payload["selected_checkpoint"] == "final"
     curve = [(pt["checkpoint"], pt["step"], pt["accuracy"]) for pt in payload["points"]]
     assert curve == [
         ("checkpoint-50", 50, 0.0),
@@ -344,7 +409,7 @@ def test_heldout_best_on_validation_records_winner(tmp_path, monkeypatch) -> Non
     for name in ("checkpoint-50", "checkpoint-100", "final"):
         (run / "checkpoints" / name).mkdir(parents=True)
     monkeypatch.setattr(
-        "llm_grpo_gains.eval.cli._validation_for_run", lambda provenance: _val_problems()
+        "llm_grpo_gains.eval.heldout.validation_for_run", lambda provenance: _val_problems()
     )
     monkeypatch.setattr(_GENERATE_MODULE, "generate", _fake_generate_correct_on("checkpoint-100"))
 
@@ -356,24 +421,30 @@ def test_heldout_best_on_validation_records_winner(tmp_path, monkeypatch) -> Non
 
 
 def test_select_checkpoint_final_takes_end_of_training() -> None:
+    from llm_grpo_gains.eval.heldout import HeldoutPoint
+
     points = [
-        {"checkpoint": "checkpoint-50", "step": 50, "accuracy": 0.9},
-        {"checkpoint": "final", "step": None, "accuracy": 0.1},
+        HeldoutPoint(checkpoint="checkpoint-50", step=50, accuracy=0.9, n_correct=9, n=10),
+        HeldoutPoint(checkpoint="final", step=None, accuracy=0.1, n_correct=1, n=10),
     ]
     assert select_checkpoint(points, "final", 500) == ("final", 500)
 
 
 def test_select_checkpoint_final_requires_final_checkpoint() -> None:
-    points = [{"checkpoint": "checkpoint-100", "step": 100, "accuracy": 0.9}]
+    from llm_grpo_gains.eval.heldout import HeldoutPoint
+
+    points = [HeldoutPoint(checkpoint="checkpoint-100", step=100, accuracy=0.9, n_correct=9, n=10)]
     with pytest.raises(ValueError, match="final checkpoint"):
         select_checkpoint(points, "final", 500)
 
 
 def test_select_checkpoint_best_on_validation_picks_max() -> None:
+    from llm_grpo_gains.eval.heldout import HeldoutPoint
+
     points = [
-        {"checkpoint": "checkpoint-50", "step": 50, "accuracy": 0.4},
-        {"checkpoint": "checkpoint-100", "step": 100, "accuracy": 0.9},
-        {"checkpoint": "final", "step": None, "accuracy": 0.5},
+        HeldoutPoint(checkpoint="checkpoint-50", step=50, accuracy=0.4, n_correct=4, n=10),
+        HeldoutPoint(checkpoint="checkpoint-100", step=100, accuracy=0.9, n_correct=9, n=10),
+        HeldoutPoint(checkpoint="final", step=None, accuracy=0.5, n_correct=5, n=10),
     ]
     assert select_checkpoint(points, "best_on_validation", 500) == ("checkpoint-100", 100)
 

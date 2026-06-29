@@ -5,13 +5,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 
-from llm_grpo_gains.data.countdown import is_valid_countdown_solution, parse_countdown_key
-from llm_grpo_gains.eval.answers import extract_strict
+from llm_grpo_gains.data.countdown import countdown_is_correct
+from llm_grpo_gains.rewards._score import score_strict_boxed
 
 logger = logging.getLogger(__name__)
-
-#: Warn (not debug) when more than this fraction of a batch is unparseable.
-_UNPARSEABLE_WARN_RATE = 0.05
 
 
 def countdown(
@@ -30,24 +27,10 @@ def countdown(
     output. The per-call unparseable count is logged as a reward-hacking warning. The
     matching `gold_answer` (the `(numbers, target)` key) is forwarded by the TRL trainer.
     """
-    rewards: list[float] = []
-    unparseable = 0
-    for completion, gold in zip(completions, gold_answer, strict=True):
-        expression = extract_strict(completion)
-        if expression is None:
-            unparseable += 1
-            rewards.append(0.0)
-            continue
-        numbers, target = parse_countdown_key(gold)
-        rewards.append(1.0 if is_valid_countdown_solution(expression, numbers, target) else 0.0)
-
-    if unparseable:
-        rate = unparseable / len(rewards)
-        log = logger.warning if rate > _UNPARSEABLE_WARN_RATE else logger.debug
-        log(
-            "countdown: %d/%d (%.0f%%) completions had no boxed expression",
-            unparseable,
-            len(rewards),
-            rate * 100,
-        )
-    return rewards
+    return score_strict_boxed(
+        completions,
+        gold_answer,
+        logger=logger,
+        reward_name="countdown",
+        is_correct=countdown_is_correct,
+    )

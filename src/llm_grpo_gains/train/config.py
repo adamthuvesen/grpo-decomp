@@ -32,7 +32,7 @@ class GRPOSettings(Record):
     per_device_train_batch_size: int = 8
     num_generations: int = 8
     max_completion_length: int = 1024  # CoT headroom; the 5-step dry run clipped 0-62% at 512
-    max_steps: int = 500  # placeholder; anchor on the day-1 run
+    max_steps: int = 500
     # Periodic checkpoints + frequent logs so the held-out accuracy curve
     # (`grpo-decomp heldout`), entropy, and completion-length have resolution across
     # the run — the curves the GSM8K-vs-MATH decision and checkpoint selection read.

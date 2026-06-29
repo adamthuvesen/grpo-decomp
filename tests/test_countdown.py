@@ -1,7 +1,7 @@
 """Unit tests for the Countdown positive-control task (no network, no GPU).
 
-Covers the task's single source of truth (`data/countdown.py`) plus the two seams this
-change adds to the eval layer: task-routed grading and the capability-expansion panel.
+Covers the task's single source of truth (`data/countdown.py`) plus the grading and
+capability-expansion seams.
 """
 
 from __future__ import annotations
@@ -26,13 +26,13 @@ from llm_grpo_gains.data.countdown import (
 )
 from llm_grpo_gains.eval.answers import is_correct
 from llm_grpo_gains.eval.battery import grade, verifier_for
-from llm_grpo_gains.eval.cli import _elicitation_note
 from llm_grpo_gains.eval.completions import (
     CompletionSet,
     ProblemCompletions,
     SamplingConfig,
     capture_generation_provenance,
 )
+from llm_grpo_gains.report.decomposition import elicitation_note
 from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
 
 #: Tiny config so generator tests stay fast.
@@ -256,7 +256,7 @@ def test_expansion_panel_reports_passk_curve_when_both_arms_high_n() -> None:
     correct = _completion_set(
         ref, [(problems[0], [_RIGHT, _WRONG]), (problems[1], [_WRONG, _RIGHT])], n=2
     )
-    note = _elicitation_note(base, correct)
+    note = elicitation_note(base, correct)
     assert "pass@k curve:" in note
     assert "pass@2" in note
 
@@ -272,6 +272,6 @@ def test_expansion_panel_falls_back_to_pass1_when_correct_is_greedy() -> None:
     correct = _completion_set(
         ref, [(problems[0], [r"\boxed{0}"]), (problems[1], [r"\boxed{1}"])], n=1
     )
-    note = _elicitation_note(base, correct)
+    note = elicitation_note(base, correct)
     assert "base pass@2" in note
     assert "pass@k curve:" not in note

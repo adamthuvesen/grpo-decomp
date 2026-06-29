@@ -27,6 +27,9 @@ from llm_grpo_gains.eval.completions import CompletionSet
 from llm_grpo_gains.eval.passk import pass_at_k
 from llm_grpo_gains.schemas import Record
 
+#: Default pass-rate cutoff for classifying a problem as first-try reliable.
+DEFAULT_RELIABILITY_TAU = 0.5
+
 
 class MechanismReport(Record):
     """Per-problem base->trained migration + the completion-length shift behind the verdict."""
@@ -80,7 +83,7 @@ def build_mechanism(
     *,
     task: str,
     k: int = 8,
-    tau: float = 0.5,
+    tau: float = DEFAULT_RELIABILITY_TAU,
 ) -> MechanismReport:
     """Classify each problem's base->trained migration and measure the completion-length shift.
 

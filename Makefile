@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := check
-.PHONY: install fmt lint test test-integration check demo results aggregate
+.PHONY: install fmt lint test test-integration check demo results aggregate test-docs
 
 install:  ## Sync the dev environment (incl. the CPU eval/stats layer)
 	uv sync --extra dev --extra eval
@@ -18,7 +18,10 @@ test:  ## Run unit tests (network tests deselected)
 test-integration:  ## Run network/HuggingFace integration tests
 	uv run pytest -m integration
 
-check: lint test  ## The Phase 0 gate: lint + unit tests
+check: lint test test-docs  ## The Phase 0 gate: lint + unit tests + docs consistency
+
+test-docs:  ## Docs <-> JSON consistency for committed headline numbers
+	uv run pytest tests/test_docs_consistency.py -q
 
 demo:  ## Score committed mini CompletionSets; no model load, GPU, or network
 	@printf 'base fixture:\n'

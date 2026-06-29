@@ -81,6 +81,7 @@ known-first-party = ["llm_grpo_gains"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests"]
 addopts = "-q -m 'not integration'"
 markers = [
     "integration: hits the network / HuggingFace; deselected by default",

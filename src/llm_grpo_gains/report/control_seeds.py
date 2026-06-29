@@ -13,11 +13,12 @@ from collections.abc import Sequence
 
 import numpy as np
 from pydantic import Field
-from scipy.stats import t, ttest_1samp
+from scipy.stats import ttest_1samp
 
-from llm_grpo_gains.report.decomposition import MIN_SEEDS
+from llm_grpo_gains.report.status import MIN_HEADLINE_SEEDS
 from llm_grpo_gains.schemas import Record
 from llm_grpo_gains.stats.compare import Comparison
+from llm_grpo_gains.stats.seed_aggregate import seed_level_mean_ci
 from llm_grpo_gains.stats.significance import holm_correction
 
 
@@ -46,11 +47,11 @@ class ControlDecomposition(Record):
     family_size: int = Field(description="Number of control rows Holm corrects across.")
     ci_kind: str
     rows: tuple[ControlRow, ...]
-    preliminary: bool = Field(description=f"True below {MIN_SEEDS} seeds.")
+    preliminary: bool = Field(description=f"True below {MIN_HEADLINE_SEEDS} seeds.")
 
     def headline(self) -> str:
         """The atomic claim: how many control rows survive family-wise correction."""
-        tag = f"  [PRELIMINARY <{MIN_SEEDS} seeds]" if self.preliminary else ""
+        tag = f"  [PRELIMINARY <{MIN_HEADLINE_SEEDS} seeds]" if self.preliminary else ""
         sig = sum(row.significant for row in self.rows)
         return (
             f"{self.task}: {len(self.rows)} control rows over {self.n_seeds} seeds, "
@@ -77,28 +78,22 @@ def aggregate_control_rows(
     n_seeds = len(seeds)
     if n_seeds < 1:
         raise ValueError("no seeds")
-    ci_kind = (
-        f"seed-level t, df={n_seeds - 1}"
-        if n_seeds >= 2
-        else "single-seed eval bootstrap (no seed variance)"
-    )
 
     built: list[dict] = []
     raw_p: list[float] = []
+    ci_kind = ""
     for control, probes, comparisons in rows:
         if len(comparisons) != n_seeds:
             raise ValueError(
                 f"control {control!r}: {len(comparisons)} comparisons but {n_seeds} seeds"
             )
         deltas = np.array([c.delta for c in comparisons], dtype=float)
-        mean = float(deltas.mean())
-        if n_seeds >= 2:
-            half = float(t.ppf(0.975, n_seeds - 1)) * float(deltas.std(ddof=1) / np.sqrt(n_seeds))
-            ci_low, ci_high = mean - half, mean + half
-            p = float(ttest_1samp(deltas, 0.0).pvalue)
-        else:
-            ci_low, ci_high = comparisons[0].ci_low, comparisons[0].ci_high
-            p = comparisons[0].p_value
+        single_ci = (comparisons[0].ci_low, comparisons[0].ci_high) if n_seeds == 1 else None
+        mean, _sem, ci_low, ci_high, row_ci_kind = seed_level_mean_ci(
+            deltas, single_seed_ci=single_ci
+        )
+        ci_kind = row_ci_kind
+        p = float(ttest_1samp(deltas, 0.0).pvalue) if n_seeds >= 2 else comparisons[0].p_value
         raw_p.append(p)
         built.append(
             {
@@ -125,5 +120,5 @@ def aggregate_control_rows(
         family_size=len(control_rows),
         ci_kind=ci_kind,
         rows=control_rows,
-        preliminary=n_seeds < MIN_SEEDS,
+        preliminary=n_seeds < MIN_HEADLINE_SEEDS,
     )

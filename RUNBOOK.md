@@ -129,8 +129,9 @@ aggregators end-to-end without any download.
 
 ## Tuning notes
 
-- `configs/*.yaml`: `max_steps=500` and `save_steps=100` are placeholders; anchor on the day-1 run.
+- `configs/*.yaml`: `max_steps=500` and `save_steps=100` are the committed production values.
 - `max_completion_length=1024` (512 clips a chunk of rollouts; the day-1 dry run confirms the headroom).
+- The `correct` reward uses strict `\boxed{}` extraction (same as headline strict accuracy). Retraining after a reward change is not comparable to published checkpoints.
 - `vllm` is pinned to `==0.17.1` (TRL 1.0.0's supported max); don't bump past 0.17.x without re-checking TRL compat.
 - Checkpoints are ~3–9 GB each (weights + optimizer state); ~5 of them ≈ 15–45 GB on the Volume.
 - `vllm_gpu_memory_utilization=0.3` (colocate). Raise if rollouts are slow; lower (and cut

@@ -20,33 +20,22 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from llm_grpo_gains.data import dev_slice
-from llm_grpo_gains.eval.battery import grade, run_battery
+from llm_grpo_gains.eval.battery import run_battery
 from llm_grpo_gains.eval.completions import (
     SamplingConfig,
     load_completion_set,
     write_completion_set,
 )
 from llm_grpo_gains.eval.heldout import (
-    discover_checkpoints as _discover_checkpoints,
+    run_heldout_curve,
+    write_selected_provenance,
 )
-from llm_grpo_gains.eval.heldout import (
-    select_checkpoint,
-)
-from llm_grpo_gains.eval.heldout import (
-    validation_for_run as _validation_for_run,
-)
-from llm_grpo_gains.eval.registry import ARMS, PROBES, SETS
+from llm_grpo_gains.eval.registry import ARMS, CONTROL_SETS, PROBES, SETS
 from llm_grpo_gains.eval.report_inputs import (
     base_and_correct_seeds as _base_and_correct_seeds,
 )
 from llm_grpo_gains.eval.report_inputs import (
-    control_row as _control_row,
-)
-from llm_grpo_gains.eval.report_inputs import (
     discover_completion_sets as _discover_completion_sets,
-)
-from llm_grpo_gains.eval.report_inputs import (
-    elicitation_note as _elicitation_note,
 )
 from llm_grpo_gains.eval.report_inputs import (
     greedy_pass1 as _pass1,
@@ -57,15 +46,22 @@ from llm_grpo_gains.eval.report_inputs import (
 from llm_grpo_gains.eval.report_inputs import (
     validate_report_artifacts as _validate_report_artifacts,
 )
+from llm_grpo_gains.prompts import EVAL_MAX_NEW_TOKENS
 from llm_grpo_gains.report.control_seeds import aggregate_control_rows
-from llm_grpo_gains.report.decomposition import DecompositionRow, build_decomposition
+from llm_grpo_gains.report.decomposition import build_single_seed_decomposition
 from llm_grpo_gains.report.mechanism import build_mechanism
 from llm_grpo_gains.report.passk_seeds import aggregate_passk_seeds
-from llm_grpo_gains.report.render import render_table, write_summary
+from llm_grpo_gains.report.render import (
+    render_control_decomposition,
+    render_mechanism,
+    render_passk_multiseed,
+    render_seed_placebo,
+    render_table,
+    write_summary,
+)
 from llm_grpo_gains.report.seeds import aggregate_placebo_comparison
 from llm_grpo_gains.schemas import Record
 from llm_grpo_gains.stats.compare import Comparison, compare
-from llm_grpo_gains.train.provenance import RunProvenance
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -94,7 +90,9 @@ def _build_parser() -> argparse.ArgumentParser:
     gen.add_argument("--n", type=int, default=1, help="completions per problem")
     gen.add_argument("--temperature", type=float, default=0.0)
     gen.add_argument("--top-p", type=float, default=1.0, dest="top_p")
-    gen.add_argument("--max-new-tokens", type=int, default=512, dest="max_new_tokens")
+    gen.add_argument(
+        "--max-new-tokens", type=int, default=EVAL_MAX_NEW_TOKENS, dest="max_new_tokens"
+    )
     gen.add_argument("--seed", type=int, default=0)
     gen.add_argument("--limit", type=int, default=None, help="subset to N problems (smoke)")
     gen.add_argument("--out", required=True, type=Path, help="output dir for the CompletionSet")
@@ -144,7 +142,7 @@ def _build_parser() -> argparse.ArgumentParser:
     rpk.add_argument("--task-set", default="gsm8k-test", dest="task_set")
     rpk.add_argument("--k", type=int, default=8, help="pass@k coverage level (default 8)")
     rpk.add_argument(
-        "--out", type=Path, default=None, help="Pass8MultiSeed JSON path (else stdout)"
+        "--out", type=Path, default=None, help="PassKMultiSeed JSON path (else stdout)"
     )
     rpk.set_defaults(func=_cmd_report_passk_seeds)
 
@@ -182,7 +180,7 @@ def _build_parser() -> argparse.ArgumentParser:
     rcs.add_argument(
         "--control-sets",
         nargs="+",
-        default=["gsm-symbolic", "gsm-plus", "gsm8k-platinum"],
+        default=list(CONTROL_SETS),
         dest="control_sets",
     )
     rcs.add_argument(
@@ -197,7 +195,9 @@ def _build_parser() -> argparse.ArgumentParser:
     hld.add_argument("--backend", default="auto", choices=("auto", "transformers", "vllm"))
     hld.add_argument("--n", type=int, default=1, help="samples per problem (1 = greedy pass@1)")
     hld.add_argument("--temperature", type=float, default=0.0)
-    hld.add_argument("--max-new-tokens", type=int, default=512, dest="max_new_tokens")
+    hld.add_argument(
+        "--max-new-tokens", type=int, default=EVAL_MAX_NEW_TOKENS, dest="max_new_tokens"
+    )
     hld.add_argument("--seed", type=int, default=0)
     hld.add_argument(
         "--out", type=Path, default=None, help="write JSON here (else <run>/heldout.json)"
@@ -254,46 +254,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
         raise ValueError(f"report needs base/correct/random for task set {task!r}; found {present}")
     _validate_report_artifacts(grouped)
 
-    base = grouped[task]["base"]
-    correct = grouped[task]["correct"]
-    random_arm = grouped[task]["random"]
-
-    base_lenient = _pass1(base, "lenient")
-    correct_lenient = _pass1(correct, "lenient")
-
-    raw_gain = DecompositionRow(
-        control="raw gain",
-        probes=f"correct vs base on {task}",
-        comparison=compare("base", base_lenient, "correct", correct_lenient),
-    )
-    placebo = DecompositionRow(
-        control="placebo (correct - random)",
-        probes="non-correctness-driven gain",
-        comparison=compare("random", _pass1(random_arm, "lenient"), "correct", correct_lenient),
-    )
-    format_row = DecompositionRow(
-        control="format sensitivity",
-        probes="lenient vs strict (same completions)",
-        comparison=compare(
-            "correct/strict", _pass1(correct, "strict"), "correct/lenient", correct_lenient
-        ),
-    )
-    control_rows = [
-        _control_row(slug, arms)
-        for slug, arms in sorted(grouped.items())
-        if slug != task and "base" in arms and "correct" in arms
-    ]
-
-    decomposition = build_decomposition(
-        base_model=args.base_model or base.provenance.model,
-        task=task,
-        seeds=1,
-        raw_gain=raw_gain,
-        control_rows=control_rows,
-        format_row=format_row,
-        placebo=placebo,
-        elicitation_note=_elicitation_note(base, correct),
-    )
+    decomposition = build_single_seed_decomposition(grouped, task, base_model=args.base_model)
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -317,21 +278,8 @@ def _cmd_report_seeds(args: argparse.Namespace) -> int:
         seeds.append(_seed_label(battery_dir))
 
     placebo_comparison = aggregate_placebo_comparison(comparisons, seeds, task=args.task_set)
-    header = f"# Placebo comparison over {placebo_comparison.n_seeds} seed(s) - {args.task_set}"
-    lines = [header, "", placebo_comparison.headline()]
-    lines += ["", "| seed | random | correct | Δ (pp) |", "| --- | --- | --- | --- |"]
-    lines += [
-        f"| {s} | {ra * 100:.1f}% | {ca * 100:.1f}% | {d * 100:+.1f} |"
-        for s, ra, ca, d in zip(
-            placebo_comparison.seeds,
-            placebo_comparison.per_seed_random_acc,
-            placebo_comparison.per_seed_correct_acc,
-            placebo_comparison.per_seed_delta,
-            strict=True,
-        )
-    ]
     _write_json(placebo_comparison, args.out, "seed-level placebo comparison")
-    sys.stdout.write("\n".join(lines) + "\n")
+    sys.stdout.write(render_seed_placebo(placebo_comparison))
     return 0
 
 
@@ -339,31 +287,8 @@ def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
     base, correct_by_seed = _base_and_correct_seeds(args.completions_dir, args.task_set)
 
     panel = aggregate_passk_seeds(base, correct_by_seed, task=args.task_set, k=args.k)
-    lines = [
-        f"# Multi-seed pass@{panel.k} coverage - {args.task_set}",
-        "",
-        panel.headline(),
-        panel.cot_headline(),
-        "",
-        f"| seed | correct pass@1 | correct pass@{panel.k} |",
-        "| --- | --- | --- |",
-    ]
-    lines += [
-        f"| {s} | {p1 * 100:.1f}% | {pk * 100:.1f}% |"
-        for s, p1, pk in zip(
-            panel.seeds, panel.per_seed_correct_pass1, panel.per_seed_correct_passk, strict=True
-        )
-    ]
-    lines += [
-        "",
-        f"base pass@1 {panel.base_pass1 * 100:.1f}% · base pass@{panel.k} "
-        f"{panel.base_passk * 100:.1f}% "
-        f"[{panel.base_passk_ci_low * 100:.1f}, {panel.base_passk_ci_high * 100:.1f}]",
-        f"base CoT-gated pass@{panel.k} {panel.base_cot_passk * 100:.1f}% "
-        f"[{panel.base_cot_passk_ci_low * 100:.1f}, {panel.base_cot_passk_ci_high * 100:.1f}]",
-    ]
     _write_json(panel, args.out, f"multi-seed pass@{panel.k} panel")
-    sys.stdout.write("\n".join(lines) + "\n")
+    sys.stdout.write(render_passk_multiseed(panel))
     return 0
 
 
@@ -372,18 +297,8 @@ def _cmd_report_mechanism(args: argparse.Namespace) -> int:
     correct = [completion_set for _seed, completion_set in correct_by_seed]
 
     report = build_mechanism(base, correct, task=args.task_set, k=args.k, tau=args.tau)
-    lines = [
-        f"# Mechanism - {args.task_set}",
-        "",
-        report.headline(),
-        "",
-        f"base already reliable {report.frac_base_already_reliable * 100:.1f}% · "
-        f"migrated {report.frac_migrated_to_reliable * 100:.1f}% · "
-        f"new {report.frac_new_capability * 100:.1f}% · "
-        f"still hard {report.frac_still_hard * 100:.1f}%",
-    ]
     _write_json(report, args.out, "mechanism report")
-    sys.stdout.write("\n".join(lines) + "\n")
+    sys.stdout.write(render_mechanism(report))
     return 0
 
 
@@ -401,22 +316,8 @@ def _cmd_report_control_seeds(args: argparse.Namespace) -> int:
         rows.append((control, PROBES.get(control, control), comparisons))
 
     decomp = aggregate_control_rows(rows, seeds, task=args.task_set)
-    lines = [
-        f"# Multi-seed controls - {args.task_set}",
-        "",
-        decomp.headline(),
-        "",
-        "| control | probes | Δ (pp) | 95% CI | p (raw) | p (Holm) |",
-        "| --- | --- | --- | --- | --- | --- |",
-    ]
-    lines += [
-        f"| {r.control} | {r.probes} | {r.mean_delta * 100:+.1f} | "
-        f"[{r.ci_low * 100:.1f}, {r.ci_high * 100:.1f}] | {r.p_value:.3g} | "
-        f"{r.p_value_holm:.3g}{' *' if r.significant else ''} |"
-        for r in decomp.rows
-    ]
     _write_json(decomp, args.out, "multi-seed control decomposition")
-    sys.stdout.write("\n".join(lines) + "\n")
+    sys.stdout.write(render_control_decomposition(decomp))
     return 0
 
 
@@ -433,56 +334,26 @@ def _write_json(record: Record, out: Path | None, label: str) -> None:
 
 
 def _cmd_heldout(args: argparse.Namespace) -> int:
-    # Lazy import: only this command loads a model, so it stays off the CPU-only path.
-    from llm_grpo_gains.eval.generate import generate
-
     run_dir = Path(args.run)
-    provenance = RunProvenance.model_validate_json(
-        (run_dir / "provenance.json").read_text(encoding="utf-8")
-    )
-    validation = _validation_for_run(provenance)
     config = SamplingConfig(
         temperature=args.temperature, n=args.n, max_new_tokens=args.max_new_tokens, seed=args.seed
     )
-
-    points = []
-    for checkpoint in _discover_checkpoints(run_dir):
-        samples = generate(str(checkpoint), validation, config, backend=args.backend)
-        graded = grade(validation, {pid: s[0] for pid, s in samples.items()}, policy="lenient")
-        n_correct = sum(graded.values())
-        accuracy = n_correct / len(graded)
-        step = None if checkpoint.name == "final" else int(checkpoint.name.split("-", 1)[1])
-        points.append(
-            {
-                "checkpoint": checkpoint.name,
-                "step": step,
-                "accuracy": accuracy,
-                "n_correct": n_correct,
-                "n": len(graded),
-            }
+    curve = run_heldout_curve(run_dir, config, backend=args.backend)
+    for point in curve.points:
+        print(
+            f"  {point.checkpoint}: held-out acc {point.accuracy:.3f} ({point.n_correct}/{point.n})"
         )
-        print(f"  {checkpoint.name}: held-out acc {accuracy:.3f} ({n_correct}/{len(graded)})")
 
-    payload = {
-        "run": str(run_dir),
-        "validation_size": len(validation),
-        "policy": "lenient",
-        "points": points,
-    }
     out = Path(args.out) if args.out is not None else run_dir / "heldout.json"
-    out.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    print(f"wrote held-out curve ({len(points)} checkpoints) to {out}")
+    out.write_text(
+        json.dumps(curve.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"wrote held-out curve ({len(curve.points)} checkpoints) to {out}")
 
-    # Realize the pre-registered checkpoint-selection rule and record it in provenance,
-    # so the decomposition provably uses the checkpoint the rule actually chose.
-    name, step = select_checkpoint(
-        points, provenance.checkpoint_selection, provenance.grpo.max_steps
+    write_selected_provenance(run_dir, curve)
+    print(
+        f"selected {curve.selected_checkpoint} (step {curve.selected_step}) per rule '{curve.rule}'"
     )
-    selected = provenance.model_copy(update={"selected_step": step, "selected_checkpoint": name})
-    (run_dir / "provenance.json").write_text(
-        json.dumps(selected.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
-    )
-    print(f"selected {name} (step {step}) per rule '{provenance.checkpoint_selection}'")
     return 0
 
 

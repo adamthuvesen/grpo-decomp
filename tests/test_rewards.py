@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from llm_grpo_gains.eval.answers import extract_strict, is_correct
 from llm_grpo_gains.rewards import (
     PLACEBO_REWARD,
     SELECTABLE,
@@ -14,18 +15,21 @@ from llm_grpo_gains.rewards import (
 )
 
 
-def test_correct_exact_match_scores_one() -> None:
-    assert correct(["Let me think... the answer is 72"], ["72"]) == [1.0]
+def test_correct_boxed_exact_match_scores_one() -> None:
+    assert correct([r"Let me think... \boxed{72}"], ["72"]) == [1.0]
 
 
-def test_correct_wrong_scores_zero() -> None:
-    assert correct(["the total is 73"], ["72"]) == [0.0]
+def test_correct_unboxed_answer_scores_zero() -> None:
+    assert correct(["Let me think... the answer is 72"], ["72"]) == [0.0]
+
+
+def test_correct_wrong_boxed_scores_zero() -> None:
+    assert correct([r"\boxed{73}"], ["72"]) == [0.0]
 
 
 def test_correct_normalizes_commas_and_fractions() -> None:
-    # math-verify handles thousands separators and fraction/decimal equivalence.
-    assert correct(["she has 1,000 left"], ["1000"]) == [1.0]
-    assert correct(["the result is 0.75"], ["3/4"]) == [1.0]
+    assert correct([r"\boxed{1,000}"], ["1000"]) == [1.0]
+    assert correct([r"\boxed{0.75}"], ["3/4"]) == [1.0]
 
 
 def test_correct_unparseable_scores_zero_in_training() -> None:
@@ -33,13 +37,27 @@ def test_correct_unparseable_scores_zero_in_training() -> None:
 
 
 def test_correct_scores_a_batch_pointwise() -> None:
-    rewards = correct(["it is 1", "it is 5", "it is 9"], ["1", "4", "9"])
+    rewards = correct([r"\boxed{1}", r"\boxed{5}", r"\boxed{9}"], ["1", "4", "9"])
     assert rewards == [1.0, 0.0, 1.0]
 
 
 def test_correct_rejects_misaligned_lengths() -> None:
     with pytest.raises(ValueError, match="zip"):
-        correct(["a", "b"], ["1"])  # strict zip: a length mismatch is an explicit error
+        correct(["a", "b"], ["1"])
+
+
+def test_correct_matches_strict_eval_grading() -> None:
+    """Training reward and headline strict accuracy use the same extraction path."""
+    pairs = [
+        (r"reasoning \boxed{42}", "42"),
+        (r"\boxed{73}", "72"),
+        ("plain 42", "42"),
+        (r"\boxed{\frac{3}{4}}", "3/4"),
+    ]
+    for completion, gold in pairs:
+        reward = correct([completion], [gold])[0]
+        strict = is_correct(extract_strict(completion), gold)
+        assert reward == (1.0 if strict else 0.0)
 
 
 def test_placebo_values_in_unit_interval() -> None:
@@ -49,7 +67,6 @@ def test_placebo_values_in_unit_interval() -> None:
 
 
 def test_placebo_ignores_correctness() -> None:
-    # Same RNG seed, different completions and golds -> identical rewards (both are unused).
     with_gold_a = make_random_reward(0)(["x", "y"], gold_answer=["1", "2"])
     with_gold_b = make_random_reward(0)(["different", "text"], gold_answer=["999", "888"])
     assert with_gold_a == with_gold_b
@@ -83,7 +100,6 @@ def test_countdown_wrong_expression_scores_zero() -> None:
 
 
 def test_countdown_unboxed_completion_scores_zero_in_training() -> None:
-    # No box -> no expression to verify -> 0.0 (downward pressure under beta=0.0).
     assert countdown(["the answer is 4 * 5 + 6"], ["target=26;numbers=4,5,6,7"]) == [0.0]
 
 
@@ -97,7 +113,6 @@ def test_get_reward_selects_by_name() -> None:
     assert "countdown" in SELECTABLE
     assert PLACEBO_REWARD == "random"
     assert PLACEBO_REWARD in SELECTABLE
-    # 'random' yields a fresh seeded fn equivalent to constructing it directly.
     assert get_reward(PLACEBO_REWARD, seed=0)(["a"]) == make_random_reward(0)(["a"])
 
 

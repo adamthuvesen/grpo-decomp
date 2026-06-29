@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from llm_grpo_gains.eval.battery import BatteryResult, grade, run_battery
+from llm_grpo_gains.eval.battery import grade
 from llm_grpo_gains.eval.completions import CompletionSet, load_completion_set
-from llm_grpo_gains.eval.registry import ARMS, PROBES, SETS
-from llm_grpo_gains.report.decomposition import DecompositionRow
+from llm_grpo_gains.eval.registry import ARMS, SETS
 from llm_grpo_gains.schemas import ProblemSet
-from llm_grpo_gains.stats.compare import compare
 
 
 def base_and_correct_seeds(
@@ -102,70 +100,3 @@ def greedy_pass1(completion_set: CompletionSet, policy: str) -> dict[str, bool]:
         )
     first = {item.problem.id: item.samples[0] for item in completion_set.items}
     return grade(completion_set.problem_set(), first, policy=policy)
-
-
-def control_row(slug: str, arms: dict[str, CompletionSet]) -> DecompositionRow:
-    """Build one base-vs-correct control row from loaded completion artifacts."""
-    comparison = compare(
-        "base",
-        greedy_pass1(arms["base"], "lenient"),
-        "correct",
-        greedy_pass1(arms["correct"], "lenient"),
-    )
-    return DecompositionRow(
-        control=f"control ({slug})", probes=PROBES.get(slug, slug), comparison=comparison
-    )
-
-
-def battery_at(completion_set: CompletionSet, k_values: list[int]) -> BatteryResult:
-    """Run the eval battery at exactly the requested k values."""
-    return run_battery(
-        completion_set.problem_set(), completion_set.completions_by_id(), k_values=k_values
-    )
-
-
-def vanilla_at(battery: BatteryResult, k: int) -> float:
-    """The vanilla pass@k at exactly `k` from a battery result."""
-    for entry in battery.pass_at_k:
-        if entry.k == k:
-            return entry.vanilla
-    raise ValueError(f"pass@{k} was not computed")
-
-
-def elicitation_note(base: CompletionSet, correct: CompletionSet) -> str:
-    """The elicitation / capability-expansion panel line.
-
-    When both arms are sampled at n>1, report the pass@k curve (base vs correct at
-    matched k) - the certified-expansion readout: higher pass@k coverage means
-    new capability, not just improved pass@1 reliability. Otherwise fall back to
-    the base pass@k vs correct pass@1 elicitation line, or a plain pass@1 line when n==1.
-    """
-    n_base = base.provenance.sampling.n
-    n_correct = correct.provenance.sampling.n
-    if n_base > 1 and n_correct > 1:
-        k = min(n_base, n_correct)
-        base_battery = battery_at(base, sorted({1, k}))
-        correct_battery = battery_at(correct, sorted({1, k}))
-        base_k = vanilla_at(base_battery, k)
-        correct_k = vanilla_at(correct_battery, k)
-        return (
-            f"pass@k curve: base pass@{k}={base_k:.2f} vs correct pass@{k}={correct_k:.2f} "
-            f"(Δ={correct_k - base_k:+.2f}); pass@1 base={base_battery.lenient_accuracy:.2f}, "
-            f"correct={correct_battery.lenient_accuracy:.2f} "
-            f"(code-reasoning base={base_battery.code_reasoning_frequency:.2f}, "
-            f"correct={correct_battery.code_reasoning_frequency:.2f})"
-        )
-    base_battery = battery_at(base, sorted({1, n_base}))
-    correct_battery = battery_at(correct, [1])
-    if n_base > 1:
-        return (
-            f"base pass@{n_base}={base_battery.pass_at_k[-1].vanilla:.2f} vs "
-            f"correct pass@1={correct_battery.lenient_accuracy:.2f} "
-            f"(code-reasoning base={base_battery.code_reasoning_frequency:.2f}, "
-            f"correct={correct_battery.code_reasoning_frequency:.2f})"
-        )
-    return (
-        f"pass@1: base={base_battery.lenient_accuracy:.2f}, "
-        f"correct={correct_battery.lenient_accuracy:.2f}; "
-        "high-n pass@k coverage deferred to a Phase-2 sampling run"
-    )

@@ -13,7 +13,7 @@ from llm_grpo_gains.eval.completions import (
     ProblemCompletions,
     SamplingConfig,
 )
-from llm_grpo_gains.report.passk_seeds import Pass8MultiSeed, aggregate_passk_seeds
+from llm_grpo_gains.report.passk_seeds import PassKMultiSeed, aggregate_passk_seeds
 from llm_grpo_gains.schemas import DatasetRef, Problem
 
 _REF = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="rev")
@@ -129,4 +129,4 @@ def test_k_greater_than_n_is_explicit_error() -> None:
 def test_schema_rejects_unknown_fields() -> None:
     panel = aggregate_passk_seeds(_BASE, [(0, _SEED_A), (1, _SEED_B)], task="gsm8k-test", k=1)
     with pytest.raises(ValidationError):
-        Pass8MultiSeed(**{**panel.model_dump(), "bogus": 1})
+        PassKMultiSeed(**{**panel.model_dump(), "bogus": 1})

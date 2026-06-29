@@ -11,6 +11,7 @@ it is always <= the vanilla value.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from typing import NamedTuple
 
 from pydantic import Field
 
@@ -54,6 +55,16 @@ class BatteryResult(Record):
     chain_coverage: float = Field(description="Fraction of completions with >=1 verifiable step.")
 
 
+class _BatteryScores(NamedTuple):
+    n: int
+    strict_correct: int
+    lenient_correct: int
+    code_count: int
+    chain_coverage_count: int
+    lenient_counts: list[int]
+    cot_counts: list[int]
+
+
 def _uniform_sample_count(
     problems: ProblemSet, completions_by_id: Mapping[str, Sequence[str]]
 ) -> int:
@@ -70,27 +81,12 @@ def _uniform_sample_count(
     return n
 
 
-def run_battery(
-    problems: ProblemSet,
-    completions_by_id: Mapping[str, Sequence[str]],
-    *,
-    k_values: Sequence[int],
-) -> BatteryResult:
-    """Score every problem's completions and return the battery's `BatteryResult`.
-
-    Each problem must have the same number of completions `n`, and every `k` must
-    satisfy ``1 <= k <= n``.
-    """
-    if not k_values:
-        raise ValueError("k_values is empty")
-    if len(problems) == 0:
-        raise ValueError("problems is empty")
-
-    n = _uniform_sample_count(problems, completions_by_id)
-    for k in k_values:
-        if not 1 <= k <= n:
-            raise ValueError(f"each k must satisfy 1 <= k <= n={n}, got {k}")
-
+def _score_completions(
+    problems: ProblemSet, completions_by_id: Mapping[str, Sequence[str]], *, n: int | None = None
+) -> _BatteryScores:
+    """Score completions once and expose both aggregate and per-problem counts."""
+    if n is None:
+        n = _uniform_sample_count(problems, completions_by_id)
     check = verifier_for(problems.source)
     strict_correct = 0
     lenient_correct = 0
@@ -116,23 +112,56 @@ def run_battery(
         lenient_counts.append(per_problem_lenient)
         cot_counts.append(per_problem_cot)
 
+    return _BatteryScores(
+        n=n,
+        strict_correct=strict_correct,
+        lenient_correct=lenient_correct,
+        code_count=code_count,
+        chain_coverage_count=chain_coverage_count,
+        lenient_counts=lenient_counts,
+        cot_counts=cot_counts,
+    )
+
+
+def run_battery(
+    problems: ProblemSet,
+    completions_by_id: Mapping[str, Sequence[str]],
+    *,
+    k_values: Sequence[int],
+) -> BatteryResult:
+    """Score every problem's completions and return the battery's `BatteryResult`.
+
+    Each problem must have the same number of completions `n`, and every `k` must
+    satisfy ``1 <= k <= n``.
+    """
+    if not k_values:
+        raise ValueError("k_values is empty")
+    if len(problems) == 0:
+        raise ValueError("problems is empty")
+
+    n = _uniform_sample_count(problems, completions_by_id)
+    for k in k_values:
+        if not 1 <= k <= n:
+            raise ValueError(f"each k must satisfy 1 <= k <= n={n}, got {k}")
+
+    scores = _score_completions(problems, completions_by_id, n=n)
     total = len(problems) * n
     pass_at_k = tuple(
         PassK(
             k=k,
-            vanilla=estimate_pass_at_k(lenient_counts, k, n=n),
-            cot_gated=estimate_pass_at_k(cot_counts, k, n=n),
+            vanilla=estimate_pass_at_k(scores.lenient_counts, k, n=n),
+            cot_gated=estimate_pass_at_k(scores.cot_counts, k, n=n),
         )
         for k in k_values
     )
     return BatteryResult(
         n_problems=len(problems),
         n_samples=n,
-        strict_accuracy=strict_correct / total,
-        lenient_accuracy=lenient_correct / total,
+        strict_accuracy=scores.strict_correct / total,
+        lenient_accuracy=scores.lenient_correct / total,
         pass_at_k=pass_at_k,
-        code_reasoning_frequency=code_count / total,
-        chain_coverage=chain_coverage_count / total,
+        code_reasoning_frequency=scores.code_count / total,
+        chain_coverage=scores.chain_coverage_count / total,
     )
 
 
@@ -146,16 +175,8 @@ def lenient_counts_by_problem(
     the per-problem ``pass_at_k(n, c, k)`` the base-anchor bootstrap resamples. Reuses the
     same lenient extraction + task verifier the battery uses, so counts match it exactly.
     """
-    n = _uniform_sample_count(problems, completions_by_id)
-    check = verifier_for(problems.source)
-    counts: list[int] = []
-    for problem in problems:
-        correct = sum(
-            check(extract_lenient(completion), problem.gold_answer)
-            for completion in completions_by_id[problem.id]
-        )
-        counts.append(int(correct))
-    return counts, n
+    scores = _score_completions(problems, completions_by_id)
+    return scores.lenient_counts, scores.n
 
 
 def cot_counts_by_problem(
@@ -169,16 +190,8 @@ def cot_counts_by_problem(
     problem, so CoT-gated pass@k <= vanilla. Reuses the same extraction + verifier + chain
     check as `run_battery`, so these per-problem counts match its `cot_gated` pass@k exactly.
     """
-    n = _uniform_sample_count(problems, completions_by_id)
-    check = verifier_for(problems.source)
-    counts: list[int] = []
-    for problem in problems:
-        correct = sum(
-            check(extract_lenient(completion), problem.gold_answer) and chain_is_valid(completion)
-            for completion in completions_by_id[problem.id]
-        )
-        counts.append(int(correct))
-    return counts, n
+    scores = _score_completions(problems, completions_by_id)
+    return scores.cot_counts, scores.n
 
 
 _EXTRACTORS = {"strict": extract_strict, "lenient": extract_lenient}

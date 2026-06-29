@@ -1,9 +1,7 @@
 """Paired bootstrap CI on an accuracy delta, delegated to eval-audit.
 
-This is the portfolio touch: llm_grpo_gains audits its own RL run with Adam's own eval
-tooling. eval-audit resamples the shared examples (percentile bootstrap) and
-reports the delta with a CI; we map our two correctness vectors onto its
-``task_id`` + outcome frame.
+Maps paired per-problem correctness vectors onto eval-audit's resampling frame and
+reports the delta with a percentile bootstrap CI.
 """
 
 from __future__ import annotations
@@ -12,14 +10,20 @@ from collections.abc import Sequence
 
 import numpy as np
 
+#: Fixed seed for reproducible paired bootstrap CIs across runs.
+PAIRED_BOOTSTRAP_SEED = 42
+
+#: Bootstrap resamples per paired comparison.
+BOOTSTRAP_ITERATIONS = 10_000
+
 
 def paired_bootstrap_ci(
     correct_a: Sequence[bool],
     correct_b: Sequence[bool],
     *,
-    n_iter: int = 10_000,
+    n_iter: int = BOOTSTRAP_ITERATIONS,
     alpha: float = 0.05,
-    seed: int = 42,
+    seed: int = PAIRED_BOOTSTRAP_SEED,
 ) -> tuple[float, float, float]:
     """Return ``(delta, ci_low, ci_high)`` for ``acc_b - acc_a`` (b vs a).
 
@@ -31,8 +35,6 @@ def paired_bootstrap_ci(
     if not correct_a:
         raise ValueError("empty correctness vectors")
 
-    # Lazy import: polars + eval-audit live in the `eval` extra, so the rest of
-    # llm_grpo_gains.stats / llm_grpo_gains.report stays importable on a core install.
     try:
         import polars as pl
         from eval_audit.stats import paired_task_bootstrap
@@ -53,9 +55,9 @@ def paired_bootstrap_ci(
 def bootstrap_mean_ci(
     values: Sequence[float],
     *,
-    n_iter: int = 10_000,
+    n_iter: int = BOOTSTRAP_ITERATIONS,
     alpha: float = 0.05,
-    seed: int = 42,
+    seed: int = PAIRED_BOOTSTRAP_SEED,
 ) -> tuple[float, float, float]:
     """Return ``(mean, ci_low, ci_high)`` for the mean of `values`, via a one-sample
     percentile bootstrap (elements resampled with replacement).
@@ -63,8 +65,7 @@ def bootstrap_mean_ci(
     The base pass@k anchor is a single, seed-independent model, so it carries no
     training-seed variance — only problem-sampling uncertainty. Each element here is one
     problem's pass@k estimate; resampling problems puts a CI on the anchor so it is not
-    treated as noiseless. Deterministic given `seed` (no polars / eval-audit needed —
-    this is a plain one-sample mean, unlike the paired delta above).
+    treated as noiseless.
     """
     if len(values) == 0:
         raise ValueError("empty values")

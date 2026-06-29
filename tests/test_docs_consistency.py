@@ -375,3 +375,17 @@ def test_doc_number_traces_to_json(claim_id: str, doc: str, expected: str) -> No
         "Either the prose drifted from its artifact, or the artifact was regenerated "
         "without updating the doc."
     )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "results/summary.json",
+        "results/decomposition.md",
+        "results/countdown/summary.json",
+        "results/countdown/decomposition.md",
+    ],
+)
+def test_decomposition_artifacts_do_not_claim_passk_deferred(path: str) -> None:
+    text = (_ROOT / path).read_text(encoding="utf-8")
+    assert "deferred to a Phase-2 sampling run" not in text

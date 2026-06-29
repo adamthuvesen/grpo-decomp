@@ -1,8 +1,7 @@
 """Verifiable GRPO reward functions sharing one signature, selected by name.
 
 Every reward takes the generated `completions` plus forwarded dataset columns
-(e.g. `gold_answer`) and returns one score per completion — or `None` to skip a
-sample (TRL converts `None` to NaN and excludes it). Training arms differ only by
+(e.g. `gold_answer`) and returns one score per completion. Training arms differ only by
 which reward `get_reward` returns:
 
 - ``correct``   — verifiable exact-match correctness on math (the real signal).
@@ -25,9 +24,8 @@ from llm_grpo_gains.rewards.placebo import make_random_reward
 #: backward-compatible arm YAMLs; named here so callers do not treat it as a placeholder baseline.
 PLACEBO_REWARD = "random"
 
-#: Shared reward signature: completions + forwarded columns -> one score per
-#: completion (or None to skip the sample).
-RewardFn = Callable[..., list[float | None]]
+#: Shared reward signature: completions + forwarded columns -> one score per completion.
+RewardFn = Callable[..., list[float]]
 
 #: The rewards a training arm may select. `format` is deferred (see module docstring).
 SELECTABLE = ("correct", "countdown", PLACEBO_REWARD)

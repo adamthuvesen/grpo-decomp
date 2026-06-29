@@ -16,19 +16,22 @@ from typing import NamedTuple
 
 import numpy as np
 from pydantic import Field
-from scipy.stats import t
 
 from llm_grpo_gains.eval.battery import cot_counts_by_problem, lenient_counts_by_problem
 from llm_grpo_gains.eval.code_reasoning import code_reasoning_frequency
 from llm_grpo_gains.eval.completions import CompletionSet
 from llm_grpo_gains.eval.cot import has_verifiable_chain
 from llm_grpo_gains.eval.passk import estimate_pass_at_k, pass_at_k
-from llm_grpo_gains.report.decomposition import MIN_SEEDS
+from llm_grpo_gains.report.status import MIN_HEADLINE_SEEDS
 from llm_grpo_gains.schemas import Record
 from llm_grpo_gains.stats.bootstrap import bootstrap_mean_ci
+from llm_grpo_gains.stats.seed_aggregate import seed_level_t_half_width
+
+#: Propagated pass@k Δ above this (pp) with CI excluding zero reads as expansion, not elicitation.
+EXPANSION_DELTA_THRESHOLD = 0.10
 
 
-class Pass8MultiSeed(Record):
+class PassKMultiSeed(Record):
     """Multi-seed pass@k coverage panel: base anchor vs per-seed correct, with CIs.
 
     Field names are k-generic (`base_passk`, `per_seed_correct_passk`) with the level in
@@ -100,7 +103,7 @@ class Pass8MultiSeed(Record):
     cot_delta_propagated_ci_high: float
 
     ci_kind: str = Field(description="How the correct/seed-level Δ interval was formed.")
-    preliminary: bool = Field(description=f"True below {MIN_SEEDS} seeds.")
+    preliminary: bool = Field(description=f"True below {MIN_HEADLINE_SEEDS} seeds.")
 
     def headline(self) -> str:
         """The atomic verdict line: bounded-small (elicitation) vs expansion.
@@ -109,9 +112,9 @@ class Pass8MultiSeed(Record):
         in), so a movement that only clears zero with the base held fixed does not read as
         expansion.
         """
-        expanded = self.delta_propagated_ci_low > 0.0 and self.delta >= 0.10
+        expanded = self.delta_propagated_ci_low > 0.0 and self.delta >= EXPANSION_DELTA_THRESHOLD
         verdict = "expansion" if expanded else "bounded-small (elicitation)"
-        tag = f"  [PRELIMINARY <{MIN_SEEDS} seeds]" if self.preliminary else ""
+        tag = f"  [PRELIMINARY <{MIN_HEADLINE_SEEDS} seeds]" if self.preliminary else ""
         return (
             f"over {self.n_seeds} seed(s) on {self.task}, correct pass@{self.k} "
             f"{self.mean_correct_passk * 100:.1f}% vs base {self.base_passk * 100:.1f}%: "
@@ -152,6 +155,10 @@ class _ArmMetrics(NamedTuple):
     n: int
 
 
+def _interval(center: float, half_width: float) -> tuple[float, float]:
+    return center - half_width, center + half_width
+
+
 def _arm_metrics(cs: CompletionSet, k: int) -> _ArmMetrics:
     """All pass@k metrics for one sampled arm — vanilla and CoT-gated share the problem set."""
     problems = cs.problem_set()
@@ -184,8 +191,8 @@ def aggregate_passk_seeds(
     *,
     task: str,
     k: int = 8,
-) -> Pass8MultiSeed:
-    """Aggregate the base anchor + per-seed correct pass@k into a `Pass8MultiSeed` panel.
+) -> PassKMultiSeed:
+    """Aggregate the base anchor + per-seed correct pass@k into a `PassKMultiSeed` panel.
 
     `correct_by_seed` is ``(seed_label, CompletionSet)`` per training seed. The correct
     pass@k gets a seed-level t CI (>=2 seeds) capturing run-to-run variance; the base
@@ -231,16 +238,8 @@ def aggregate_passk_seeds(
     n_seeds = len(passk_arr)
     mean_passk = float(passk_arr.mean())
     mean_cot_passk = float(cot_passk_arr.mean())
-    # Seed-level t half-widths over the per-seed pass@k (identical form to report/seeds.py):
-    # the same critical value applied to the vanilla and CoT-gated between-seed spreads.
-    if n_seeds >= 2:
-        t_crit = float(t.ppf(0.975, n_seeds - 1))
-        half = t_crit * float(passk_arr.std(ddof=1) / np.sqrt(n_seeds))
-        cot_half = t_crit * float(cot_passk_arr.std(ddof=1) / np.sqrt(n_seeds))
-        ci_kind = f"seed-level t, df={n_seeds - 1}"
-    else:
-        half = cot_half = 0.0
-        ci_kind = "single-seed (no seed variance)"
+    half, ci_kind = seed_level_t_half_width(passk_arr)
+    cot_half, _ = seed_level_t_half_width(cot_passk_arr)
 
     # Propagated Δ intervals fold the base anchor's problem-bootstrap half-width into the
     # seed-level half-width in quadrature (see the field docs): the anchor's finite-problem SE
@@ -249,7 +248,13 @@ def aggregate_passk_seeds(
     prop_half = float(np.hypot(half, (base_ci_high - base_ci_low) / 2.0))
     cot_delta = mean_cot_passk - base_m.cot_passk
     cot_prop_half = float(np.hypot(cot_half, (base_cot_ci_high - base_cot_ci_low) / 2.0))
-    return Pass8MultiSeed(
+    correct_passk_ci = _interval(mean_passk, half)
+    delta_ci = _interval(delta, half)
+    delta_propagated_ci = _interval(delta, prop_half)
+    correct_cot_passk_ci = _interval(mean_cot_passk, cot_half)
+    cot_delta_ci = _interval(cot_delta, cot_half)
+    cot_delta_propagated_ci = _interval(cot_delta, cot_prop_half)
+    return PassKMultiSeed(
         task=task,
         k=k,
         n_seeds=n_seeds,
@@ -266,13 +271,13 @@ def aggregate_passk_seeds(
         per_seed_code_reasoning_freq=tuple(crfs),
         mean_correct_pass1=float(np.mean(pass1s)),
         mean_correct_passk=mean_passk,
-        correct_passk_ci_low=mean_passk - half,
-        correct_passk_ci_high=mean_passk + half,
+        correct_passk_ci_low=correct_passk_ci[0],
+        correct_passk_ci_high=correct_passk_ci[1],
         delta=delta,
-        delta_ci_low=delta - half,
-        delta_ci_high=delta + half,
-        delta_propagated_ci_low=delta - prop_half,
-        delta_propagated_ci_high=delta + prop_half,
+        delta_ci_low=delta_ci[0],
+        delta_ci_high=delta_ci[1],
+        delta_propagated_ci_low=delta_propagated_ci[0],
+        delta_propagated_ci_high=delta_propagated_ci[1],
         base_cot_pass1=base_m.cot_pass1,
         base_cot_passk=base_m.cot_passk,
         base_cot_passk_ci_low=base_cot_ci_low,
@@ -282,13 +287,13 @@ def aggregate_passk_seeds(
         mean_correct_cot_pass1=float(np.mean(cot_pass1s)),
         mean_correct_cot_passk=mean_cot_passk,
         mean_correct_chain_coverage=float(np.mean(chain_covs)),
-        correct_cot_passk_ci_low=mean_cot_passk - cot_half,
-        correct_cot_passk_ci_high=mean_cot_passk + cot_half,
+        correct_cot_passk_ci_low=correct_cot_passk_ci[0],
+        correct_cot_passk_ci_high=correct_cot_passk_ci[1],
         cot_delta=cot_delta,
-        cot_delta_ci_low=cot_delta - cot_half,
-        cot_delta_ci_high=cot_delta + cot_half,
-        cot_delta_propagated_ci_low=cot_delta - cot_prop_half,
-        cot_delta_propagated_ci_high=cot_delta + cot_prop_half,
+        cot_delta_ci_low=cot_delta_ci[0],
+        cot_delta_ci_high=cot_delta_ci[1],
+        cot_delta_propagated_ci_low=cot_delta_propagated_ci[0],
+        cot_delta_propagated_ci_high=cot_delta_propagated_ci[1],
         ci_kind=ci_kind,
-        preliminary=n_seeds < MIN_SEEDS,
+        preliminary=n_seeds < MIN_HEADLINE_SEEDS,
     )

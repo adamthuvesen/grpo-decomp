@@ -17,10 +17,21 @@ to pin them against the box on the first run (the proposal's "re-verify at build
 
 from __future__ import annotations
 
-import subprocess
+import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import modal
+
+from llm_grpo_gains.eval.completions import SamplingConfig
+from llm_grpo_gains.eval.registry import SETS, get_task_profile
+from llm_grpo_gains.prompts import EVAL_MAX_NEW_TOKENS
+from llm_grpo_gains.provenance import git_commit, git_is_dirty
+from llm_grpo_gains.schemas import ProblemSet
+from llm_grpo_gains.train.checkpoints import (
+    final_or_selected_checkpoint_path,
+    require_selected_checkpoint_path,
+)
 
 APP_NAME = "llm-grpo-gains"
 CUDA_IMAGE = "nvidia/cuda:12.4.1-devel-ubuntu22.04"
@@ -73,52 +84,70 @@ image = (
 runs = modal.Volume.from_name("assay-runs", create_if_missing=True)
 
 
-def _eval_task(task: str) -> tuple[str, str, list[str], str]:
-    """Per-task eval wiring: (base arm-config path, task set, control sets, arm-name prefix).
+@dataclass(frozen=True)
+class _CompletionJob:
+    arm: str
+    model_ref: str
+    model_revision: str | None
+    set_name: str
+    config: SamplingConfig
+    problems: ProblemSet | None = None
 
-    GSM8K carries the perturbation/clean-label controls and unprefixed `correct`/`random`
-    run dirs; Countdown is a generated set with no controls and `countdown-`-prefixed runs.
-    """
-    if task == "countdown":
-        return "configs/countdown-correct.yaml", "countdown-test", [], "countdown-"
-    if task == "gsm8k":
-        return (
-            "configs/correct.yaml",
-            "gsm8k-test",
-            ["gsm-symbolic", "gsm-plus", "gsm8k-platinum"],
-            "",
+
+def _load_run_provenance(run_dir: Path):
+    from llm_grpo_gains.train.provenance import RunProvenance
+
+    return RunProvenance.model_validate_json(
+        (run_dir / "provenance.json").read_text(encoding="utf-8")
+    )
+
+
+def _generate_completion_set_to_volume(
+    *,
+    model_ref: str,
+    problems,
+    config,
+    out_dir: Path,
+    commit: str | None,
+    dirty: bool | None,
+    model_revision: str | None = None,
+) -> Path:
+    from llm_grpo_gains.eval.completions import write_completion_set
+    from llm_grpo_gains.eval.generate import generate_completion_set
+
+    completion_set = generate_completion_set(
+        model_ref,
+        problems,
+        config,
+        backend="vllm",
+        model_revision=model_revision,
+        commit=commit,
+        dirty=dirty,
+    )
+    out = write_completion_set(completion_set, out_dir)
+    runs.commit()
+    return out
+
+
+def _run_completion_jobs(
+    jobs: list[_CompletionJob],
+    *,
+    out_root: Path,
+    commit: str | None,
+    dirty: bool | None,
+) -> None:
+    for job in jobs:
+        problems = job.problems if job.problems is not None else SETS[job.set_name]()
+        out = _generate_completion_set_to_volume(
+            model_ref=job.model_ref,
+            problems=problems,
+            config=job.config,
+            out_dir=out_root / f"{job.arm}__{job.set_name}",
+            commit=commit,
+            dirty=dirty,
+            model_revision=job.model_revision,
         )
-    raise ValueError(f"eval task must be 'gsm8k' or 'countdown', got {task!r}")
-
-
-def _selected_checkpoint_path(run_dir: Path, selected_checkpoint: str | None) -> str:
-    """Return the pre-selected checkpoint path, or fail before evaluation can peek."""
-    if selected_checkpoint is None:
-        raise ValueError(
-            f"{run_dir} has no selected checkpoint; run `modal run modal_app.py --command heldout` "
-            "for this arm before battery or elicitation"
-        )
-    return str(run_dir / "checkpoints" / selected_checkpoint)
-
-
-def _final_or_selected_checkpoint(run_dir: Path, selected_checkpoint: str | None, rule: str) -> str:
-    """The checkpoint to evaluate for a finished arm.
-
-    Prefer the recorded selection (a `heldout` run sets it). When it is unset, realize the
-    deterministic ``final`` rule directly — no held-out curve is needed to know its answer,
-    and ``checkpoints/final`` is what every published placebo/elicitation artifact used. Any
-    other rule without a recorded selection is an explicit error (run `heldout` first). This
-    lets the multi-seed panel reuse the replicate checkpoints (rule ``final``, selection unset)
-    without an extra GPU pass.
-    """
-    if selected_checkpoint is None:
-        if rule != "final":
-            raise ValueError(
-                f"{run_dir} has no selected checkpoint and rule is {rule!r}; run "
-                "`modal run modal_app.py --command heldout` for this arm first"
-            )
-        selected_checkpoint = "final"
-    return str(run_dir / "checkpoints" / selected_checkpoint)
+        print(f"  wrote {job.arm}__{job.set_name}: n={job.config.n} -> {out}")
 
 
 @app.function(
@@ -172,16 +201,20 @@ def heldout_arm(arm_yaml: str) -> str:
     """Held-out accuracy curve over a finished arm's checkpoints (check this, not reward)."""
     from pathlib import Path
 
-    from llm_grpo_gains.eval.cli import main as eval_main
+    from llm_grpo_gains.eval.heldout import run_heldout_curve, write_selected_provenance
     from llm_grpo_gains.train.config import load_arm_config
 
     arm = load_arm_config(Path(arm_yaml))
     run_dir = Path(RUNS_DIR) / f"{arm.name}-seed{arm.seed}"
-    status = eval_main(["heldout", "--run", str(run_dir), "--backend", "vllm"])
-    if status:
-        raise RuntimeError(f"held-out eval failed (exit {status}) for {run_dir}")
+    config = SamplingConfig(temperature=0.0, n=1, max_new_tokens=EVAL_MAX_NEW_TOKENS, seed=0)
+    curve = run_heldout_curve(run_dir, config, backend="vllm")
+    out = run_dir / "heldout.json"
+    out.write_text(
+        json.dumps(curve.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
+    write_selected_provenance(run_dir, curve)
     runs.commit()
-    return str(run_dir / "heldout.json")
+    return str(out)
 
 
 @app.function(
@@ -210,72 +243,59 @@ def eval_matrix(
     """
     from pathlib import Path
 
-    from llm_grpo_gains.eval.cli import SETS
-    from llm_grpo_gains.eval.completions import SamplingConfig, write_completion_set
-    from llm_grpo_gains.eval.generate import generate_completion_set
     from llm_grpo_gains.train.config import load_arm_config
-    from llm_grpo_gains.train.provenance import RunProvenance
 
-    # Base model + revision come from the arm config (the source training used), so the
-    # base eval is the same weights the gain is measured against.
-    base_cfg, task_set, control_sets, prefix = _eval_task(task)
-    base = load_arm_config(Path(base_cfg))
+    profile = get_task_profile(task)
+    base = load_arm_config(Path(profile.base_config))
 
     def selected_checkpoint(role: str) -> str:
-        run_dir = Path(RUNS_DIR) / f"{prefix}{role}-seed{seed}"
-        prov = RunProvenance.model_validate_json(
-            (run_dir / "provenance.json").read_text(encoding="utf-8")
-        )
-        # Realize the deterministic `final` rule directly when a replicate seed never had a
-        # held-out curve (selected_checkpoint unset). Identical to the recorded selection for
-        # every published arm (all rule `final`), so full/placebo resolve exactly as before.
-        return _final_or_selected_checkpoint(
+        run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}{role}-seed{seed}"
+        prov = _load_run_provenance(run_dir)
+        return final_or_selected_checkpoint_path(
             run_dir, prov.selected_checkpoint, prov.checkpoint_selection
         )
 
-    # full: base/correct span task + every control (control rows compare base vs correct);
-    # random needs only the task set (placebo row is task-set only). placebo: just the
-    # correct-vs-random confirmatory pair on the task set (all a replicate seed needs).
-    # controls: only the correct arm on the control sets (base is seed-independent, reused
-    # from the seed-0 battery) — the per-seed upgrade of the seed-0 control rows.
     if scope == "full":
         matrix = [
-            ("base", base.base_model, base.base_model_revision, [task_set, *control_sets]),
-            ("correct", selected_checkpoint("correct"), None, [task_set, *control_sets]),
-            ("random", selected_checkpoint("random"), None, [task_set]),
+            (
+                "base",
+                base.base_model,
+                base.base_model_revision,
+                [profile.task_set, *profile.control_sets],
+            ),
+            (
+                "correct",
+                selected_checkpoint("correct"),
+                None,
+                [profile.task_set, *profile.control_sets],
+            ),
+            ("random", selected_checkpoint("random"), None, [profile.task_set]),
         ]
     elif scope == "placebo":
         matrix = [
-            ("correct", selected_checkpoint("correct"), None, [task_set]),
-            ("random", selected_checkpoint("random"), None, [task_set]),
+            ("correct", selected_checkpoint("correct"), None, [profile.task_set]),
+            ("random", selected_checkpoint("random"), None, [profile.task_set]),
         ]
     elif scope == "controls":
-        if not control_sets:
+        if not profile.control_sets:
             raise ValueError(f"scope 'controls' needs control sets; task {task!r} has none")
-        matrix = [("correct", selected_checkpoint("correct"), None, list(control_sets))]
+        matrix = [("correct", selected_checkpoint("correct"), None, list(profile.control_sets))]
     else:
         raise ValueError(f"scope must be 'full', 'placebo', or 'controls', got {scope!r}")
-    # 1024 tokens matches training's max_completion_length, so eval isn't truncating
-    # answers the model was trained to produce (the 512 held-out curve clips the tail).
-    config = SamplingConfig(temperature=0.0, top_p=1.0, max_new_tokens=1024, n=1, seed=0)
-    base_out = "battery" if task == "gsm8k" else f"battery-{task}"
-    out_root = Path(RUNS_DIR) / (base_out if seed == 0 else f"{base_out}-seed{seed}")
 
-    for arm, model_ref, revision, sets in matrix:
-        for set_name in sets:
-            problems = SETS[set_name]()
-            completion_set = generate_completion_set(
-                model_ref,
-                problems,
-                config,
-                backend="vllm",
-                model_revision=revision,
-                commit=commit,
-                dirty=dirty,
-            )
-            out = write_completion_set(completion_set, out_root / f"{arm}__{set_name}")
-            print(f"  wrote {arm}__{set_name}: {len(completion_set.items)} problems -> {out}")
-        runs.commit()  # persist per arm so a late failure doesn't discard finished cells
+    config = SamplingConfig(
+        temperature=0.0, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=1, seed=0
+    )
+    out_root = Path(RUNS_DIR) / (
+        profile.battery_root if seed == 0 else f"{profile.battery_root}-seed{seed}"
+    )
+
+    jobs = [
+        _CompletionJob(arm, model_ref, revision, set_name, config)
+        for arm, model_ref, revision, set_names in matrix
+        for set_name in set_names
+    ]
+    _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
 
 
@@ -295,46 +315,30 @@ def elicitation(task: str = "gsm8k", commit: str | None = None, dirty: bool | No
     """
     from pathlib import Path
 
-    from llm_grpo_gains.eval.cli import SETS
-    from llm_grpo_gains.eval.completions import SamplingConfig, write_completion_set
-    from llm_grpo_gains.eval.generate import generate_completion_set
     from llm_grpo_gains.train.config import load_arm_config
-    from llm_grpo_gains.train.provenance import RunProvenance
 
-    base_cfg, task_set, _controls, prefix = _eval_task(task)
-    base = load_arm_config(Path(base_cfg))
+    profile = get_task_profile(task)
+    base = load_arm_config(Path(profile.base_config))
 
     def selected_checkpoint(role: str) -> str:
-        run_dir = Path(RUNS_DIR) / f"{prefix}{role}-seed0"
-        prov = RunProvenance.model_validate_json(
-            (run_dir / "provenance.json").read_text(encoding="utf-8")
-        )
-        return _selected_checkpoint_path(run_dir, prov.selected_checkpoint)
+        run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}{role}-seed0"
+        prov = _load_run_provenance(run_dir)
+        return require_selected_checkpoint_path(run_dir, prov.selected_checkpoint)
 
-    config = SamplingConfig(temperature=0.7, top_p=1.0, max_new_tokens=1024, n=8, seed=0)
+    config = SamplingConfig(
+        temperature=0.7, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=8, seed=0
+    )
     matrix = [
         ("base", base.base_model, base.base_model_revision),
         ("correct", selected_checkpoint("correct"), None),
     ]
-    out_root = Path(RUNS_DIR) / ("elicitation" if task == "gsm8k" else f"elicitation-{task}")
-    problems = SETS[task_set]()
+    out_root = Path(RUNS_DIR) / profile.elicitation_root
 
-    for arm, model_ref, revision in matrix:
-        completion_set = generate_completion_set(
-            model_ref,
-            problems,
-            config,
-            backend="vllm",
-            model_revision=revision,
-            commit=commit,
-            dirty=dirty,
-        )
-        out = write_completion_set(completion_set, out_root / f"{arm}__{task_set}")
-        print(
-            f"  wrote {arm}__{task_set}: {len(completion_set.items)} problems "
-            f"x n={config.n} -> {out}"
-        )
-        runs.commit()
+    jobs = [
+        _CompletionJob(arm, model_ref, revision, profile.task_set, config)
+        for arm, model_ref, revision in matrix
+    ]
+    _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
 
 
@@ -373,14 +377,10 @@ def elicitation_multiseed(
     from pathlib import Path
 
     from llm_grpo_gains.data import dev_slice
-    from llm_grpo_gains.eval.cli import SETS
-    from llm_grpo_gains.eval.completions import SamplingConfig, write_completion_set
-    from llm_grpo_gains.eval.generate import generate_completion_set
     from llm_grpo_gains.train.config import load_arm_config
-    from llm_grpo_gains.train.provenance import RunProvenance
 
-    base_cfg, task_set, _controls, prefix = _eval_task(task)
-    eval_set = set_name or task_set
+    profile = get_task_profile(task)
+    eval_set = set_name or profile.task_set
     if eval_set not in SETS:
         raise ValueError(f"unknown set {eval_set!r}; known sets are {tuple(sorted(SETS))}")
     if limit is not None and limit < 1:
@@ -388,42 +388,47 @@ def elicitation_multiseed(
     seeds = [int(s) for s in correct_seeds.split(",") if s.strip() != ""]
     if not seeds:
         raise ValueError(f"no correct seeds parsed from {correct_seeds!r}")
-    base = load_arm_config(Path(base_cfg))
+    base = load_arm_config(Path(profile.base_config))
 
     def selected_checkpoint(seed: int) -> str:
-        run_dir = Path(RUNS_DIR) / f"{prefix}correct-seed{seed}"
-        prov = RunProvenance.model_validate_json(
-            (run_dir / "provenance.json").read_text(encoding="utf-8")
-        )
-        return _final_or_selected_checkpoint(
+        run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}correct-seed{seed}"
+        prov = _load_run_provenance(run_dir)
+        return final_or_selected_checkpoint_path(
             run_dir, prov.selected_checkpoint, prov.checkpoint_selection
         )
 
-    base_out = "passk-multiseed" if task == "gsm8k" else f"passk-multiseed-{task}"
-    out_root = Path(RUNS_DIR) / base_out
+    out_root = Path(RUNS_DIR) / profile.passk_multiseed_root
     problems = SETS[eval_set]()
     if limit is not None:
         problems = dev_slice(problems, n=limit, seed=0)
 
-    def run_arm(arm: str, model_ref: str, revision: str | None, n: int) -> None:
-        # Same decoding as the published seed-0 panel; only n and the checkpoint vary.
-        config = SamplingConfig(temperature=0.7, top_p=1.0, max_new_tokens=1024, n=n, seed=0)
-        completion_set = generate_completion_set(
-            model_ref,
-            problems,
-            config,
-            backend="vllm",
-            model_revision=revision,
-            commit=commit,
-            dirty=dirty,
+    def sampled_config(n: int) -> SamplingConfig:
+        return SamplingConfig(
+            temperature=0.7, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=n, seed=0
         )
-        out = write_completion_set(completion_set, out_root / f"{arm}__{eval_set}")
-        print(f"  wrote {arm}__{eval_set}: {len(completion_set.items)} problems x n={n} -> {out}")
-        runs.commit()  # persist per arm so a late failure doesn't discard finished cells
 
-    run_arm("base", base.base_model, base.base_model_revision, n_base)
-    for seed in seeds:
-        run_arm(f"correct-seed{seed}", selected_checkpoint(seed), None, n_correct)
+    jobs = [
+        _CompletionJob(
+            "base",
+            base.base_model,
+            base.base_model_revision,
+            eval_set,
+            sampled_config(n_base),
+            problems,
+        ),
+        *(
+            _CompletionJob(
+                f"correct-seed{seed}",
+                selected_checkpoint(seed),
+                None,
+                eval_set,
+                sampled_config(n_correct),
+                problems,
+            )
+            for seed in seeds
+        ),
+    ]
+    _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
 
 
@@ -483,7 +488,7 @@ def main(
     """
     # Computed here (locally) because the image ignores .git, so the container can't
     # read git - pass the real commit/dirty into provenance.
-    commit, dirty = _local_git_commit(), _local_git_dirty()
+    commit, dirty = git_commit(), git_is_dirty()
     if command == "train":
         fn, kwargs = (
             train_arm,
@@ -539,26 +544,3 @@ def main(
     else:
         result = fn.remote(**kwargs)
         print(f"{command} complete: {result}")
-
-
-# Local git helpers (the entrypoint runs in the `modal` tool env, which can't import
-# llm_grpo_gains; and the image strips .git, so the container can't read git either). Mirrors
-# llm_grpo_gains.provenance.git_commit / git_is_dirty.
-def _local_git_commit() -> str:
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
-        )
-        return result.stdout.strip()
-    except (subprocess.SubprocessError, OSError):
-        return "unknown"
-
-
-def _local_git_dirty() -> bool:
-    try:
-        result = subprocess.run(
-            ["git", "status", "--porcelain"], capture_output=True, text=True, check=True
-        )
-    except (subprocess.SubprocessError, OSError):
-        return False
-    return bool(result.stdout.strip())

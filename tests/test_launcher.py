@@ -9,7 +9,6 @@ from llm_grpo_gains.schemas import DatasetRef, Problem, ProblemSet
 from llm_grpo_gains.train.config import ArmConfig
 from llm_grpo_gains.train.launcher import (
     _load_train_and_validation,
-    build_prompt,
     prepare_run,
     smoke_overrides,
     to_dataset,
@@ -22,12 +21,6 @@ def _problems() -> ProblemSet:
     return ProblemSet(
         source=_REF, problems=(Problem(id="p0", question="What is 2+2?", gold_answer="4"),)
     )
-
-
-def test_build_prompt_includes_question_and_box_format() -> None:
-    prompt = build_prompt("What is 2+2?")
-    assert "What is 2+2?" in prompt
-    assert "\\boxed" in prompt
 
 
 def test_to_dataset_exposes_prompt_and_forwarded_gold() -> None:

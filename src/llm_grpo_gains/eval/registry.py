@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from llm_grpo_gains.data import (
     dev_slice,
@@ -26,6 +27,9 @@ SETS: dict[str, Callable[[], ProblemSet]] = {
     "countdown-dev": lambda: load_countdown("dev"),
 }
 
+#: Perturbation / clean-label control sets for the GSM8K decomposition (not Countdown).
+CONTROL_SETS: tuple[str, ...] = ("gsm-symbolic", "gsm-plus", "gsm8k-platinum")
+
 #: The arms a decomposition compares; `correct` is compared against `base` and `random`.
 ARMS = ("base", "correct", "random")
 
@@ -35,3 +39,46 @@ PROBES = {
     "gsm8k-platinum": "label noise (cleaned labels)",
     "gsm-plus": "robustness (adversarial perturbation)",
 }
+
+
+@dataclass(frozen=True)
+class EvalTaskProfile:
+    """Modal/eval wiring for one study task."""
+
+    base_config: str
+    task_set: str
+    control_sets: tuple[str, ...]
+    run_prefix: str
+    battery_root: str
+    elicitation_root: str
+    passk_multiseed_root: str
+
+
+TASKS: dict[str, EvalTaskProfile] = {
+    "gsm8k": EvalTaskProfile(
+        base_config="configs/correct.yaml",
+        task_set="gsm8k-test",
+        control_sets=CONTROL_SETS,
+        run_prefix="",
+        battery_root="battery",
+        elicitation_root="elicitation",
+        passk_multiseed_root="passk-multiseed",
+    ),
+    "countdown": EvalTaskProfile(
+        base_config="configs/countdown-correct.yaml",
+        task_set="countdown-test",
+        control_sets=(),
+        run_prefix="countdown-",
+        battery_root="battery-countdown",
+        elicitation_root="elicitation-countdown",
+        passk_multiseed_root="passk-multiseed-countdown",
+    ),
+}
+
+
+def get_task_profile(task: str) -> EvalTaskProfile:
+    """Return the eval wiring for a named study task."""
+    try:
+        return TASKS[task]
+    except KeyError as exc:
+        raise ValueError(f"eval task must be one of {tuple(sorted(TASKS))}, got {task!r}") from exc

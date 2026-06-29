@@ -19,7 +19,7 @@ from llm_grpo_gains.eval.completions import (
     SamplingConfig,
     capture_generation_provenance,
 )
-from llm_grpo_gains.prompts import build_prompt
+from llm_grpo_gains.prompts import build_prompt, prepare_qwen_tokenizer
 from llm_grpo_gains.schemas import ProblemSet
 
 #: Prompts per forward pass on the transformers backend (CPU/MPS memory-bound).
@@ -139,9 +139,7 @@ def _generate_transformers(
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(model, revision=revision)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"
+    prepare_qwen_tokenizer(tokenizer)
 
     language_model = AutoModelForCausalLM.from_pretrained(model, revision=revision)
     language_model.eval()
