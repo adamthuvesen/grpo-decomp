@@ -375,8 +375,8 @@ flowchart TB
 
 - **The image is split on purpose.** Dependencies install in a layer keyed only on
   `pyproject.toml` + `uv.lock` (via `uv export`), and the source copies in a later
-  layer that ends with a `--no-deps` editable relink. Editing source no longer
-  re-downloads the multi-gigabyte GPU stack; only the fast relink re-runs.
+  layer that ends with a `--no-deps` editable relink. Editing source re-runs only
+  the fast relink, never the multi-gigabyte GPU-stack download.
 - **`train_arm`** trains one arm and commits checkpoints + provenance to the Volume.
 - **`heldout_arm`** scores a finished run's checkpoints and records the selection.
 - **`eval_matrix`** generates the greedy (pass@1) decomposition battery, with three
@@ -388,7 +388,7 @@ flowchart TB
   reused from seed 0), feeding the Holm-corrected §3 table.
 - **`elicitation`** samples base and correct (seed 0) with `n>1` to measure pass@k:
   whether the gain is new capability or capability the base already had.
-- **`elicitation_multiseed`** generalizes that panel so the verdict no longer rests
+- **`elicitation_multiseed`** generalizes that panel so the verdict does not rest
   on one seed: a base anchor sampled once plus every correct training seed, with an
   optional `set_name` to re-run the same checkpoints off a control distribution. It
   produced the committed `passk-multiseed` panels and the decontamination cells.

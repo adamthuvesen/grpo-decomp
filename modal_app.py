@@ -48,8 +48,8 @@ _IGNORE = [
 ]
 
 # Two layers on purpose. The heavy dependency install (layer 1) is keyed only on
-# pyproject.toml + uv.lock, so editing source no longer re-downloads the ~5GB GPU
-# stack — only the fast editable relink (layer 2) re-runs. `uv export` emits the
+# pyproject.toml + uv.lock, so editing source re-runs only the fast editable relink
+# (layer 2), never the ~5GB GPU-stack download. `uv export` emits the
 # train extra's pinned deps without the project itself; the project is linked
 # separately with --no-deps once the full source is present.
 image = (
@@ -356,8 +356,8 @@ def elicitation_multiseed(
 ) -> str:
     """Multi-seed pass@k coverage panel: base anchor once + each correct training seed.
 
-    Generalizes `elicitation` (seed 0, n=8) so the elicitation/expansion verdict no longer
-    rests on a single seed. The base anchor (seed-independent) is sampled once at `n_base`;
+    Generalizes `elicitation` (seed 0, n=8) so the elicitation/expansion verdict does not
+    rest on a single seed. The base anchor (seed-independent) is sampled once at `n_base`;
     every correct training seed is sampled at `n_correct`. Decoding is byte-for-byte the
     published panel's — `temperature=0.7, top_p=1.0, max_new_tokens=1024` — so only `n` and
     the checkpoint change. Writes `CompletionSet`s to
@@ -441,35 +441,45 @@ def main(
     correct_seeds: str = "0,1,2,3,4,5",
     set_name: str | None = None,
     limit: int | None = None,
-    spawn: bool = False,
+    spawn: bool = True,
 ) -> None:
     """Train an arm, score its held-out curve, or generate eval completions.
 
-    full train:  modal run modal_app.py --arm configs/correct.yaml
-    dry run:     modal run modal_app.py --arm configs/correct.yaml --smoke-problems 8 --max-steps 5
-    held-out:    modal run modal_app.py --arm configs/correct.yaml --command heldout
-    battery:     modal run modal_app.py --command battery                       # seed 0, full
-    placebo:    modal run modal_app.py --command battery --seed 1 --scope placebo
-    controls:    modal run --detach modal_app.py --command battery --scope controls --seed 1 --spawn
-    elicitation: modal run modal_app.py --command elicitation
-    passk-seeds: modal run --detach modal_app.py --command elicitation-multiseed --spawn
+    Every command this entrypoint dispatches is a long GPU run (6-24 h) whose deliverable is
+    written to the `assay-runs` Volume, not the inline return value — so `spawn` DEFAULTS TO
+    TRUE: the function fires server-side and the entrypoint returns its FunctionCall id without
+    blocking. Pair the default with `--detach` for the durable, disconnect-proof run:
+
+    full train:  modal run --detach modal_app.py --arm configs/correct.yaml
+    held-out:    modal run --detach modal_app.py --arm configs/correct.yaml --command heldout
+    battery:     modal run --detach modal_app.py --command battery               # seed 0, full
+    placebo:     modal run --detach modal_app.py --command battery --seed 1 --scope placebo
+    controls:    modal run --detach modal_app.py --command battery --scope controls --seed 1
+    elicitation: modal run --detach modal_app.py --command elicitation
+    passk-seeds: modal run --detach modal_app.py --command elicitation-multiseed
     escalated:   ...same, plus --n-base 32 --n-correct 16 (or --task countdown)
     decontam:    ...same, plus --set-name gsm-symbolic --limit 1319 (or --set-name gsm8k-platinum)
-    countdown:   modal run modal_app.py --command battery --task countdown --scope placebo --seed 1
-    durable:     modal run --detach modal_app.py --arm <cfg> --spawn            # long runs
+    countdown:   modal run --detach modal_app.py --command battery --task countdown \\
+                   --scope placebo --seed 1
 
     `--task` (gsm8k default, or countdown) selects the eval wiring for the battery /
     elicitation commands: the base arm config, the task set, the control sets (none for
     Countdown), and the `correct`/`random` run-dir prefix.
 
-    Long runs should use `--detach --spawn`. A synchronous `.remote()` in a detached app
-    can be canceled when the local client disconnects (Modal's own guidance), so a long
-    training/eval run can show wandb "finished" yet lose its final checkpoint. `--spawn`
-    fires the function and returns its FunctionCall id without blocking, so it runs
-    server-side independent of the client; monitor via `modal app logs` or the Volume.
-    `--spawn` REQUIRES `--detach` (without it the ephemeral app, and the spawned function,
-    stop when this entrypoint returns). The default (`.remote()`, blocking) is right for
-    short runs and `&&`-chained commands.
+    Why spawn-by-default: a synchronous `.remote()` in a detached app can be canceled when
+    the local client disconnects (Modal's own guidance), so a long training/eval run can show
+    wandb "finished" yet lose its final checkpoint. Spawn fires the function and returns its
+    FunctionCall id without blocking, so it runs server-side independent of the client; monitor
+    via `modal app logs llm-grpo-gains` or the `assay-runs` Volume. Spawn REQUIRES `--detach`
+    (without it the ephemeral app, and the spawned function, stop when this entrypoint returns).
+
+    For the short day-1 smoke — where you DO want the inline result and don't need detach —
+    force blocking with Modal's auto-generated `--no-spawn`:
+
+    dry run:     modal run modal_app.py --no-spawn --arm configs/correct.yaml \\
+                   --smoke-problems 8 --max-steps 5
+
+    Use `--no-spawn` likewise for any quick `&&`-chained step that must finish before the next.
     """
     # Computed here (locally) because the image ignores .git, so the container can't
     # read git - pass the real commit/dirty into provenance.
@@ -522,8 +532,10 @@ def main(
 
     if spawn:
         # Fire-and-return so the work survives a client disconnect (use with --detach).
+        # The deliverable lands on the Volume, not here; print the monitor hints.
         call = fn.spawn(**kwargs)
         print(f"{command} dispatched (spawn): function call {call.object_id}")
+        print(f"  monitor: modal app logs {APP_NAME}   |   results: modal volume ls {runs.name}")
     else:
         result = fn.remote(**kwargs)
         print(f"{command} complete: {result}")

@@ -34,20 +34,27 @@ The `assay-runs` Volume (checkpoints + provenance) is created automatically on f
 
 ## Day 1: smoke, then the `correct` arm
 
+The entrypoint defaults to `--spawn` (every command it dispatches is a long GPU run whose
+deliverable lands on the Volume), so the durable form is just `modal run --detach …`. The one
+case you want blocking is the cheap smoke, where the inline result is the point — force it with
+Modal's auto-generated `--no-spawn`.
+
 ```bash
 # 1. Cheap dry run (8 problems, 5 steps) to absorb the infra tax (image build, vLLM colocate).
-modal run modal_app.py --arm configs/correct.yaml --smoke-problems 8 --max-steps 5
+#    --no-spawn: block and print the result inline (no detach needed for a short run).
+modal run modal_app.py --no-spawn --arm configs/correct.yaml --smoke-problems 8 --max-steps 5
 #    EOS-sync check: completions/clipped_ratio must NOT be pinned ~1.0 every step (persistent ~1.0
 #    ⇒ trainer EOS and vLLM stop token disagree ⇒ gradient silently masked; stop and fix).
 #    Occasional non-zero is just long completions hitting max_completion_length (masked safely).
 
-# 2. The full correct arm. Long run -> --detach --spawn so it survives a local disconnect
-#    (a plain `modal run` is killed with the client mid-train, losing the final checkpoint even
-#    if wandb shows "finished"; monitor via `modal app logs` or `modal volume ls assay-runs`).
-modal run --detach modal_app.py --arm configs/correct.yaml --spawn
+# 2. The full correct arm. Long run -> --detach (spawn is the default) so it survives a local
+#    disconnect (a plain `modal run` is killed with the client mid-train, losing the final
+#    checkpoint even if wandb shows "finished"; monitor via `modal app logs llm-grpo-gains` or
+#    `modal volume ls assay-runs`).
+modal run --detach modal_app.py --arm configs/correct.yaml
 
 # 3. Held-out accuracy curve over its checkpoints (runs on the GPU against the Volume).
-modal run modal_app.py --arm configs/correct.yaml --command heldout
+modal run --detach modal_app.py --arm configs/correct.yaml --command heldout
 #    This is the GSM8K-vs-MATH decision: read HELD-OUT ACCURACY, not the reward curve.
 #    If held-out accuracy is flat after run 1, fall back to MATH-level training.
 ```
@@ -55,8 +62,8 @@ modal run modal_app.py --arm configs/correct.yaml --command heldout
 ## Day 2: the `random` (placebo) arm
 
 ```bash
-modal run modal_app.py --arm configs/random.yaml
-modal run modal_app.py --arm configs/random.yaml --command heldout
+modal run --detach modal_app.py --arm configs/random.yaml
+modal run --detach modal_app.py --arm configs/random.yaml --command heldout
 ```
 
 ## Check These, Never the Reward Curve
@@ -123,7 +130,7 @@ aggregators end-to-end without any download.
 ## Tuning notes
 
 - `configs/*.yaml`: `max_steps=500` and `save_steps=100` are placeholders; anchor on the day-1 run.
-- `max_completion_length=1024` (raised from 512 after the dry run clipped a chunk of rollouts).
+- `max_completion_length=1024` (512 clips a chunk of rollouts; the day-1 dry run confirms the headroom).
 - `vllm` is pinned to `==0.17.1` (TRL 1.0.0's supported max); don't bump past 0.17.x without re-checking TRL compat.
 - Checkpoints are ~3–9 GB each (weights + optimizer state); ~5 of them ≈ 15–45 GB on the Volume.
 - `vllm_gpu_memory_utilization=0.3` (colocate). Raise if rollouts are slow; lower (and cut

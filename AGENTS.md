@@ -6,8 +6,8 @@ vs. contamination, formatting, and elicitation. The result is only as trustworth
 controls — "most of this gain was elicitation" beats a confident, uncontrolled "RL works."
 
 This is a focused, narrow study, not an RL framework. Keep it that way; do not turn it into
-a platform. User-level guidance (tone, principles, git etiquette) lives in `~/.claude/CLAUDE.md`
-and `~/dotfiles/agents/AGENTS.md` and is *not* duplicated here.
+a platform. User-level guidance (tone, principles, git etiquette) lives in the user's agent
+defaults and is *not* duplicated here.
 
 ## Quickstart
 

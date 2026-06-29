@@ -60,6 +60,10 @@ dev = [
     "pytest>=8",
     "ruff>=0.6",
     "pre-commit>=3.8",
+    # The Modal launcher CLI (`modal run modal_app.py`). A dev/launch tool, not a
+    # runtime dep the GPU image installs — the image bakes only the `train` extra.
+    # Pinned to the surface modal_app.py targets (modal.App / string GPU / spawn-by-default).
+    "modal==1.5.0",
 ]
 
 [project.scripts]

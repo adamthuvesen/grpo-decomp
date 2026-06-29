@@ -77,7 +77,7 @@ make results           # rebuild figures from committed JSON and check docs
 make test-integration  # loads the pinned datasets from HuggingFace
 
 uv sync --extra train  # GPU stack (Linux/CUDA)
-modal run modal_app.py --arm configs/correct.yaml  # one training arm on an A100
+modal run --detach modal_app.py --arm configs/correct.yaml  # one training arm on an A100 (--detach: spawn-by-default, durable)
 ```
 
 The full Phase-1 sequence is in [RUNBOOK.md](RUNBOOK.md): Modal auth, the W&B secret, the
