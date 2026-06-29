@@ -1,4 +1,4 @@
-# AGENTS.md — grpo-decomp + llm-grpo-gains
+# AGENTS.md — grpo-decomp + llm_grpo_gains
 
 This repo is **two packages, one boundary**:
 

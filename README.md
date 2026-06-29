@@ -1,4 +1,4 @@
-# grpo-decomp + llm-grpo-gains
+# grpo-decomp + llm_grpo_gains
 
 This repo is two packages with one boundary:
 

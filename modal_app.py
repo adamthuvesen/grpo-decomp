@@ -1,4 +1,4 @@
-"""Modal app: run a llm-grpo-gains GRPO arm on a single A100.
+"""Modal app: run a grpo-decomp GRPO arm on a single A100.
 
     modal run modal_app.py --arm configs/correct.yaml          # launch a run
     modal run modal_app.py --arm configs/correct.yaml --smoke-problems 8   # day-1 smoke
@@ -38,11 +38,11 @@ from grpo_decomp.train.checkpoints import (
 # locally (entrypoint arg handling) and inside each Modal container (module import).
 load_plugins()
 
-APP_NAME = "llm-grpo-gains"
+APP_NAME = "grpo-decomp"
 CUDA_IMAGE = "nvidia/cuda:12.4.1-devel-ubuntu22.04"
 RUNS_DIR = "/runs"
 # Where the project tree is mounted inside the image (arbitrary; kept off the volume).
-REMOTE_ROOT = "/root/llm-grpo-gains"
+REMOTE_ROOT = "/root/grpo-decomp"
 
 app = modal.App(APP_NAME)
 
@@ -490,7 +490,7 @@ def main(
     the local client disconnects (Modal's own guidance), so a long training/eval run can show
     wandb "finished" yet lose its final checkpoint. Spawn fires the function and returns its
     FunctionCall id without blocking, so it runs server-side independent of the client; monitor
-    via `modal app logs llm-grpo-gains` or the `assay-runs` Volume. Spawn REQUIRES `--detach`
+    via `modal app logs grpo-decomp` or the `assay-runs` Volume. Spawn REQUIRES `--detach`
     (without it the ephemeral app, and the spawned function, stop when this entrypoint returns).
 
     For the short day-1 smoke — where you DO want the inline result and don't need detach —

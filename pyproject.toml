@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "llm-grpo-gains"
+name = "grpo-decomp"
 version = "0.1.0"
-description = "Controlled GRPO study: decompose small-model RL reasoning gains into real learning vs. contamination, formatting, and elicitation."
+description = "Research framework for analyzing what drives GRPO gains."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -41,7 +41,7 @@ generate = [
     "torch>=2.4",
 ]
 train = [
-    "llm-grpo-gains[generate]",
+    "grpo-decomp[generate]",
     "trl==1.0.0",
     # TRL 1.0.0 supports vLLM 0.10.2–0.17.1; an out-of-range vLLM warns and risks
     # rollout/log-prob drift in GRPO colocate. Pin to the top of the supported window.

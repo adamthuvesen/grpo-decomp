@@ -14,7 +14,7 @@ from importlib import metadata
 
 #: Dependencies whose versions pin a result's behavior (training or generation).
 PROVENANCE_PACKAGES = (
-    "llm-grpo-gains",
+    "grpo-decomp",
     "trl",
     "transformers",
     "torch",

@@ -30,7 +30,7 @@ def _provenance(*, n: int, n_problems: int) -> GenerationProvenance:
         n_problems=n_problems,
         commit="c" * 40,
         python_version="3.11.0",
-        package_versions={"llm-grpo-gains": "0.1.0"},
+        package_versions={"grpo-decomp": "0.1.0"},
     )
 
 

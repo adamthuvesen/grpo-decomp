@@ -1,4 +1,4 @@
-# llm-grpo-gains Countdown findings (general Qwen2.5-1.5B, GRPO on Countdown)
+# grpo-decomp Countdown findings (general Qwen2.5-1.5B, GRPO on Countdown)
 
 The **positive control**. Placebo comparison: **3 seeds per arm**; held-out `countdown-test`
 (n=192, disjoint from train, procedurally generated so uncontaminated); pass@1 greedy. The

@@ -1934,7 +1934,7 @@ wheels = [
 ]
 
 [[package]]
-name = "llm-grpo-gains"
+name = "grpo-decomp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -1975,7 +1975,7 @@ requires-dist = [
     { name = "accelerate", marker = "extra == 'train'", specifier = ">=1.0" },
     { name = "datasets", specifier = ">=3.0" },
     { name = "eval-audit", marker = "extra == 'eval'", git = "https://github.com/adamthuvesen/eval-audit?rev=6690f493033094a6ced9a749d57a714c383f8a87" },
-    { name = "llm-grpo-gains", extras = ["generate"], marker = "extra == 'train'" },
+    { name = "grpo-decomp", extras = ["generate"], marker = "extra == 'train'" },
     { name = "math-verify", specifier = "==0.9.0" },
     { name = "modal", marker = "extra == 'dev'", specifier = "==1.5.0" },
     { name = "numpy", specifier = ">=1.26,<3" },

@@ -49,7 +49,7 @@ modal run modal_app.py --no-spawn --arm configs/correct.yaml --smoke-problems 8 
 
 # 2. The full correct arm. Long run -> --detach (spawn is the default) so it survives a local
 #    disconnect (a plain `modal run` is killed with the client mid-train, losing the final
-#    checkpoint even if wandb shows "finished"; monitor via `modal app logs llm-grpo-gains` or
+#    checkpoint even if wandb shows "finished"; monitor via `modal app logs grpo-decomp` or
 #    `modal volume ls assay-runs`).
 modal run --detach modal_app.py --arm configs/correct.yaml
 

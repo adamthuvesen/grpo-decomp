@@ -1,4 +1,4 @@
-"""llm-grpo-gains — the reference study built on the grpo-decomp harness.
+"""llm_grpo_gains — the reference study built on the grpo-decomp harness.
 
 A controlled GRPO decomposition on GSM8K (the primary panel) plus a generated Countdown
 positive control. This package supplies the study's datasets, verifiable rewards, and

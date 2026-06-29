@@ -1,4 +1,4 @@
-# llm-grpo-gains findings (Qwen2.5-Math-1.5B, GRPO on GSM8K)
+# grpo-decomp findings (Qwen2.5-Math-1.5B, GRPO on GSM8K)
 
 Placebo comparison: **6 seeds per arm**; GSM8K-test (n=1319); pass@1 greedy, 1024-token budget,
 lenient extraction. The pass@k coverage panel is now **6 seeds** too (base n=16 / correct n=8,

@@ -1,4 +1,4 @@
-# Architecture: grpo-decomp + llm-grpo-gains
+# Architecture: grpo-decomp + llm_grpo_gains
 
 The codebase is **two packages with a one-way boundary**:
 
@@ -463,7 +463,7 @@ controls and uses `countdown-`-prefixed runs.
 ## Repository layout
 
 ```
-llm-grpo-gains/
+grpo-decomp/
 ├── src/grpo_decomp/             # the harness (task-agnostic)
 │   ├── schemas.py               # frozen shared types
 │   ├── registries.py            # the plug-in surface (datasets, rewards, verifiers, ...)
