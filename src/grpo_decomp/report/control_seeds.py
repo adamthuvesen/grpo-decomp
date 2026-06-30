@@ -10,6 +10,7 @@ seed), a seed-level t CI, a one-sample t p-value per row, and Holm-Bonferroni ac
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import NamedTuple
 
 import numpy as np
 from pydantic import Field
@@ -59,6 +60,42 @@ class ControlDecomposition(Record):
         )
 
 
+class _ControlRowStats(NamedTuple):
+    control: str
+    probes: str
+    per_seed_delta: tuple[float, ...]
+    per_seed_correct_acc: tuple[float, ...]
+    base_acc: float
+    mean_delta: float
+    ci_low: float
+    ci_high: float
+    p_value: float
+    ci_kind: str
+
+
+def _aggregate_one_control(
+    control: str, probes: str, comparisons: Sequence[Comparison], *, n_seeds: int
+) -> _ControlRowStats:
+    if len(comparisons) != n_seeds:
+        raise ValueError(f"control {control!r}: {len(comparisons)} comparisons but {n_seeds} seeds")
+    deltas = np.array([comparison.delta for comparison in comparisons], dtype=float)
+    single_ci = (comparisons[0].ci_low, comparisons[0].ci_high) if n_seeds == 1 else None
+    mean, _sem, ci_low, ci_high, ci_kind = seed_level_mean_ci(deltas, single_seed_ci=single_ci)
+    p_value = float(ttest_1samp(deltas, 0.0).pvalue) if n_seeds >= 2 else comparisons[0].p_value
+    return _ControlRowStats(
+        control=control,
+        probes=probes,
+        per_seed_delta=tuple(float(delta) for delta in deltas),
+        per_seed_correct_acc=tuple(float(comparison.accuracy_b) for comparison in comparisons),
+        base_acc=float(comparisons[0].accuracy_a),
+        mean_delta=mean,
+        ci_low=float(ci_low),
+        ci_high=float(ci_high),
+        p_value=p_value,
+        ci_kind=ci_kind,
+    )
+
+
 def aggregate_control_rows(
     rows: Sequence[tuple[str, str, Sequence[Comparison]]],
     seeds: Sequence[object],
@@ -79,46 +116,34 @@ def aggregate_control_rows(
     if n_seeds < 1:
         raise ValueError("no seeds")
 
-    built: list[dict] = []
-    raw_p: list[float] = []
-    ci_kind = ""
-    for control, probes, comparisons in rows:
-        if len(comparisons) != n_seeds:
-            raise ValueError(
-                f"control {control!r}: {len(comparisons)} comparisons but {n_seeds} seeds"
-            )
-        deltas = np.array([c.delta for c in comparisons], dtype=float)
-        single_ci = (comparisons[0].ci_low, comparisons[0].ci_high) if n_seeds == 1 else None
-        mean, _sem, ci_low, ci_high, row_ci_kind = seed_level_mean_ci(
-            deltas, single_seed_ci=single_ci
-        )
-        ci_kind = row_ci_kind
-        p = float(ttest_1samp(deltas, 0.0).pvalue) if n_seeds >= 2 else comparisons[0].p_value
-        raw_p.append(p)
-        built.append(
-            {
-                "control": control,
-                "probes": probes,
-                "per_seed_delta": tuple(float(d) for d in deltas),
-                "per_seed_correct_acc": tuple(float(c.accuracy_b) for c in comparisons),
-                "base_acc": float(comparisons[0].accuracy_a),
-                "mean_delta": mean,
-                "ci_low": float(ci_low),
-                "ci_high": float(ci_high),
-                "p_value": p,
-            }
-        )
+    built = tuple(
+        _aggregate_one_control(control, probes, comparisons, n_seeds=n_seeds)
+        for control, probes, comparisons in rows
+    )
 
-    holm = holm_correction(raw_p)
+    holm = holm_correction([row.p_value for row in built])
     control_rows = tuple(
-        ControlRow(**b, n_seeds=n_seeds, p_value_holm=float(ph), significant=ph < 0.05)
-        for b, ph in zip(built, holm, strict=True)
+        ControlRow(
+            control=row.control,
+            probes=row.probes,
+            n_seeds=n_seeds,
+            per_seed_delta=row.per_seed_delta,
+            per_seed_correct_acc=row.per_seed_correct_acc,
+            base_acc=row.base_acc,
+            mean_delta=row.mean_delta,
+            ci_low=row.ci_low,
+            ci_high=row.ci_high,
+            p_value=row.p_value,
+            p_value_holm=float(corrected_p),
+            significant=corrected_p < 0.05,
+        )
+        for row, corrected_p in zip(built, holm, strict=True)
     )
     return ControlDecomposition(
         task=task,
         n_seeds=n_seeds,
         family_size=len(control_rows),
-        ci_kind=ci_kind,
+        ci_kind=built[-1].ci_kind,
         rows=control_rows,
         preliminary=n_seeds < MIN_HEADLINE_SEEDS,
     )

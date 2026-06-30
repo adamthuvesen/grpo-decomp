@@ -71,6 +71,8 @@ from grpo_decomp.schemas import Record
 from grpo_decomp.splits import dev_slice
 from grpo_decomp.stats.compare import Comparison, compare
 
+_BACKEND_CHOICES = ("auto", "transformers", "vllm")
+
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the `grpo-decomp` console script."""
@@ -92,12 +94,23 @@ def main(argv: list[str] | None = None) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="grpo-decomp", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+    _add_generate_parser(sub)
+    _add_battery_parser(sub)
+    _add_report_parser(sub)
+    _add_report_seeds_parser(sub)
+    _add_report_passk_seeds_parser(sub)
+    _add_report_mechanism_parser(sub)
+    _add_report_control_seeds_parser(sub)
+    _add_heldout_parser(sub)
+    return parser
 
+
+def _add_generate_parser(sub: argparse._SubParsersAction) -> None:
     gen = sub.add_parser("generate", help="sample completions from a model over a set")
     gen.add_argument("--model", required=True, help="model id or checkpoint path")
     gen.add_argument("--revision", default=None, help="model revision (HF only)")
     gen.add_argument("--set", required=True, choices=sorted(EVAL_SETS), dest="set_name")
-    gen.add_argument("--backend", default="auto", choices=("auto", "transformers", "vllm"))
+    gen.add_argument("--backend", default="auto", choices=_BACKEND_CHOICES)
     gen.add_argument(
         "--prompt-strategy",
         default=DEFAULT_PROMPT_STRATEGY,
@@ -105,23 +118,21 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="prompt_strategy",
         help="prompt strategy (must match the arm's training strategy)",
     )
-    gen.add_argument("--n", type=int, default=1, help="completions per problem")
-    gen.add_argument("--temperature", type=float, default=0.0)
-    gen.add_argument("--top-p", type=float, default=1.0, dest="top_p")
-    gen.add_argument(
-        "--max-new-tokens", type=int, default=EVAL_MAX_NEW_TOKENS, dest="max_new_tokens"
-    )
-    gen.add_argument("--seed", type=int, default=0)
+    _add_sampling_args(gen, include_top_p=True)
     gen.add_argument("--limit", type=int, default=None, help="subset to N problems (smoke)")
     gen.add_argument("--out", required=True, type=Path, help="output dir for the CompletionSet")
     gen.set_defaults(func=_cmd_generate)
 
+
+def _add_battery_parser(sub: argparse._SubParsersAction) -> None:
     bat = sub.add_parser("battery", help="score one CompletionSet into a BatteryResult")
     bat.add_argument("--completions", required=True, type=Path, help="a CompletionSet dir")
     bat.add_argument("--k", type=int, nargs="+", default=[1], help="pass@k values")
     bat.add_argument("--out", type=Path, default=None, help="write JSON here (else stdout)")
     bat.set_defaults(func=_cmd_battery)
 
+
+def _add_report_parser(sub: argparse._SubParsersAction) -> None:
     rep = sub.add_parser("report", help="decompose the gain across arms and sets")
     rep.add_argument("--completions-dir", required=True, type=Path, dest="completions_dir")
     rep.add_argument("--task-set", default="gsm8k-test", dest="task_set")
@@ -129,6 +140,8 @@ def _build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--out", required=True, type=Path, help="output dir for summary.json + table")
     rep.set_defaults(func=_cmd_report)
 
+
+def _add_report_seeds_parser(sub: argparse._SubParsersAction) -> None:
     rsd = sub.add_parser(
         "report-seeds", help="aggregate the seed-level placebo comparison across replicates"
     )
@@ -146,6 +159,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     rsd.set_defaults(func=_cmd_report_seeds)
 
+
+def _add_report_passk_seeds_parser(sub: argparse._SubParsersAction) -> None:
     rpk = sub.add_parser(
         "report-passk-seeds",
         help="aggregate multi-seed pass@k coverage (base anchor vs per-seed correct)",
@@ -164,6 +179,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     rpk.set_defaults(func=_cmd_report_passk_seeds)
 
+
+def _add_report_mechanism_parser(sub: argparse._SubParsersAction) -> None:
     rmc = sub.add_parser(
         "report-mechanism", help="per-problem reliability migration + completion-length shift"
     )
@@ -182,6 +199,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     rmc.set_defaults(func=_cmd_report_mechanism)
 
+
+def _add_report_control_seeds_parser(sub: argparse._SubParsersAction) -> None:
     rcs = sub.add_parser(
         "report-control-seeds",
         help="multi-seed section-3 controls with Holm family-wise correction",
@@ -206,23 +225,29 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     rcs.set_defaults(func=_cmd_report_control_seeds)
 
+
+def _add_heldout_parser(sub: argparse._SubParsersAction) -> None:
     hld = sub.add_parser("heldout", help="held-out accuracy curve over a run's checkpoints")
     hld.add_argument(
         "--run", required=True, type=Path, help="a training run dir (provenance + checkpoints)"
     )
-    hld.add_argument("--backend", default="auto", choices=("auto", "transformers", "vllm"))
-    hld.add_argument("--n", type=int, default=1, help="samples per problem (1 = greedy pass@1)")
-    hld.add_argument("--temperature", type=float, default=0.0)
-    hld.add_argument(
-        "--max-new-tokens", type=int, default=EVAL_MAX_NEW_TOKENS, dest="max_new_tokens"
-    )
-    hld.add_argument("--seed", type=int, default=0)
+    hld.add_argument("--backend", default="auto", choices=_BACKEND_CHOICES)
+    _add_sampling_args(hld, include_top_p=False)
     hld.add_argument(
         "--out", type=Path, default=None, help="write JSON here (else <run>/heldout.json)"
     )
     hld.set_defaults(func=_cmd_heldout)
 
-    return parser
+
+def _add_sampling_args(parser: argparse.ArgumentParser, *, include_top_p: bool) -> None:
+    parser.add_argument("--n", type=int, default=1, help="completions per problem")
+    parser.add_argument("--temperature", type=float, default=0.0)
+    if include_top_p:
+        parser.add_argument("--top-p", type=float, default=1.0, dest="top_p")
+    parser.add_argument(
+        "--max-new-tokens", type=int, default=EVAL_MAX_NEW_TOKENS, dest="max_new_tokens"
+    )
+    parser.add_argument("--seed", type=int, default=0)
 
 
 def _cmd_generate(args: argparse.Namespace) -> int:

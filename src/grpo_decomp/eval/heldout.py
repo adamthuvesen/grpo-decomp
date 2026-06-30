@@ -82,6 +82,10 @@ def validation_for_run(provenance: RunProvenance) -> ProblemSet:
     return reconstruct(provenance)
 
 
+def _checkpoint_step(path: Path) -> int | None:
+    return None if path.name == "final" else int(path.name.split("-", 1)[1])
+
+
 def discover_checkpoints(run_dir: Path) -> list[Path]:
     """Saved checkpoints under ``run_dir/checkpoints``, sorted by step with ``final`` last."""
     root = Path(run_dir) / "checkpoints"
@@ -96,12 +100,24 @@ def discover_checkpoints(run_dir: Path) -> list[Path]:
             final = sub
         elif sub.name.startswith("checkpoint-") and sub.name.split("-", 1)[1].isdigit():
             numbered.append(sub)
-    numbered.sort(key=lambda path: int(path.name.split("-", 1)[1]))
+    numbered.sort(key=lambda path: _checkpoint_step(path) or 0)
     if final is not None:
         numbered.append(final)
     if not numbered:
         raise ValueError(f"no 'checkpoint-<step>' or 'final' dirs under {root}")
     return numbered
+
+
+def _load_run_provenance(run_dir: Path) -> RunProvenance:
+    return RunProvenance.model_validate_json(
+        (Path(run_dir) / "provenance.json").read_text(encoding="utf-8")
+    )
+
+
+def _write_run_provenance(run_dir: Path, provenance: RunProvenance) -> None:
+    (Path(run_dir) / "provenance.json").write_text(
+        json.dumps(provenance.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) -> HeldoutCurve:
@@ -113,9 +129,7 @@ def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) ->
     from grpo_decomp.eval.generate import generate
 
     run_dir = Path(run_dir)
-    provenance = RunProvenance.model_validate_json(
-        (run_dir / "provenance.json").read_text(encoding="utf-8")
-    )
+    provenance = _load_run_provenance(run_dir)
     validation = validation_for_run(provenance)
 
     points: list[HeldoutPoint] = []
@@ -132,11 +146,10 @@ def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) ->
         graded = grade(validation, {pid: s[0] for pid, s in samples.items()}, policy="lenient")
         n_correct = sum(graded.values())
         accuracy = n_correct / len(graded)
-        step = None if checkpoint.name == "final" else int(checkpoint.name.split("-", 1)[1])
         points.append(
             HeldoutPoint(
                 checkpoint=checkpoint.name,
-                step=step,
+                step=_checkpoint_step(checkpoint),
                 accuracy=accuracy,
                 n_correct=n_correct,
                 n=len(graded),
@@ -160,15 +173,11 @@ def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) ->
 def write_selected_provenance(run_dir: Path, curve: HeldoutCurve) -> None:
     """Record the checkpoint selected by a held-out curve in run provenance."""
     run_dir = Path(run_dir)
-    provenance = RunProvenance.model_validate_json(
-        (run_dir / "provenance.json").read_text(encoding="utf-8")
-    )
+    provenance = _load_run_provenance(run_dir)
     selected = provenance.model_copy(
         update={
             "selected_step": curve.selected_step,
             "selected_checkpoint": curve.selected_checkpoint,
         }
     )
-    (run_dir / "provenance.json").write_text(
-        json.dumps(selected.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
-    )
+    _write_run_provenance(run_dir, selected)

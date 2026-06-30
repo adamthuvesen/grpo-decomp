@@ -19,6 +19,7 @@ seeds for a seed-averaged per-problem pass@1). Deterministic; CPU-only.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import NamedTuple
 
 from pydantic import Field
 
@@ -77,6 +78,69 @@ def _mean(values: Sequence[float]) -> float:
     return sum(values) / len(values)
 
 
+class _MigrationCounts(NamedTuple):
+    base_already_reliable: int
+    migrated: int
+    new_capability: int
+    still_hard: int
+
+
+def _problem_ids(completion_set: CompletionSet) -> tuple[str, ...]:
+    return tuple(problem.id for problem in completion_set.problem_set())
+
+
+def _pooled_correct_counts(
+    correct_by_seed: Sequence[CompletionSet], *, expected_ids: tuple[str, ...]
+) -> tuple[list[int], int]:
+    pooled = [0] * len(expected_ids)
+    n_correct_each: set[int] = set()
+    for completion_set in correct_by_seed:
+        if _problem_ids(completion_set) != expected_ids:
+            raise ValueError("base and correct arms must cover the same problems in the same order")
+        counts, n_correct = lenient_counts_by_problem(
+            completion_set.problem_set(), completion_set.completions_by_id()
+        )
+        n_correct_each.add(n_correct)
+        for index, count in enumerate(counts):
+            pooled[index] += count
+    if len(n_correct_each) != 1:
+        raise ValueError(f"correct arms must share n; got {sorted(n_correct_each)}")
+    return pooled, n_correct_each.pop() * len(correct_by_seed)
+
+
+def _migration_counts(
+    base_counts: Sequence[int],
+    pooled_correct_counts: Sequence[int],
+    *,
+    n_base: int,
+    n_pool: int,
+    k: int,
+    tau: float,
+) -> _MigrationCounts:
+    base_already_reliable = migrated = new_capability = still_hard = 0
+    for c_base, c_correct in zip(base_counts, pooled_correct_counts, strict=True):
+        base_p1 = c_base / n_base
+        correct_p1 = c_correct / n_pool
+        if correct_p1 < tau:
+            still_hard += 1
+        elif base_p1 >= tau:
+            base_already_reliable += 1
+        elif pass_at_k(n_base, c_base, k) >= tau:
+            migrated += 1
+        else:
+            new_capability += 1
+    return _MigrationCounts(base_already_reliable, migrated, new_capability, still_hard)
+
+
+def _samples(completion_sets: Sequence[CompletionSet]) -> list[str]:
+    return [
+        sample
+        for completion_set in completion_sets
+        for item in completion_set.items
+        for sample in item.samples
+    ]
+
+
 def build_mechanism(
     base: CompletionSet,
     correct_by_seed: Sequence[CompletionSet],
@@ -96,40 +160,13 @@ def build_mechanism(
     base_counts, n_base = lenient_counts_by_problem(base.problem_set(), base.completions_by_id())
     if not 1 <= k <= n_base:
         raise ValueError(f"pass@{k} envelope needs 1<=k<=n_base; base has n={n_base}")
-    base_ids = tuple(problem.id for problem in base.problem_set())
-
-    n_correct_each: set[int] = set()
-    pooled = [0] * len(base_counts)
-    for cs in correct_by_seed:
-        if tuple(problem.id for problem in cs.problem_set()) != base_ids:
-            raise ValueError("base and correct arms must cover the same problems in the same order")
-        counts, n_c = lenient_counts_by_problem(cs.problem_set(), cs.completions_by_id())
-        n_correct_each.add(n_c)
-        for i, c in enumerate(counts):
-            pooled[i] += c
-    if len(n_correct_each) != 1:
-        raise ValueError(f"correct arms must share n; got {sorted(n_correct_each)}")
-    n_pool = n_correct_each.pop() * len(correct_by_seed)
-
-    base_already_reliable = migrated = new_capability = still_hard = 0
-    for c_base, c_correct in zip(base_counts, pooled, strict=True):
-        base_p1 = c_base / n_base
-        correct_p1 = c_correct / n_pool
-        if correct_p1 < tau:
-            still_hard += 1
-        elif base_p1 >= tau:
-            base_already_reliable += 1
-        elif pass_at_k(n_base, c_base, k) >= tau:
-            migrated += 1
-        else:
-            new_capability += 1
+    pooled, n_pool = _pooled_correct_counts(correct_by_seed, expected_ids=_problem_ids(base))
+    migration = _migration_counts(base_counts, pooled, n_base=n_base, n_pool=n_pool, k=k, tau=tau)
     n = len(base_counts)
-    gain = migrated + new_capability
+    gain = migration.migrated + migration.new_capability
 
-    base_samples = [sample for item in base.items for sample in item.samples]
-    correct_samples = [
-        sample for cs in correct_by_seed for item in cs.items for sample in item.samples
-    ]
+    base_samples = _samples([base])
+    correct_samples = _samples(correct_by_seed)
     return MechanismReport(
         task=task,
         n_problems=n,
@@ -141,9 +178,9 @@ def build_mechanism(
         correct_mean_chars=_mean([len(sample) for sample in correct_samples]),
         base_mean_words=_mean([len(sample.split()) for sample in base_samples]),
         correct_mean_words=_mean([len(sample.split()) for sample in correct_samples]),
-        frac_base_already_reliable=base_already_reliable / n,
-        frac_migrated_to_reliable=migrated / n,
-        frac_new_capability=new_capability / n,
-        frac_still_hard=still_hard / n,
-        migration_share_of_gain=(migrated / gain) if gain else 0.0,
+        frac_base_already_reliable=migration.base_already_reliable / n,
+        frac_migrated_to_reliable=migration.migrated / n,
+        frac_new_capability=migration.new_capability / n,
+        frac_still_hard=migration.still_hard / n,
+        migration_share_of_gain=(migration.migrated / gain) if gain else 0.0,
     )

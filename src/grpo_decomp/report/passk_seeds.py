@@ -155,8 +155,61 @@ class _ArmMetrics(NamedTuple):
     n: int
 
 
+class _CorrectMetrics(NamedTuple):
+    seeds: tuple[str, ...]
+    n: int
+    pass1s: tuple[float, ...]
+    passks: tuple[float, ...]
+    cot_pass1s: tuple[float, ...]
+    cot_passks: tuple[float, ...]
+    crfs: tuple[float, ...]
+    chain_coverages: tuple[float, ...]
+
+
+class _CoverageStats(NamedTuple):
+    mean: float
+    ci: tuple[float, float]
+    delta: float
+    delta_ci: tuple[float, float]
+    delta_propagated_ci: tuple[float, float]
+    ci_kind: str
+
+
 def _interval(center: float, half_width: float) -> tuple[float, float]:
     return center - half_width, center + half_width
+
+
+def _bootstrap_passk_ci(counts: Sequence[int], *, n: int, k: int) -> tuple[float, float]:
+    """Problem-bootstrap CI for one seed-independent pass@k anchor."""
+    _, ci_low, ci_high = bootstrap_mean_ci([pass_at_k(n, count, k) for count in counts])
+    return ci_low, ci_high
+
+
+def _delta_intervals(
+    mean: float, anchor: float, seed_half_width: float, anchor_ci: tuple[float, float]
+) -> tuple[float, tuple[float, float], tuple[float, float]]:
+    """Δ plus its seed-level and anchor-propagated intervals."""
+    delta = mean - anchor
+    anchor_half_width = (anchor_ci[1] - anchor_ci[0]) / 2.0
+    propagated_half_width = float(np.hypot(seed_half_width, anchor_half_width))
+    return delta, _interval(delta, seed_half_width), _interval(delta, propagated_half_width)
+
+
+def _coverage_stats(
+    values: Sequence[float], *, anchor: float, anchor_ci: tuple[float, float]
+) -> _CoverageStats:
+    values_array = np.array(values, dtype=float)
+    mean = float(values_array.mean())
+    half_width, ci_kind = seed_level_t_half_width(values_array)
+    delta, delta_ci, delta_propagated_ci = _delta_intervals(mean, anchor, half_width, anchor_ci)
+    return _CoverageStats(
+        mean=mean,
+        ci=_interval(mean, half_width),
+        delta=delta,
+        delta_ci=delta_ci,
+        delta_propagated_ci=delta_propagated_ci,
+        ci_kind=ci_kind,
+    )
 
 
 def _arm_metrics(cs: CompletionSet, k: int) -> _ArmMetrics:
@@ -185,6 +238,41 @@ def _arm_metrics(cs: CompletionSet, k: int) -> _ArmMetrics:
     )
 
 
+def _collect_correct_metrics(
+    correct_by_seed: Sequence[tuple[object, CompletionSet]], k: int
+) -> _CorrectMetrics:
+    seeds: list[str] = []
+    pass1s: list[float] = []
+    passks: list[float] = []
+    cot_pass1s: list[float] = []
+    cot_passks: list[float] = []
+    crfs: list[float] = []
+    chain_coverages: list[float] = []
+    n_corrects: set[int] = set()
+    for label, cs in correct_by_seed:
+        metrics = _arm_metrics(cs, k)
+        seeds.append(str(label))
+        pass1s.append(metrics.pass1)
+        passks.append(metrics.passk)
+        cot_pass1s.append(metrics.cot_pass1)
+        cot_passks.append(metrics.cot_passk)
+        crfs.append(metrics.crf)
+        chain_coverages.append(metrics.chain_coverage)
+        n_corrects.add(metrics.n)
+    if len(n_corrects) != 1:
+        raise ValueError(f"correct arms must share n; got {sorted(n_corrects)}")
+    return _CorrectMetrics(
+        seeds=tuple(seeds),
+        n=n_corrects.pop(),
+        pass1s=tuple(pass1s),
+        passks=tuple(passks),
+        cot_pass1s=tuple(cot_pass1s),
+        cot_passks=tuple(cot_passks),
+        crfs=tuple(crfs),
+        chain_coverages=tuple(chain_coverages),
+    )
+
+
 def aggregate_passk_seeds(
     base: CompletionSet,
     correct_by_seed: Sequence[tuple[object, CompletionSet]],
@@ -205,95 +293,52 @@ def aggregate_passk_seeds(
 
     base_m = _arm_metrics(base, k)
     n_base = base_m.n
-    _, base_ci_low, base_ci_high = bootstrap_mean_ci(
-        [pass_at_k(n_base, c, k) for c in base_m.counts]
-    )
-    _, base_cot_ci_low, base_cot_ci_high = bootstrap_mean_ci(
-        [pass_at_k(n_base, c, k) for c in base_m.cot_counts]
-    )
+    base_ci = _bootstrap_passk_ci(base_m.counts, n=n_base, k=k)
+    base_cot_ci = _bootstrap_passk_ci(base_m.cot_counts, n=n_base, k=k)
 
-    seeds = [str(label) for label, _ in correct_by_seed]
-    pass1s: list[float] = []
-    passks: list[float] = []
-    cot_pass1s: list[float] = []
-    cot_passks: list[float] = []
-    crfs: list[float] = []
-    chain_covs: list[float] = []
-    n_corrects: set[int] = set()
-    for _label, cs in correct_by_seed:
-        m = _arm_metrics(cs, k)
-        pass1s.append(m.pass1)
-        passks.append(m.passk)
-        cot_pass1s.append(m.cot_pass1)
-        cot_passks.append(m.cot_passk)
-        crfs.append(m.crf)
-        chain_covs.append(m.chain_coverage)
-        n_corrects.add(m.n)
-    if len(n_corrects) != 1:
-        raise ValueError(f"correct arms must share n; got {sorted(n_corrects)}")
-    n_correct = n_corrects.pop()
-
-    passk_arr = np.array(passks, dtype=float)
-    cot_passk_arr = np.array(cot_passks, dtype=float)
-    n_seeds = len(passk_arr)
-    mean_passk = float(passk_arr.mean())
-    mean_cot_passk = float(cot_passk_arr.mean())
-    half, ci_kind = seed_level_t_half_width(passk_arr)
-    cot_half, _ = seed_level_t_half_width(cot_passk_arr)
-
-    # Propagated Δ intervals fold the base anchor's problem-bootstrap half-width into the
-    # seed-level half-width in quadrature (see the field docs): the anchor's finite-problem SE
-    # is typically the dominant term, so the seed-level interval alone treats it as noiseless.
-    delta = mean_passk - base_m.passk
-    prop_half = float(np.hypot(half, (base_ci_high - base_ci_low) / 2.0))
-    cot_delta = mean_cot_passk - base_m.cot_passk
-    cot_prop_half = float(np.hypot(cot_half, (base_cot_ci_high - base_cot_ci_low) / 2.0))
-    correct_passk_ci = _interval(mean_passk, half)
-    delta_ci = _interval(delta, half)
-    delta_propagated_ci = _interval(delta, prop_half)
-    correct_cot_passk_ci = _interval(mean_cot_passk, cot_half)
-    cot_delta_ci = _interval(cot_delta, cot_half)
-    cot_delta_propagated_ci = _interval(cot_delta, cot_prop_half)
+    correct = _collect_correct_metrics(correct_by_seed, k)
+    vanilla = _coverage_stats(correct.passks, anchor=base_m.passk, anchor_ci=base_ci)
+    cot = _coverage_stats(correct.cot_passks, anchor=base_m.cot_passk, anchor_ci=base_cot_ci)
     return PassKMultiSeed(
         task=task,
         k=k,
-        n_seeds=n_seeds,
-        seeds=tuple(seeds),
+        n_seeds=len(correct.passks),
+        seeds=correct.seeds,
         n_base=n_base,
-        n_correct=n_correct,
+        n_correct=correct.n,
         base_pass1=base_m.pass1,
         base_passk=base_m.passk,
-        base_passk_ci_low=base_ci_low,
-        base_passk_ci_high=base_ci_high,
+        base_passk_ci_low=base_ci[0],
+        base_passk_ci_high=base_ci[1],
         base_code_reasoning_freq=base_m.crf,
-        per_seed_correct_pass1=tuple(pass1s),
-        per_seed_correct_passk=tuple(passks),
-        per_seed_code_reasoning_freq=tuple(crfs),
-        mean_correct_pass1=float(np.mean(pass1s)),
-        mean_correct_passk=mean_passk,
-        correct_passk_ci_low=correct_passk_ci[0],
-        correct_passk_ci_high=correct_passk_ci[1],
-        delta=delta,
-        delta_ci_low=delta_ci[0],
-        delta_ci_high=delta_ci[1],
-        delta_propagated_ci_low=delta_propagated_ci[0],
-        delta_propagated_ci_high=delta_propagated_ci[1],
+        per_seed_correct_pass1=correct.pass1s,
+        per_seed_correct_passk=correct.passks,
+        per_seed_code_reasoning_freq=correct.crfs,
+        mean_correct_pass1=float(np.mean(correct.pass1s)),
+        mean_correct_passk=vanilla.mean,
+        correct_passk_ci_low=vanilla.ci[0],
+        correct_passk_ci_high=vanilla.ci[1],
+        delta=vanilla.delta,
+        delta_ci_low=vanilla.delta_ci[0],
+        delta_ci_high=vanilla.delta_ci[1],
+        delta_propagated_ci_low=vanilla.delta_propagated_ci[0],
+        delta_propagated_ci_high=vanilla.delta_propagated_ci[1],
         base_cot_pass1=base_m.cot_pass1,
         base_cot_passk=base_m.cot_passk,
-        base_cot_passk_ci_low=base_cot_ci_low,
-        base_cot_passk_ci_high=base_cot_ci_high,
+        base_cot_passk_ci_low=base_cot_ci[0],
+        base_cot_passk_ci_high=base_cot_ci[1],
         base_chain_coverage=base_m.chain_coverage,
-        per_seed_correct_cot_passk=tuple(cot_passks),
-        mean_correct_cot_pass1=float(np.mean(cot_pass1s)),
-        mean_correct_cot_passk=mean_cot_passk,
-        mean_correct_chain_coverage=float(np.mean(chain_covs)),
-        correct_cot_passk_ci_low=correct_cot_passk_ci[0],
-        correct_cot_passk_ci_high=correct_cot_passk_ci[1],
-        cot_delta=cot_delta,
-        cot_delta_ci_low=cot_delta_ci[0],
-        cot_delta_ci_high=cot_delta_ci[1],
-        cot_delta_propagated_ci_low=cot_delta_propagated_ci[0],
-        cot_delta_propagated_ci_high=cot_delta_propagated_ci[1],
-        ci_kind=ci_kind,
-        preliminary=n_seeds < MIN_HEADLINE_SEEDS,
+        per_seed_correct_cot_passk=correct.cot_passks,
+        mean_correct_cot_pass1=float(np.mean(correct.cot_pass1s)),
+        mean_correct_cot_passk=cot.mean,
+        mean_correct_chain_coverage=float(np.mean(correct.chain_coverages)),
+        correct_cot_passk_ci_low=cot.ci[0],
+        correct_cot_passk_ci_high=cot.ci[1],
+        cot_delta=cot.delta,
+        cot_delta_ci_low=cot.delta_ci[0],
+        cot_delta_ci_high=cot.delta_ci[1],
+        cot_delta_propagated_ci_low=cot.delta_propagated_ci[0],
+        cot_delta_propagated_ci_high=cot.delta_propagated_ci[1],
+        ci_kind=vanilla.ci_kind,
+        preliminary=len(correct.passks) < MIN_HEADLINE_SEEDS,
     )
