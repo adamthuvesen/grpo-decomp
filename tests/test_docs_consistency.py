@@ -308,7 +308,8 @@ _CLAIMS: list[tuple[str, str, str]] = [
         "readme.cd-delta",
         _README,
         f"{_DELTA} {_pct(_CP8['delta'], sign=True)} pp, 95% CI "
-        f"[{_pct(_CP8['delta_ci_low'])}, {_pct(_CP8['delta_ci_high'])}]",
+        f"[{_pct(_CP8['delta_propagated_ci_low'])}, "
+        f"{_pct(_CP8['delta_propagated_ci_high'])}]",
     ),
     (
         "readme.cd-base-correct",

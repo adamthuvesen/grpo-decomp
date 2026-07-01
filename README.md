@@ -40,7 +40,7 @@ That gain is mostly reliability, not new coverage:
 Countdown is the positive control. On a generated search task where the base
 model lacks coverage, the same protocol detects real expansion: the placebo
 comparison is **+46.5 pp, 95% CI [21.4, 71.6]**, pass@8 moves by **Δ +41.0 pp,
-95% CI [38.3, 43.7]**, and coverage goes from base 53.6% → correct 94.6%.
+95% CI [35.1, 46.9]**, and coverage goes from base 53.6% → correct 94.6%.
 Per problem, 10.9% on Countdown is genuinely new capability.
 
 ![GSM8K vs Countdown](results/fig-task-contrast.svg)
