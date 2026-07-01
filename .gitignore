@@ -1,0 +1,36 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.local
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# Training and generated artifacts. Heavy and reproducible.
+/runs/
+/checkpoints/
+/exports/
+/artifacts/
+/outputs/
+/logs/
+/modal-logs/
+/wandb/
+*.safetensors
+*.pt
+*.ckpt
+*.bin
+*.gguf
+*.onnx
+*.log
+
+# Cached/generated datasets and hub downloads.
+/.cache/
+/.modal/
+/data/
+/datasets/
+
+# OpenSpec — local only, not tracked in git
+/openspec/
