@@ -1,0 +1,10 @@
+# The correctness arm: verifiable exact-match reward (the real signal).
+name: correct
+base_model: Qwen/Qwen2.5-Math-1.5B
+base_model_revision: 4a83ca6e4526a4f2da3aa259ec36c259f66b2ab2 # pinned (verified 2026-06-06)
+reward: correct
+seed: 0
+grpo:
+  max_completion_length: 1024
+  max_steps: 500
+  save_steps: 100
