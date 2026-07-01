@@ -1,16 +1,12 @@
-r"""Answer extraction policies and correctness grading for the eval battery.
+r"""Answer extraction policies and correctness grading.
 
 Two extraction policies make format-driven gains separable from reasoning gains:
 
 - **strict** — only the designated answer format (the final ``\boxed{...}``).
 - **lenient** — the boxed answer if present, else the last number anywhere.
 
-Lenient is a strict *superset*: whenever strict extracts an answer, lenient
-returns the same one, so strict accuracy <= lenient accuracy by construction, and
-the gap measures the model's format sensitivity (the format-vs-reasoning control).
-
-Grading is delegated to math-verify, so a boxed ``\frac{3}{4}`` and a lenient
-``0.75`` both compare equal to a gold of ``3/4``.
+Lenient is a strict superset: whenever strict extracts an answer, lenient returns
+the same one, so strict accuracy <= lenient accuracy by construction.
 """
 
 from __future__ import annotations
@@ -24,11 +20,7 @@ _NUMBER_RE = re.compile(r"-?\d[\d,]*(?:/\d[\d,]*|\.\d+)?")
 
 
 def _last_boxed(text: str) -> str | None:
-    """Return the brace-balanced content of the final ``\\boxed{...}``, or None.
-
-    A balanced scan (not a regex) so nested braces survive — e.g.
-    ``\\boxed{\\frac{3}{4}}`` returns ``\\frac{3}{4}``, which math-verify grades.
-    """
+    """Return the brace-balanced content of the final ``\\boxed{...}``, or None."""
     start = text.rfind(_BOXED_OPEN)
     if start == -1:
         return None
@@ -38,25 +30,22 @@ def _last_boxed(text: str) -> str | None:
         if char == "{":
             depth += 1
             if depth == 1:
-                continue  # skip the outer opening brace itself
+                continue
         elif char == "}":
             depth -= 1
             if depth == 0:
                 return "".join(content).strip()
         content.append(char)
-    return None  # unbalanced braces
+    return None
 
 
 def extract_strict(text: str) -> str | None:
-    """The content of the final ``\\boxed{...}``, or None if the answer isn't boxed."""
+    """The content of the final ``\\boxed{...}``, or None if the answer is not boxed."""
     return _last_boxed(text)
 
 
 def extract_lenient(text: str) -> str | None:
-    """The boxed answer if present, else the last number in the text; None if neither.
-
-    A superset of `extract_strict`, so it never scores lower on the same output.
-    """
+    """The boxed answer if present, else the last number in the text; None if neither."""
     boxed = extract_strict(text)
     if boxed is not None:
         return boxed

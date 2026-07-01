@@ -44,10 +44,6 @@ class GRPOSettings(Record):
     vllm_gpu_memory_utilization: float = 0.3
     mask_truncated_completions: bool = True  # guards length-hacking under beta=0.0
 
-    def as_grpo_kwargs(self) -> dict[str, object]:
-        """Kwargs for ``trl.GRPOConfig`` (field names mirror its parameters)."""
-        return self.model_dump()
-
 
 class ArmConfig(Record):
     """One training arm: base model + reward + dataset + prompt strategy + seed + GRPO config.
@@ -67,7 +63,6 @@ class ArmConfig(Record):
     # `r1_zero`). Training and eval MUST use the same strategy.
     prompt_strategy: str = DEFAULT_PROMPT_STRATEGY
     base_model_revision: str | None = None
-    train_split: Literal["train"] = "train"
     # Pre-registered (anti-peeking) rule for which checkpoint feeds the decomposition.
     checkpoint_selection: Literal["final", "best_on_validation"] = "final"
     grpo: GRPOSettings = Field(default_factory=GRPOSettings)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_decomp.eval.answers import extract_strict, is_correct
+from grpo_decomp.grading import extract_strict, is_correct
 from grpo_decomp.registries import REWARDS
 from grpo_decomp.rewards import PLACEBO_REWARD, get_reward, make_random_reward
 from llm_grpo_gains.rewards import correct, countdown

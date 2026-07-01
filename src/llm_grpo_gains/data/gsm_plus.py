@@ -22,7 +22,7 @@ from typing import Any
 from datasets import load_dataset
 
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
-from llm_grpo_gains.data._common import parse_numeric_gold
+from llm_grpo_gains.data._hf_problem_sets import parse_numeric_gold
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ _UNANSWERABLE = "None"
 _FRACTION_RE = re.compile(r"\A-?\d+/\d+\Z")
 
 
-def _gold_of(row: dict[str, Any], record_id: str) -> str:
+def _normalize_gsm_plus_gold(row: dict[str, Any], record_id: str) -> str:
     """Normalize a GSM-Plus gold: int/decimal via the shared parser, fraction kept."""
     raw = str(row["answer"]).strip()
     if _FRACTION_RE.match(raw):
@@ -67,7 +67,11 @@ def load_gsm_plus(split: str = "test", *, revision: str = REVISION) -> ProblemSe
             continue
         record_id = f"{SLUG}/{split}/{index}"
         problems.append(
-            Problem(id=record_id, question=row["question"], gold_answer=_gold_of(row, record_id))
+            Problem(
+                id=record_id,
+                question=row["question"],
+                gold_answer=_normalize_gsm_plus_gold(row, record_id),
+            )
         )
 
     if excluded:

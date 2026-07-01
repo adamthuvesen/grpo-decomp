@@ -8,7 +8,7 @@ from grpo_decomp.report.control_seeds import aggregate_control_rows
 from grpo_decomp.stats.compare import Comparison
 
 
-def _cmp(base_acc: float, correct_acc: float) -> Comparison:
+def _fixed_delta_comparison(base_acc: float, correct_acc: float) -> Comparison:
     """A base-vs-correct Comparison with a fixed delta (the aggregator reads delta/acc only)."""
     delta = correct_acc - base_acc
     return Comparison(
@@ -29,8 +29,16 @@ def _cmp(base_acc: float, correct_acc: float) -> Comparison:
 def test_aggregate_control_rows_seed_level_ci_and_holm() -> None:
     # base is the same seed-0 anchor; correct varies by seed. Two control sets, two seeds.
     rows = [
-        ("gsm-symbolic", "memorization", [_cmp(0.50, 0.60), _cmp(0.50, 0.70)]),  # deltas .10/.20
-        ("gsm-plus", "robustness", [_cmp(0.50, 0.51), _cmp(0.50, 0.52)]),  # deltas .01/.02
+        (
+            "gsm-symbolic",
+            "memorization",
+            [_fixed_delta_comparison(0.50, 0.60), _fixed_delta_comparison(0.50, 0.70)],
+        ),  # deltas .10/.20
+        (
+            "gsm-plus",
+            "robustness",
+            [_fixed_delta_comparison(0.50, 0.51), _fixed_delta_comparison(0.50, 0.52)],
+        ),  # deltas .01/.02
     ]
     decomp = aggregate_control_rows(rows, seeds=[0, 1], task="gsm8k-test")
 
@@ -48,11 +56,34 @@ def test_aggregate_control_rows_seed_level_ci_and_holm() -> None:
         assert row.significant == (row.p_value_holm < 0.05)
 
 
+def test_aggregate_control_rows_all_zero_deltas_report_no_effect() -> None:
+    rows = [
+        (
+            "gsm-symbolic",
+            "memorization",
+            [
+                _fixed_delta_comparison(0.50, 0.50),
+                _fixed_delta_comparison(0.50, 0.50),
+                _fixed_delta_comparison(0.50, 0.50),
+            ],
+        )
+    ]
+    decomp = aggregate_control_rows(rows, seeds=[0, 1, 2], task="gsm8k-test")
+
+    row = decomp.rows[0]
+    assert row.mean_delta == 0.0
+    assert row.p_value == 1.0
+    assert row.p_value_holm == 1.0
+    assert row.significant is False
+
+
 def test_aggregate_control_rows_validates() -> None:
     with pytest.raises(ValueError, match="no control rows"):
         aggregate_control_rows([], seeds=[0], task="gsm8k-test")
     with pytest.raises(ValueError, match="comparisons but"):
         # one comparison but two seed labels declared
         aggregate_control_rows(
-            [("gsm-symbolic", "memorization", [_cmp(0.5, 0.6)])], seeds=[0, 1], task="gsm8k-test"
+            [("gsm-symbolic", "memorization", [_fixed_delta_comparison(0.5, 0.6)])],
+            seeds=[0, 1],
+            task="gsm8k-test",
         )

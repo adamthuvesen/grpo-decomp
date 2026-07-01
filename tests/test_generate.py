@@ -10,8 +10,7 @@ from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.eval.generate import generate, resolve_backend
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 
-#: The real submodule (via sys.modules), not the `generate` *function* that
-#: `grpo_decomp.eval` re-exports under the same name — that shadows the package attribute.
+#: The real submodule (via sys.modules), separate from the imported `generate` function.
 _GENERATE_MODULE = importlib.import_module("grpo_decomp.eval.generate")
 
 

@@ -1,8 +1,7 @@
-"""Held-out checkpoint selection and evaluation helpers."""
+"""Held-out validation curves and checkpoint selection."""
 
 from __future__ import annotations
 
-import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -11,7 +10,7 @@ from pydantic import Field
 from grpo_decomp.eval.battery import grade
 from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.registries import VALIDATION_RECONSTRUCTORS
-from grpo_decomp.schemas import ProblemSet, Record
+from grpo_decomp.schemas import ProblemSet, Record, record_json
 from grpo_decomp.train.provenance import RunProvenance
 
 
@@ -115,9 +114,7 @@ def _load_run_provenance(run_dir: Path) -> RunProvenance:
 
 
 def _write_run_provenance(run_dir: Path, provenance: RunProvenance) -> None:
-    (Path(run_dir) / "provenance.json").write_text(
-        json.dumps(provenance.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
-    )
+    (Path(run_dir) / "provenance.json").write_text(record_json(provenance), encoding="utf-8")
 
 
 def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) -> HeldoutCurve:

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from llm_grpo_gains.data._common import GoldAnswerError, extract_marker_gold, parse_numeric_gold
+from llm_grpo_gains.data._hf_problem_sets import (
+    GoldAnswerError,
+    extract_marker_gold,
+    parse_numeric_gold,
+)
 
 
 @pytest.mark.parametrize(

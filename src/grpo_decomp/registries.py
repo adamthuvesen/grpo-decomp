@@ -188,6 +188,6 @@ def verifier_for(source: DatasetRef) -> Verifier:
     if source.name in VERIFIERS:
         return VERIFIERS[source.name]
     # Lazy import keeps this module free of the eval layer at import time.
-    from grpo_decomp.eval.answers import is_correct
+    from grpo_decomp.grading import is_correct
 
     return is_correct

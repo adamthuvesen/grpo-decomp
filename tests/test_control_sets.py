@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from llm_grpo_gains.data import gsm8k_platinum, gsm_plus, gsm_symbolic
-from llm_grpo_gains.data._common import GoldAnswerError
+from llm_grpo_gains.data._hf_problem_sets import GoldAnswerError
 
 
 def test_platinum_assembles_with_marker_gold() -> None:

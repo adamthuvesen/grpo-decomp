@@ -6,7 +6,6 @@ same result artifacts is byte-identical (sorted JSON keys, fixed table layout).
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from grpo_decomp.report.control_seeds import ControlDecomposition
@@ -15,6 +14,7 @@ from grpo_decomp.report.mechanism import MechanismReport
 from grpo_decomp.report.passk_seeds import PassKMultiSeed
 from grpo_decomp.report.seeds import SeedPlaceboComparison
 from grpo_decomp.report.status import preliminary_suffix
+from grpo_decomp.schemas import record_json
 
 
 def _row_cells(row: DecompositionRow) -> str:
@@ -49,7 +49,7 @@ def render_table(decomposition: Decomposition) -> str:
 
 def to_summary_json(decomposition: Decomposition) -> str:
     """Serialize to deterministic JSON (sorted keys) — byte-identical for equal inputs."""
-    return json.dumps(decomposition.model_dump(), sort_keys=True, indent=2) + "\n"
+    return record_json(decomposition)
 
 
 def write_summary(decomposition: Decomposition, path: Path) -> None:

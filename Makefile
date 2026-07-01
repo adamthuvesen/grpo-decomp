@@ -30,7 +30,7 @@ demo:  ## Score committed mini CompletionSets; no model load, GPU, or network
 	uv run grpo-decomp battery --completions tests/fixtures/mini/correct-seed0__mini --k 1
 
 results:  ## Regenerate the committed figures from JSON, then verify docs <-> JSON consistency
-	uv run --with matplotlib python results/make_figures.py
+	uv run --with matplotlib python scripts/make_figures.py
 	uv run pytest tests/test_docs_consistency.py -q
 
 aggregate:  ## Re-derive the committed JSON from local completions (needs runs/ pulled; see docs/runbook)

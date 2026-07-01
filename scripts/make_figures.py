@@ -5,31 +5,41 @@ Reads `seed-placebo-comparison.json` (the seed-aggregated placebo comparison) an
 headline PNGs next to them. matplotlib is not a project dependency, so run
 this with an ephemeral install:
 
-    uv run --with matplotlib python results/make_figures.py
+    uv run --with matplotlib python scripts/make_figures.py
 
 The figures are committed artifacts; this script documents their inputs.
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
+from typing import TypeVar
 
 import matplotlib.pyplot as plt
+from pydantic import BaseModel
 
-HERE = Path(__file__).parent
+from grpo_decomp.report.mechanism import MechanismReport
+from grpo_decomp.report.passk_seeds import PassKMultiSeed
+from grpo_decomp.report.seeds import SeedPlaceboComparison
+
+HERE = Path(__file__).parents[1] / "results"
 PP = 100  # fractions -> percentage points
+T = TypeVar("T", bound=BaseModel)
 
 # Shared palette so all three headline figures read as one set.
 BASE_C, RL_C, MEAN_C = "#c7d2e8", "#1d4ed8", "#dc2626"
 MUTED, GRID = "#64748b", "#edf1f7"
 
 
-def _clean(ax, grid_axis: str = "y") -> None:
+def _style_axis_grid_and_spines(ax, grid_axis: str = "y") -> None:
     """Despine top/right and drop a faint grid behind the data — the shared look."""
     ax.set_axisbelow(True)
     ax.grid(axis=grid_axis, color=GRID, linewidth=1.1)
     ax.spines[["top", "right"]].set_visible(False)
+
+
+def _load_record(path: Path, model: type[T]) -> dict:
+    return model.model_validate_json(path.read_text(encoding="utf-8")).model_dump()
 
 
 def _placebo_comparison_figure(placebo: dict) -> None:
@@ -41,7 +51,7 @@ def _placebo_comparison_figure(placebo: dict) -> None:
     seeds = placebo["seeds"]
 
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
-    _clean(ax, grid_axis="x")
+    _style_axis_grid_and_spines(ax, grid_axis="x")
     ax.spines["left"].set_visible(False)
     ax.tick_params(left=False)
     rows = list(range(len(seeds), 0, -1))  # seed 0 at top
@@ -102,7 +112,7 @@ def _passk_curve_figure(panel: dict) -> None:
     ]
 
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
-    _clean(ax, grid_axis="y")
+    _style_axis_grid_and_spines(ax, grid_axis="y")
     ax.spines["bottom"].set_visible(False)
     centers, width = [0.0, 1.0], 0.32
     for i, cx in enumerate(centers):
@@ -367,7 +377,7 @@ def _decontam_figure(test: dict, symbolic: dict, platinum: dict) -> None:
     ]
 
     fig, ax = plt.subplots(figsize=(8.0, 4.7))
-    _clean(ax)
+    _style_axis_grid_and_spines(ax)
     xs = [0.0, 1.0, 2.0]
     width = 0.36
     ax.bar([x - width / 2 for x in xs], p1, width, color="#cbd5e1", zorder=3)
@@ -432,15 +442,13 @@ def _decontam_figure(test: dict, symbolic: dict, platinum: dict) -> None:
 
 
 def main() -> None:
-    placebo = json.loads((HERE / "seed-placebo-comparison.json").read_text(encoding="utf-8"))
-    panel = json.loads((HERE / "pass8-multiseed.json").read_text(encoding="utf-8"))
-    countdown = json.loads(
-        (HERE / "countdown" / "pass8-multiseed.json").read_text(encoding="utf-8")
-    )
-    mech = json.loads((HERE / "mechanism.json").read_text(encoding="utf-8"))
-    mech_cd = json.loads((HERE / "countdown" / "mechanism.json").read_text(encoding="utf-8"))
-    symbolic = json.loads((HERE / "decontam" / "pass8-symbolic.json").read_text(encoding="utf-8"))
-    platinum = json.loads((HERE / "decontam" / "pass8-platinum.json").read_text(encoding="utf-8"))
+    placebo = _load_record(HERE / "seed-placebo-comparison.json", SeedPlaceboComparison)
+    panel = _load_record(HERE / "pass8-multiseed.json", PassKMultiSeed)
+    countdown = _load_record(HERE / "countdown" / "pass8-multiseed.json", PassKMultiSeed)
+    mech = _load_record(HERE / "mechanism.json", MechanismReport)
+    mech_cd = _load_record(HERE / "countdown" / "mechanism.json", MechanismReport)
+    symbolic = _load_record(HERE / "decontam" / "pass8-symbolic.json", PassKMultiSeed)
+    platinum = _load_record(HERE / "decontam" / "pass8-platinum.json", PassKMultiSeed)
     _placebo_comparison_figure(placebo)
     _passk_curve_figure(panel)
     _contrast_figure(panel, countdown)

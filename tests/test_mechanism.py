@@ -19,7 +19,9 @@ _REF = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="re
 _C, _W = r"\boxed{7}", r"\boxed{0}"  # correct vs wrong, gold is "7"
 
 
-def _cset(golds: Sequence[str], samples_by_id: dict[str, list[str]], n: int) -> CompletionSet:
+def _completion_set_for_mechanism(
+    golds: Sequence[str], samples_by_id: dict[str, list[str]], n: int
+) -> CompletionSet:
     problems = tuple(Problem(id=f"p{i}", question="q", gold_answer=g) for i, g in enumerate(golds))
     provenance = GenerationProvenance(
         model="m",
@@ -42,7 +44,7 @@ def _cset(golds: Sequence[str], samples_by_id: dict[str, list[str]], n: int) -> 
 def test_build_mechanism_categorizes_each_migration_class() -> None:
     golds = ["7", "7", "7", "7"]
     # k=2, n_base=4, tau=0.5 -> base pass@2(4,1,2)=0.5 (>=tau), base pass@2(4,0,2)=0 (<tau).
-    base = _cset(
+    base = _completion_set_for_mechanism(
         golds,
         {
             "p0": [_C, _C, _C, _W],  # base pass@1 .75 -> already reliable
@@ -52,8 +54,12 @@ def test_build_mechanism_categorizes_each_migration_class() -> None:
         },
         n=4,
     )
-    seed_a = _cset(golds, {"p0": [_C, _C], "p1": [_C, _C], "p2": [_C, _C], "p3": [_W, _W]}, n=2)
-    seed_b = _cset(golds, {"p0": [_C, _C], "p1": [_C, _W], "p2": [_C, _C], "p3": [_C, _W]}, n=2)
+    seed_a = _completion_set_for_mechanism(
+        golds, {"p0": [_C, _C], "p1": [_C, _C], "p2": [_C, _C], "p3": [_W, _W]}, n=2
+    )
+    seed_b = _completion_set_for_mechanism(
+        golds, {"p0": [_C, _C], "p1": [_C, _W], "p2": [_C, _C], "p3": [_C, _W]}, n=2
+    )
 
     rep = build_mechanism(base, [seed_a, seed_b], task="gsm8k-test", k=2, tau=0.5)
 
@@ -77,10 +83,31 @@ def test_build_mechanism_categorizes_each_migration_class() -> None:
 
 
 def test_build_mechanism_rejects_empty_and_mismatched() -> None:
-    base = _cset(["7", "7"], {"p0": [_C], "p1": [_W]}, n=1)
+    base = _completion_set_for_mechanism(["7", "7"], {"p0": [_C], "p1": [_W]}, n=1)
     with pytest.raises(ValueError, match="no correct seeds"):
         build_mechanism(base, [], task="gsm8k-test", k=1)
 
-    different = _cset(["7", "7", "7"], {"p0": [_C], "p1": [_C], "p2": [_C]}, n=1)
+    different = _completion_set_for_mechanism(
+        ["7", "7", "7"], {"p0": [_C], "p1": [_C], "p2": [_C]}, n=1
+    )
     with pytest.raises(ValueError, match="same problems"):
         build_mechanism(base, [different], task="gsm8k-test", k=1)
+
+
+def test_build_mechanism_headline_handles_no_added_reliability() -> None:
+    base = _completion_set_for_mechanism(["7", "7"], {"p0": [_C], "p1": [_W]}, n=1)
+    correct = _completion_set_for_mechanism(["7", "7"], {"p0": [_C], "p1": [_W]}, n=1)
+
+    report = build_mechanism(base, [correct], task="gsm8k-test", k=1)
+
+    assert report.migration_share_of_gain == 0.0
+    assert "added no first-try reliability" in report.headline()
+
+
+@pytest.mark.parametrize("tau", [0.0, -0.1, 1.1])
+def test_build_mechanism_rejects_invalid_tau(tau: float) -> None:
+    base = _completion_set_for_mechanism(["7"], {"p0": [_C]}, n=1)
+    correct = _completion_set_for_mechanism(["7"], {"p0": [_C]}, n=1)
+
+    with pytest.raises(ValueError, match="tau"):
+        build_mechanism(base, [correct], task="gsm8k-test", k=1, tau=tau)

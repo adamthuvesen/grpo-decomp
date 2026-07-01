@@ -16,8 +16,8 @@ from pydantic import Field
 
 from grpo_decomp.eval.battery import BatteryResult, run_battery
 from grpo_decomp.eval.completions import CompletionSet
-from grpo_decomp.eval.report_inputs import greedy_pass1
 from grpo_decomp.registries import PROBES
+from grpo_decomp.report.inputs import greedy_pass1
 from grpo_decomp.report.status import (
     artifact_scope_for,
     is_preliminary_seed_count,

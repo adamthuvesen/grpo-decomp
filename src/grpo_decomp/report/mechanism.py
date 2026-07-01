@@ -65,6 +65,12 @@ class MechanismReport(Record):
 
     def headline(self) -> str:
         """One-line mechanism verdict: how much of the added reliability is within-envelope."""
+        if self.frac_migrated_to_reliable + self.frac_new_capability == 0.0:
+            return (
+                f"{self.task}: the trained model added no first-try reliability at "
+                f"tau={self.reliability_threshold:g}; mean completion {self.base_mean_words:.0f}->"
+                f"{self.correct_mean_words:.0f} words"
+            )
         share = self.migration_share_of_gain * 100
         return (
             f"{self.task}: of the first-try reliability the trained model adds, {share:.0f}% is "
@@ -156,6 +162,8 @@ def build_mechanism(
     """
     if not correct_by_seed:
         raise ValueError("no correct seeds to aggregate")
+    if not 0.0 < tau <= 1.0:
+        raise ValueError(f"tau must satisfy 0 < tau <= 1, got {tau}")
 
     base_counts, n_base = lenient_counts_by_problem(base.problem_set(), base.completions_by_id())
     if not 1 <= k <= n_base:

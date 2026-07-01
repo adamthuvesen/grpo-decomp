@@ -15,10 +15,10 @@ from typing import NamedTuple
 
 from pydantic import Field
 
-from grpo_decomp.eval.answers import extract_lenient, extract_strict
 from grpo_decomp.eval.code_reasoning import is_code_reasoning
 from grpo_decomp.eval.cot import chain_is_valid, has_verifiable_chain
 from grpo_decomp.eval.passk import estimate_pass_at_k
+from grpo_decomp.grading import extract_lenient, extract_strict
 from grpo_decomp.registries import verifier_for
 from grpo_decomp.schemas import ProblemSet, Record
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from grpo_decomp.registries import PLACEBO_REWARD, REWARDS, RewardFn, register_reward
 from grpo_decomp.rewards.placebo import make_random_reward
+from grpo_decomp.rewards.scoring import score_strict_boxed
 
 
 def get_reward(name: str, *, seed: int = 0) -> RewardFn:
@@ -36,4 +37,11 @@ def get_reward(name: str, *, seed: int = 0) -> RewardFn:
 register_reward(PLACEBO_REWARD, make_random_reward)
 
 
-__all__ = ["PLACEBO_REWARD", "RewardFn", "get_reward", "make_random_reward", "register_reward"]
+__all__ = [
+    "PLACEBO_REWARD",
+    "RewardFn",
+    "get_reward",
+    "make_random_reward",
+    "register_reward",
+    "score_strict_boxed",
+]

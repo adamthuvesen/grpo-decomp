@@ -188,7 +188,7 @@ def is_valid_countdown_solution(text: str, numbers: Sequence[int], target: int) 
 def countdown_is_correct(extracted: str | None, gold: str) -> bool:
     """Grade an extracted expression against a Countdown key — the eval-layer verifier.
 
-    Same signature as `eval.answers.is_correct`, so the battery routes to it by task.
+    Same signature as `grpo_decomp.grading.is_correct`, so the battery routes to it by task.
     """
     if extracted is None:
         return False
@@ -211,11 +211,11 @@ def _combine(a: Fraction, b: Fraction) -> Iterator[Fraction]:
 def _reachable_values(items: tuple[Fraction, ...]) -> Iterator[Fraction]:
     """Every value reachable by combining the items pairwise — subsets included.
 
-    A single remaining item is itself reachable, so solutions that use fewer than all the
-    numbers are covered (classic Countdown rules).
+    Each current item is reachable on its own because the task permits using fewer than all
+    source numbers. Pairwise combinations then cover larger subsets and all-number solutions.
     """
+    yield from items
     if len(items) == 1:
-        yield items[0]
         return
     for i in range(len(items)):
         for j in range(len(items)):
@@ -284,15 +284,51 @@ _SPLIT_ORDER = ("train", "validation", "test", "dev")
 #: turning a silent infinite loop into an actionable error.
 _MAX_STALL = 5000
 
+#: Consecutive unsolvable source-number draws before declaring a config impossible.
+_MAX_EMPTY_TARGET_DRAWS = 5000
+
+
+def _validate_config(config: CountdownConfig) -> None:
+    if config.min_numbers < 1 or config.min_numbers > config.max_numbers:
+        raise ValueError(
+            f"Countdown min/max numbers must satisfy 1 <= min <= max, got "
+            f"{config.min_numbers}..{config.max_numbers}"
+        )
+    if config.min_value > config.max_value:
+        raise ValueError(
+            f"Countdown values must satisfy min <= max, got {config.min_value}..{config.max_value}"
+        )
+    if config.target_lo > config.target_hi:
+        raise ValueError(
+            f"Countdown target range must satisfy lo <= hi, got "
+            f"{config.target_lo}..{config.target_hi}"
+        )
+    expected_splits = set(_SPLIT_ORDER)
+    actual_splits = set(config.sizes)
+    if actual_splits != expected_splits:
+        raise ValueError(
+            f"Countdown sizes must define exactly {_SPLIT_ORDER}, got {tuple(config.sizes)}"
+        )
+    bad_sizes = {name: size for name, size in config.sizes.items() if size < 0}
+    if bad_sizes:
+        raise ValueError(f"Countdown split sizes must be non-negative, got {bad_sizes}")
+
 
 def _sample_problem(rng: random.Random, config: CountdownConfig) -> tuple[tuple[int, ...], int]:
     """Sample a source-number multiset and a reachable target (retrying until solvable)."""
+    empty_target_draws = 0
     while True:
         count = rng.randint(config.min_numbers, config.max_numbers)
         numbers = tuple(rng.randint(config.min_value, config.max_value) for _ in range(count))
         targets = reachable_targets(numbers, lo=config.target_lo, hi=config.target_hi)
         if targets:
             return numbers, rng.choice(targets)
+        empty_target_draws += 1
+        if empty_target_draws > _MAX_EMPTY_TARGET_DRAWS:
+            raise ValueError(
+                f"Countdown config {config.slug} produced no reachable targets in "
+                f"[{config.target_lo}, {config.target_hi}] after {_MAX_EMPTY_TARGET_DRAWS} draws"
+            )
 
 
 def _render_question(numbers: Sequence[int], target: int) -> str:
@@ -321,6 +357,7 @@ def load_countdown(
     two splits. The dataset is fixed across training seeds (like GSM8K's shared train set);
     `seed` parameterizes only the generation itself.
     """
+    _validate_config(config)
     if split not in config.sizes:
         raise ValueError(f"Countdown splits are {tuple(config.sizes)}, got {split!r}")
 

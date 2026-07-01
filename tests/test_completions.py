@@ -51,6 +51,13 @@ def test_round_trips_through_disk(tmp_path) -> None:
     assert load_completion_set(tmp_path / "cs") == original
 
 
+def test_round_trip_preserves_problem_order_not_lexicographic_id_order(tmp_path) -> None:
+    original = _completion_set(ids=("p1", "p2", "p10"))
+    write_completion_set(original, tmp_path / "cs")
+    loaded = load_completion_set(tmp_path / "cs")
+    assert tuple(item.problem.id for item in loaded.items) == ("p1", "p2", "p10")
+
+
 def test_write_is_byte_identical_for_equal_inputs(tmp_path) -> None:
     write_completion_set(_completion_set(), tmp_path / "one")
     write_completion_set(_completion_set(), tmp_path / "two")

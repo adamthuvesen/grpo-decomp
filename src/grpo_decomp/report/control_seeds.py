@@ -81,7 +81,15 @@ def _aggregate_one_control(
     deltas = np.array([comparison.delta for comparison in comparisons], dtype=float)
     single_ci = (comparisons[0].ci_low, comparisons[0].ci_high) if n_seeds == 1 else None
     mean, _sem, ci_low, ci_high, ci_kind = seed_level_mean_ci(deltas, single_seed_ci=single_ci)
-    p_value = float(ttest_1samp(deltas, 0.0).pvalue) if n_seeds >= 2 else comparisons[0].p_value
+    if n_seeds >= 2:
+        if np.allclose(deltas, 0.0):
+            p_value = 1.0
+        elif np.allclose(deltas, deltas[0]):
+            p_value = 0.0
+        else:
+            p_value = float(ttest_1samp(deltas, 0.0).pvalue)
+    else:
+        p_value = comparisons[0].p_value
     return _ControlRowStats(
         control=control,
         probes=probes,

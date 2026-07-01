@@ -7,67 +7,25 @@ import json
 from pathlib import Path
 
 import pytest
+from completion_set_fixtures import (
+    dataset_ref as _ref,
+)
+from completion_set_fixtures import (
+    problem_set as _problem_set,
+)
+from completion_set_fixtures import (
+    write_completion_set_dir as _write_cs,
+)
 
 from grpo_decomp.eval.cli import main
-from grpo_decomp.eval.completions import (
-    CompletionSet,
-    GenerationProvenance,
-    ProblemCompletions,
-    SamplingConfig,
-    write_completion_set,
-)
 from grpo_decomp.eval.heldout import discover_checkpoints, select_checkpoint
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from grpo_decomp.train.config import ArmConfig
 from grpo_decomp.train.provenance import capture_provenance
 
-#: The real generate submodule (sys.modules), not the re-exported function of the same name.
+#: The real generate submodule (sys.modules), separate from the imported CLI function.
 _GENERATE_MODULE = importlib.import_module("grpo_decomp.eval.generate")
 _CLI_MODULE = importlib.import_module("grpo_decomp.eval.cli")
-
-
-def _ref(*, split: str = "test", revision: str = "rev") -> DatasetRef:
-    return DatasetRef(name="openai/gsm8k", config="main", split=split, revision=revision)
-
-
-def _problem_set(
-    *, ids: tuple[str, ...] = ("p1", "p2", "p3"), ref: DatasetRef | None = None
-) -> ProblemSet:
-    return ProblemSet(
-        source=ref or _ref(),
-        problems=tuple(Problem(id=pid, question="q", gold_answer="4") for pid in ids),
-    )
-
-
-def _write_cs(
-    path: Path,
-    *,
-    model: str,
-    boxed: str,
-    ids: tuple[str, ...] = ("p1", "p2", "p3"),
-    n: int = 1,
-    temperature: float = 0.0,
-    ref: DatasetRef | None = None,
-) -> None:
-    items = tuple(
-        ProblemCompletions(
-            problem=Problem(id=pid, question="q", gold_answer="4"),
-            samples=tuple(f"reasoning \\boxed{{{boxed}}}" for _ in range(n)),
-        )
-        for pid in ids
-    )
-    provenance = GenerationProvenance(
-        model=model,
-        model_revision=None,
-        backend="transformers",
-        sampling=SamplingConfig(temperature=temperature, n=n),
-        dataset=ref or _ref(),
-        n_problems=len(ids),
-        commit="c" * 40,
-        python_version="3.11.0",
-        package_versions={},
-    )
-    write_completion_set(CompletionSet(provenance=provenance, items=items), path)
 
 
 def _patch_report_sets(monkeypatch, **sets: ProblemSet) -> None:
@@ -86,7 +44,7 @@ def test_battery_emits_result_json(tmp_path, capsys) -> None:
 
 def test_battery_writes_to_out_file(tmp_path) -> None:
     _write_cs(tmp_path / "cs", model="base", boxed="0")
-    out = tmp_path / "result.json"
+    out = tmp_path / "nested" / "result.json"
     assert main(["battery", "--completions", str(tmp_path / "cs"), "--out", str(out)]) == 0
     assert json.loads(out.read_text(encoding="utf-8"))["lenient_accuracy"] == 0.0
 
@@ -158,7 +116,7 @@ def test_report_rejects_item_id_mismatch(tmp_path, capsys, monkeypatch) -> None:
     assert main(["report", "--completions-dir", str(root), "--out", str(tmp_path / "o")]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "problem ids" in captured.err
+    assert "problem records" in captured.err
 
 
 def test_report_rejects_non_greedy_artifact(tmp_path, capsys, monkeypatch) -> None:
@@ -174,7 +132,8 @@ def test_report_rejects_non_greedy_artifact(tmp_path, capsys, monkeypatch) -> No
     assert "greedy pass@1" in captured.err
 
 
-def test_report_seeds_rejects_non_greedy_artifact(tmp_path, capsys) -> None:
+def test_report_seeds_rejects_non_greedy_artifact(tmp_path, capsys, monkeypatch) -> None:
+    _patch_report_sets(monkeypatch, **{"gsm8k-test": _problem_set()})
     battery = tmp_path / "battery"
     _write_cs(battery / "correct__gsm8k-test", model="correct", boxed="4", n=2, temperature=0.7)
     _write_cs(battery / "random__gsm8k-test", model="random", boxed="0")
@@ -185,7 +144,20 @@ def test_report_seeds_rejects_non_greedy_artifact(tmp_path, capsys) -> None:
     assert "greedy pass@1" in captured.err
 
 
-def test_report_passk_seeds_aggregates_panel(tmp_path, capsys) -> None:
+def test_report_seeds_unknown_task_set_is_clean_error(tmp_path, capsys) -> None:
+    code = main(
+        ["report-seeds", "--task-set", "not-a-set", "--battery-dirs", str(tmp_path / "battery")]
+    )
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert captured.out == ""
+    assert "unknown report set" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_report_passk_seeds_aggregates_panel(tmp_path, capsys, monkeypatch) -> None:
+    _patch_report_sets(monkeypatch, **{"gsm8k-test": _problem_set()})
     # Sampled (n>1) base anchor + two correct seeds — the multi-seed pass@k layout.
     root = tmp_path / "passk"
     _write_cs(root / "base__gsm8k-test", model="base", boxed="0", n=2, temperature=0.7)
@@ -210,7 +182,8 @@ def test_report_passk_seeds_aggregates_panel(tmp_path, capsys) -> None:
     assert panel["preliminary"] is True  # 2 < MIN_SEEDS
 
 
-def test_report_seeds_happy_path(tmp_path, capsys) -> None:
+def test_report_seeds_happy_path(tmp_path, capsys, monkeypatch) -> None:
+    _patch_report_sets(monkeypatch, **{"gsm8k-test": _problem_set()})
     battery = tmp_path / "battery"
     _write_cs(battery / "correct__gsm8k-test", model="correct", boxed="4")
     _write_cs(battery / "random__gsm8k-test", model="random", boxed="0")
@@ -222,7 +195,8 @@ def test_report_seeds_happy_path(tmp_path, capsys) -> None:
     assert "Placebo comparison" in capsys.readouterr().out
 
 
-def test_report_mechanism_happy_path(tmp_path, capsys) -> None:
+def test_report_mechanism_happy_path(tmp_path, capsys, monkeypatch) -> None:
+    _patch_report_sets(monkeypatch, **{"gsm8k-test": _problem_set()})
     root = tmp_path / "passk"
     _write_cs(root / "base__gsm8k-test", model="base", boxed="0", n=2, temperature=0.7)
     _write_cs(root / "correct-seed0__gsm8k-test", model="c0", boxed="4", n=2, temperature=0.7)
@@ -247,9 +221,10 @@ def test_report_mechanism_happy_path(tmp_path, capsys) -> None:
     assert "Mechanism" in capsys.readouterr().out
 
 
-def test_report_control_seeds_happy_path(tmp_path, capsys) -> None:
+def test_report_control_seeds_happy_path(tmp_path, capsys, monkeypatch) -> None:
     battery = tmp_path / "battery"
-    ref = _ref()
+    ref = _ref(revision="sym")
+    _patch_report_sets(monkeypatch, **{"gsm-symbolic": _problem_set(ref=ref)})
     _write_cs(battery / "base__gsm-symbolic", model="base", boxed="4", ref=ref)
     _write_cs(battery / "correct__gsm-symbolic", model="correct", boxed="4", ref=ref)
     out = tmp_path / "controls.json"
@@ -273,7 +248,8 @@ def test_report_control_seeds_happy_path(tmp_path, capsys) -> None:
     assert "Multi-seed controls" in capsys.readouterr().out
 
 
-def test_report_passk_seeds_requires_correct_seed_dirs(tmp_path, capsys) -> None:
+def test_report_passk_seeds_requires_correct_seed_dirs(tmp_path, capsys, monkeypatch) -> None:
+    _patch_report_sets(monkeypatch, **{"gsm8k-test": _problem_set()})
     root = tmp_path / "passk"
     _write_cs(root / "base__gsm8k-test", model="base", boxed="0", n=2, temperature=0.7)
 

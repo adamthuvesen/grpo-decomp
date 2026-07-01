@@ -25,13 +25,6 @@ def test_grpo_defaults_match_verified_trl_v1() -> None:
     assert grpo.logging_steps > 0
 
 
-def test_as_grpo_kwargs_exposes_trl_parameter_names() -> None:
-    kwargs = GRPOSettings().as_grpo_kwargs()
-    assert kwargs["loss_type"] == "dapo"
-    assert kwargs["beta"] == 0.0
-    assert kwargs["use_vllm"] is True
-
-
 @pytest.mark.parametrize(
     ("file", "reward"), [("correct.yaml", "correct"), ("random.yaml", "random")]
 )
@@ -71,11 +64,6 @@ def test_reward_and_dataset_are_free_registry_keys() -> None:
 def test_prompt_strategy_defaults_to_r1_zero() -> None:
     arm = ArmConfig(name="x", base_model="m", reward="correct", seed=0)
     assert arm.prompt_strategy == "r1_zero"
-
-
-def test_arm_rejects_non_train_split() -> None:
-    with pytest.raises(ValidationError):
-        ArmConfig(name="x", base_model="m", reward="correct", seed=0, train_split="test")
 
 
 def test_arm_rejects_unknown_fields() -> None:

@@ -12,6 +12,7 @@ than silently absorbing an unexpected column.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,6 +22,11 @@ class Record(BaseModel):
     """Base for all grpo_decomp records: immutable, and unknown fields are an error."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+def record_json(record: Record) -> str:
+    """Deterministic pretty JSON for committed result/provenance artifacts."""
+    return json.dumps(record.model_dump(), sort_keys=True, indent=2) + "\n"
 
 
 class DatasetRef(Record):

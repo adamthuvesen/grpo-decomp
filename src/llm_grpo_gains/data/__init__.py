@@ -5,7 +5,7 @@ sub-selection helpers (``dev_slice``, ``validation_split``) live in
 :mod:`grpo_decomp.splits`.
 """
 
-from llm_grpo_gains.data._common import GoldAnswerError
+from llm_grpo_gains.data._hf_problem_sets import GoldAnswerError
 from llm_grpo_gains.data.countdown import countdown_is_correct, load_countdown
 from llm_grpo_gains.data.gsm8k import load_gsm8k
 from llm_grpo_gains.data.gsm8k_platinum import load_gsm8k_platinum

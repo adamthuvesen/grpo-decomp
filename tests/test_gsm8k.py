@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from llm_grpo_gains.data import gsm8k
-from llm_grpo_gains.data._common import GoldAnswerError
+from llm_grpo_gains.data._hf_problem_sets import GoldAnswerError
 
 
 def test_load_gsm8k_rejects_unknown_split() -> None:

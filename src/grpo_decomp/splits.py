@@ -13,7 +13,7 @@ import random
 from grpo_decomp.schemas import ProblemSet
 
 
-def _select(problem_set: ProblemSet, n: int, seed: int) -> list[int]:
+def _select_problem_indices(problem_set: ProblemSet, n: int, seed: int) -> list[int]:
     """Return `n` distinct indices into `problem_set`, sorted (stable order)."""
     total = len(problem_set)
     if not 0 <= n <= total:
@@ -21,7 +21,7 @@ def _select(problem_set: ProblemSet, n: int, seed: int) -> list[int]:
     return sorted(random.Random(seed).sample(range(total), n))
 
 
-def _subset(problem_set: ProblemSet, indices: list[int]) -> ProblemSet:
+def _problem_set_from_indices(problem_set: ProblemSet, indices: list[int]) -> ProblemSet:
     chosen = tuple(problem_set[i] for i in indices)
     return ProblemSet(source=problem_set.source, problems=chosen)
 
@@ -31,7 +31,7 @@ def dev_slice(problem_set: ProblemSet, *, n: int = 50, seed: int = 0) -> Problem
 
     Deterministic: the same `n` and `seed` return the same problem ids every time.
     """
-    return _subset(problem_set, _select(problem_set, n, seed))
+    return _problem_set_from_indices(problem_set, _select_problem_indices(problem_set, n, seed))
 
 
 def validation_split(
@@ -48,6 +48,8 @@ def validation_split(
         raise ValueError(
             f"validation_split needs 0 < n < {len(train)} for a non-empty partition, got n={n}"
         )
-    held_out = set(_select(train, n, seed))
+    held_out = set(_select_problem_indices(train, n, seed))
     remainder_idx = [i for i in range(len(train)) if i not in held_out]
-    return _subset(train, remainder_idx), _subset(train, sorted(held_out))
+    return _problem_set_from_indices(train, remainder_idx), _problem_set_from_indices(
+        train, sorted(held_out)
+    )

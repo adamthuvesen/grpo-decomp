@@ -14,14 +14,13 @@ The per-step unparseable rate is already logged by the `correct` reward.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from datasets import Dataset
 
 from grpo_decomp.registries import TRAIN_DATASETS, PromptStrategy, get_prompt_strategy
 from grpo_decomp.rewards import get_reward
-from grpo_decomp.schemas import ProblemSet
+from grpo_decomp.schemas import ProblemSet, record_json
 from grpo_decomp.splits import dev_slice
 from grpo_decomp.train.config import ArmConfig
 from grpo_decomp.train.provenance import capture_provenance
@@ -82,9 +81,7 @@ def prepare_run(
         commit=commit,
         dirty=dirty,
     )
-    (run_dir / "provenance.json").write_text(
-        json.dumps(provenance.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
-    )
+    (run_dir / "provenance.json").write_text(record_json(provenance), encoding="utf-8")
     return run_dir
 
 
@@ -152,7 +149,7 @@ def launch(
         model_init_kwargs=(
             {"revision": arm.base_model_revision} if arm.base_model_revision else {}
         ),
-        **arm.grpo.as_grpo_kwargs(),
+        **arm.grpo.model_dump(),
     )
     trainer = GRPOTrainer(
         model=arm.base_model,

@@ -14,7 +14,6 @@ WANDB_API_KEY=...`). CUDA, torch, vLLM, and TRL versions must remain compatible.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,7 +24,7 @@ from grpo_decomp.plugins import load_plugins
 from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.provenance import git_commit, git_is_dirty
 from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, EVAL_SETS, get_task_profile
-from grpo_decomp.schemas import ProblemSet
+from grpo_decomp.schemas import ProblemSet, record_json
 from grpo_decomp.train.checkpoints import (
     final_or_selected_checkpoint_path,
     require_selected_checkpoint_path,
@@ -215,9 +214,7 @@ def heldout_arm(arm_yaml: str) -> str:
     config = SamplingConfig(temperature=0.0, n=1, max_new_tokens=EVAL_MAX_NEW_TOKENS, seed=0)
     curve = run_heldout_curve(run_dir, config, backend="vllm")
     out = run_dir / "heldout.json"
-    out.write_text(
-        json.dumps(curve.model_dump(), sort_keys=True, indent=2) + "\n", encoding="utf-8"
-    )
+    out.write_text(record_json(curve), encoding="utf-8")
     write_selected_provenance(run_dir, curve)
     runs.commit()
     return str(out)

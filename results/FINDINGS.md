@@ -22,7 +22,7 @@ near-saturated for this base (base pass@8 = 94%).
 
 ![RL improves pass@1 reliability while pass@8 coverage barely moves](fig-passk-curve.png)
 
-*Figures regenerate from the committed JSON via `uv run --with matplotlib python results/make_figures.py`.*
+*Figures regenerate from the committed JSON via `uv run --with matplotlib python scripts/make_figures.py`.*
 
 ## 1. Placebo comparison across seeds (the pre-registered confirmatory test)
 

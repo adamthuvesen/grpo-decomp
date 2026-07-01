@@ -175,6 +175,29 @@ class _CoverageStats(NamedTuple):
     ci_kind: str
 
 
+def _problem_axis(cs: CompletionSet) -> tuple[object, ...]:
+    return tuple(item.problem for item in cs.items)
+
+
+def _validate_same_axis(
+    base: CompletionSet, correct_by_seed: Sequence[tuple[object, CompletionSet]]
+) -> None:
+    base_axis = _problem_axis(base)
+    for label, cs in correct_by_seed:
+        if cs.provenance.dataset != base.provenance.dataset:
+            raise ValueError(
+                f"correct seed {label}: dataset metadata does not match base "
+                f"{base.provenance.dataset.model_dump()}"
+            )
+        if cs.provenance.prompt_strategy != base.provenance.prompt_strategy:
+            raise ValueError(
+                f"correct seed {label}: prompt strategy {cs.provenance.prompt_strategy!r} "
+                f"does not match base {base.provenance.prompt_strategy!r}"
+            )
+        if _problem_axis(cs) != base_axis:
+            raise ValueError(f"correct seed {label}: problem records do not match base")
+
+
 def _interval(center: float, half_width: float) -> tuple[float, float]:
     return center - half_width, center + half_width
 
@@ -290,6 +313,7 @@ def aggregate_passk_seeds(
     """
     if not correct_by_seed:
         raise ValueError("no per-seed correct arms to aggregate")
+    _validate_same_axis(base, correct_by_seed)
 
     base_m = _arm_metrics(base, k)
     n_base = base_m.n

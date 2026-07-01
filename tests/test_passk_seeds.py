@@ -22,7 +22,7 @@ _C7, _C9, _WRONG = r"\boxed{7}", r"\boxed{9}", r"\boxed{0}"
 _CHAIN7, _CHAIN9 = r"<<3+4=7>> so \boxed{7}", r"<<4+5=9>> so \boxed{9}"
 
 
-def _cset(samples_by_id: dict[str, list[str]], n: int) -> CompletionSet:
+def _sampled_completion_set(samples_by_id: dict[str, list[str]], n: int) -> CompletionSet:
     """A sampled (temp>0) CompletionSet over two problems with golds 7 and 9."""
     problems = (
         Problem(id="p0", question="q", gold_answer="7"),
@@ -47,10 +47,16 @@ def _cset(samples_by_id: dict[str, list[str]], n: int) -> CompletionSet:
 
 
 # pass@1 per arm = mean over problems of (correct / n). At n=2:
-_BASE = _cset({"p0": [_C7, _WRONG], "p1": [_WRONG, _WRONG]}, n=2)  # (0.5 + 0)/2 = 0.25
-_SEED_A = _cset({"p0": [_C7, _C7], "p1": [_WRONG, _WRONG]}, n=2)  # (1 + 0)/2  = 0.50
-_SEED_B = _cset({"p0": [_C7, _C7], "p1": [_C9, _WRONG]}, n=2)  # (1 + 0.5)/2 = 0.75
-_SEED_C = _cset({"p0": [_C7, _C7], "p1": [_C9, _C9]}, n=2)  # (1 + 1)/2   = 1.00
+_BASE = _sampled_completion_set(
+    {"p0": [_C7, _WRONG], "p1": [_WRONG, _WRONG]}, n=2
+)  # (0.5 + 0)/2 = 0.25
+_SEED_A = _sampled_completion_set(
+    {"p0": [_C7, _C7], "p1": [_WRONG, _WRONG]}, n=2
+)  # (1 + 0)/2  = 0.50
+_SEED_B = _sampled_completion_set(
+    {"p0": [_C7, _C7], "p1": [_C9, _WRONG]}, n=2
+)  # (1 + 0.5)/2 = 0.75
+_SEED_C = _sampled_completion_set({"p0": [_C7, _C7], "p1": [_C9, _C9]}, n=2)  # (1 + 1)/2   = 1.00
 
 
 def test_aggregate_passk_seeds_t_ci_and_delta() -> None:
@@ -88,9 +94,9 @@ def test_aggregate_passk_seeds_t_ci_and_delta() -> None:
 def test_aggregate_passk_seeds_cot_gated_is_a_subset_of_vanilla() -> None:
     # p0 mixes a chained solve with a bare-boxed solve; CoT-gating drops the latter, so the
     # CoT-gated level sits strictly below vanilla while obeying the same CI structure.
-    base = _cset({"p0": [_CHAIN7, _C7], "p1": [_WRONG, _WRONG]}, n=2)
-    seed_a = _cset({"p0": [_CHAIN7, _C7], "p1": [_WRONG, _WRONG]}, n=2)
-    seed_b = _cset({"p0": [_CHAIN7, _CHAIN7], "p1": [_CHAIN9, _WRONG]}, n=2)
+    base = _sampled_completion_set({"p0": [_CHAIN7, _C7], "p1": [_WRONG, _WRONG]}, n=2)
+    seed_a = _sampled_completion_set({"p0": [_CHAIN7, _C7], "p1": [_WRONG, _WRONG]}, n=2)
+    seed_b = _sampled_completion_set({"p0": [_CHAIN7, _CHAIN7], "p1": [_CHAIN9, _WRONG]}, n=2)
     panel = aggregate_passk_seeds(base, [(0, seed_a), (1, seed_b)], task="gsm8k-test", k=1)
 
     # base p0 lenient=2 (both boxed 7) but cot=1 (only the <<3+4=7>> sample) -> 0.25 < 0.50.
@@ -116,9 +122,27 @@ def test_empty_correct_arms_is_explicit_error() -> None:
 
 
 def test_correct_arms_must_share_n() -> None:
-    seed_n4 = _cset({"p0": [_C7] * 4, "p1": [_WRONG] * 4}, n=4)
+    seed_n4 = _sampled_completion_set({"p0": [_C7] * 4, "p1": [_WRONG] * 4}, n=4)
     with pytest.raises(ValueError, match="share n"):
         aggregate_passk_seeds(_BASE, [(0, _SEED_A), (1, seed_n4)], task="gsm8k-test", k=1)
+
+
+def test_correct_arms_must_match_base_problem_records() -> None:
+    different = CompletionSet(
+        provenance=_SEED_A.provenance,
+        items=(
+            ProblemCompletions(
+                problem=Problem(id="p0", question="q", gold_answer="7"),
+                samples=(_C7, _C7),
+            ),
+            ProblemCompletions(
+                problem=Problem(id="p2", question="q", gold_answer="9"),
+                samples=(_C9, _WRONG),
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="problem records"):
+        aggregate_passk_seeds(_BASE, [(0, different)], task="gsm8k-test", k=1)
 
 
 def test_k_greater_than_n_is_explicit_error() -> None:

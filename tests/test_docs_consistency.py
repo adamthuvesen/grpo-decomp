@@ -62,7 +62,7 @@ _PLAT = _load("results/decontam/pass8-platinum.json")  # cleaned labels (GSM8K-P
 _DECOMP = _load("results/decomposition-multiseed.json")  # 6-seed Holm-corrected controls
 
 
-def _ctrl(needle: str) -> dict:
+def _summary_control_comparison(needle: str) -> dict:
     """The decomposition `comparison` whose control name contains `needle`."""
     for row in _SUM["rows"]:
         if needle in row["control"]:
@@ -70,13 +70,17 @@ def _ctrl(needle: str) -> dict:
     raise KeyError(needle)
 
 
-def _crow(control: str) -> dict:
+def _multiseed_control_row(control: str) -> dict:
     """The 6-seed control row for exactly `control` (decomposition-multiseed.json)."""
     for row in _DECOMP["rows"]:
         if row["control"] == control:
             return row
     raise KeyError(control)
 
+
+_CTRL_SYMBOLIC = _multiseed_control_row("gsm-symbolic")
+_CTRL_PLUS = _multiseed_control_row("gsm-plus")
+_CTRL_PLATINUM = _multiseed_control_row("gsm8k-platinum")
 
 _FIND_G = "results/FINDINGS.md"
 _FIND_C = "results/countdown/FINDINGS.md"
@@ -320,49 +324,52 @@ _CLAIMS: list[tuple[str, str, str]] = [
     (
         "ctrl6.symbolic",
         _FIND_G,
-        f"{_pct(_crow('gsm-symbolic')['mean_delta'], sign=True)} | "
-        f"[{_pct(_crow('gsm-symbolic')['ci_low'])}, {_pct(_crow('gsm-symbolic')['ci_high'])}] | "
-        f"{_crow('gsm-symbolic')['p_value_holm']:.3g}",
+        f"{_pct(_CTRL_SYMBOLIC['mean_delta'], sign=True)} | "
+        f"[{_pct(_CTRL_SYMBOLIC['ci_low'])}, {_pct(_CTRL_SYMBOLIC['ci_high'])}] | "
+        f"{_CTRL_SYMBOLIC['p_value_holm']:.3g}",
     ),
     (
         "ctrl6.plus",
         _FIND_G,
-        f"{_pct(_crow('gsm-plus')['mean_delta'], sign=True)} | "
-        f"[{_pct(_crow('gsm-plus')['ci_low'])}, {_pct(_crow('gsm-plus')['ci_high'])}] | "
-        f"{_crow('gsm-plus')['p_value_holm']:.3g}",
+        f"{_pct(_CTRL_PLUS['mean_delta'], sign=True)} | "
+        f"[{_pct(_CTRL_PLUS['ci_low'])}, {_pct(_CTRL_PLUS['ci_high'])}] | "
+        f"{_CTRL_PLUS['p_value_holm']:.3g}",
     ),
     (
         "ctrl6.platinum",
         _FIND_G,
-        f"{_pct(_crow('gsm8k-platinum')['mean_delta'], sign=True)} | "
-        f"[{_pct(_crow('gsm8k-platinum')['ci_low'])}, "
-        f"{_pct(_crow('gsm8k-platinum')['ci_high'])}] | "
-        f"{_crow('gsm8k-platinum')['p_value_holm']:.3g}",
+        f"{_pct(_CTRL_PLATINUM['mean_delta'], sign=True)} | "
+        f"[{_pct(_CTRL_PLATINUM['ci_low'])}, {_pct(_CTRL_PLATINUM['ci_high'])}] | "
+        f"{_CTRL_PLATINUM['p_value_holm']:.3g}",
     ),
     (
         "ctrl6.symbolic-regression",
         _FIND_G,
-        f"{_pct(_crow('gsm-symbolic')['per_seed_delta'][0], sign=True)} {_ARROW} "
-        f"{_pct(_crow('gsm-symbolic')['mean_delta'], sign=True)}",
+        f"{_pct(_CTRL_SYMBOLIC['per_seed_delta'][0], sign=True)} {_ARROW} "
+        f"{_pct(_CTRL_SYMBOLIC['mean_delta'], sign=True)}",
     ),
     (
         "ctrl6.plus-regression",
         _FIND_G,
-        f"{_pct(_crow('gsm-plus')['per_seed_delta'][0], sign=True)} {_ARROW} "
-        f"{_pct(_crow('gsm-plus')['mean_delta'], sign=True)}",
+        f"{_pct(_CTRL_PLUS['per_seed_delta'][0], sign=True)} {_ARROW} "
+        f"{_pct(_CTRL_PLUS['mean_delta'], sign=True)}",
     ),
     (
         "ctrl6.platinum-regression",
         _FIND_G,
-        f"{_pct(_crow('gsm8k-platinum')['per_seed_delta'][0], sign=True)} {_ARROW} "
-        f"{_pct(_crow('gsm8k-platinum')['mean_delta'], sign=True)}",
+        f"{_pct(_CTRL_PLATINUM['per_seed_delta'][0], sign=True)} {_ARROW} "
+        f"{_pct(_CTRL_PLATINUM['mean_delta'], sign=True)}",
     ),
-    ("control.format", _FIND_G, f"format contributes {_pct(_ctrl('format')['delta'], sign=True)}"),
+    (
+        "control.format",
+        _FIND_G,
+        f"format contributes {_pct(_summary_control_comparison('format')['delta'], sign=True)}",
+    ),
     (
         "control.contamination-drop",
         _FIND_G,
-        f"Base drops {_pct(_ctrl('raw gain')['accuracy_a'], dp=0)}% "
-        f"{_ARROW} {_pct(_ctrl('gsm-symbolic')['accuracy_a'], dp=0)}%",
+        f"Base drops {_pct(_summary_control_comparison('raw gain')['accuracy_a'], dp=0)}% "
+        f"{_ARROW} {_pct(_summary_control_comparison('gsm-symbolic')['accuracy_a'], dp=0)}%",
     ),
 ]
 

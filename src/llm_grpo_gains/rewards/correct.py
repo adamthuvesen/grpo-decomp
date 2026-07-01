@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 
-from grpo_decomp.eval.answers import is_correct
-from grpo_decomp.rewards._score import score_strict_boxed
+from grpo_decomp.grading import is_correct
+from grpo_decomp.rewards import score_strict_boxed
 
 logger = logging.getLogger(__name__)
 

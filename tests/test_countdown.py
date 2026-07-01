@@ -10,7 +10,6 @@ from fractions import Fraction
 
 import pytest
 
-from grpo_decomp.eval.answers import is_correct
 from grpo_decomp.eval.battery import grade, verifier_for
 from grpo_decomp.eval.completions import (
     CompletionSet,
@@ -18,6 +17,7 @@ from grpo_decomp.eval.completions import (
     SamplingConfig,
     capture_generation_provenance,
 )
+from grpo_decomp.grading import is_correct
 from grpo_decomp.report.decomposition import elicitation_note
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from llm_grpo_gains.data.countdown import (
@@ -98,6 +98,11 @@ def test_valid_solution_each_number_once_hits_target() -> None:
 
 def test_subset_solution_is_allowed() -> None:
     assert is_valid_countdown_solution("5 * 6", [5, 6, 9], 30)  # uses 2 of 3 numbers
+
+
+def test_subset_solution_counts_as_reachable() -> None:
+    assert is_valid_countdown_solution("9 + 1", [1, 3, 9], 10)
+    assert solve_countdown([1, 3, 9], 10)
 
 
 def test_wrong_target_is_invalid() -> None:
@@ -183,6 +188,12 @@ def test_oversized_config_fails_loud_not_infinite_loop() -> None:
     oversized = CountdownConfig(sizes={"train": 5000, "validation": 1, "test": 1, "dev": 1})
     with pytest.raises(ValueError, match="pool exhausted"):
         load_countdown("train", config=oversized)
+
+
+def test_impossible_target_range_fails_loud_not_infinite_loop() -> None:
+    impossible = CountdownConfig(target_lo=10_000, target_hi=10_001, sizes=_SMALL.sizes)
+    with pytest.raises(ValueError, match="no reachable targets"):
+        load_countdown("train", config=impossible)
 
 
 # --- task-routed grading ----------------------------------------------------------------

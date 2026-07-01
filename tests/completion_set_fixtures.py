@@ -1,4 +1,4 @@
-"""Shared helpers for constructing CompletionSet fixtures in unit tests."""
+"""CompletionSet fixture builders for unit tests."""
 
 from __future__ import annotations
 

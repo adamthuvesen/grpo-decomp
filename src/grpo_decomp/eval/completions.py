@@ -24,7 +24,7 @@ from grpo_decomp.provenance import (
     package_versions,
 )
 from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY
-from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet, Record
+from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet, Record, record_json
 
 PROVENANCE_FILE = "provenance.json"
 COMPLETIONS_FILE = "completions.jsonl"
@@ -136,17 +136,17 @@ def capture_generation_provenance(
 
 
 def write_completion_set(completion_set: CompletionSet, out_dir: Path) -> Path:
-    """Write `provenance.json` + a `completions.jsonl` (sorted by id); return `out_dir`.
+    """Write `provenance.json` + a `completions.jsonl` in problem order; return `out_dir`.
 
-    Deterministic: equal inputs produce byte-identical files (sorted keys, id-sorted lines).
+    Deterministic: equal inputs produce byte-identical files (sorted keys, stable item order).
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / PROVENANCE_FILE).write_text(
-        json.dumps(completion_set.provenance.model_dump(), sort_keys=True, indent=2) + "\n",
+        record_json(completion_set.provenance),
         encoding="utf-8",
     )
-    items = sorted(completion_set.items, key=lambda item: item.problem.id)
+    items = completion_set.items
     lines = [json.dumps(item.model_dump(), sort_keys=True) for item in items]
     (out_dir / COMPLETIONS_FILE).write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out_dir

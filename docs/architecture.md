@@ -211,7 +211,7 @@ recipe: `beta=0` (no KL penalty, no reference model), `num_generations=8`,
 `learning_rate=1e-6`, `max_completion_length=1024`, `max_steps=500`,
 `save_steps=100`, and colocated vLLM rollouts. `ArmConfig` adds `name`,
 `base_model` (+ pinned revision), `reward`, `seed`, `dataset` (`gsm8k` or
-`countdown`), `train_split`, and `checkpoint_selection` (`final` or
+`countdown`), and `checkpoint_selection` (`final` or
 `best_on_validation`).
 
 `train/launcher.py` runs one arm end to end: load the arm's training set (GSM8K,
@@ -355,7 +355,7 @@ Two things to keep straight when reading the output:
 ### The committed multi-seed artifacts
 
 Each FINDINGS number traces to one aggregator → one JSON in `results/` (the
-`make_figures.py` figures and the docs↔JSON consistency test read these, never the
+`scripts/make_figures.py` figures and the docs↔JSON consistency test read these, never the
 single-seed table):
 
 | Aggregator (`grpo-decomp …`) | Module                    | Artifact                       | What it backs                                                                                                                   |
