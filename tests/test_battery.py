@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_decomp.eval.battery import (
-    cot_counts_by_problem,
-    lenient_counts_by_problem,
-    run_battery,
-)
+from grpo_decomp.eval.battery import counts_by_problem, run_battery
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 
 _REF = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="rev")
@@ -52,15 +48,14 @@ def test_pass_at_k_values_and_invariants() -> None:
         assert p.cot_gated <= p.vanilla
 
 
-def test_cot_counts_by_problem_is_a_subset_of_lenient() -> None:
+def test_cot_counts_are_a_subset_of_lenient() -> None:
     problems = _problems("4", "12")
     completions = {
         "p0": [r"reasoning... \boxed{4}", "I think 5"],
         "p1": [r"<<3*4=12>> therefore \boxed{12}", "in python: print(12)"],
     }
-    cot_counts, n = cot_counts_by_problem(problems, completions)
-    lenient_counts, n_lenient = lenient_counts_by_problem(problems, completions)
-    assert n == n_lenient == 2
+    lenient_counts, cot_counts, n = counts_by_problem(problems, completions)
+    assert n == 2
     # p0: \boxed{4} is correct but has no calculator chain -> 0 gated. p1: only the
     # "<<3*4=12>>" sample is correct AND valid-chain ("print(12)" is unverifiable) -> 1.
     assert cot_counts == [0, 1]

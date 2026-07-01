@@ -153,33 +153,30 @@ def run_battery(
     )
 
 
-def lenient_counts_by_problem(
+class ProblemCounts(NamedTuple):
+    """Per-problem correct counts (problem order) plus the uniform samples-per-problem n."""
+
+    lenient: list[int]
+    cot: list[int]
+    n: int
+
+
+def counts_by_problem(
     problems: ProblemSet, completions_by_id: Mapping[str, Sequence[str]]
-) -> tuple[list[int], int]:
-    """Per-problem count of lenient-correct completions (problem order), plus the uniform n.
+) -> ProblemCounts:
+    """Per-problem lenient-correct and CoT-gated-correct counts, from one scoring pass.
 
     The building block `run_battery` scores pass@k from, exposed for sampled (n>1)
     multi-seed pass@k aggregation: ``estimate_pass_at_k(counts, k, n=n)`` for the panel and
-    the per-problem ``pass_at_k(n, c, k)`` the base-anchor bootstrap resamples. Reuses the
-    same lenient extraction + task verifier the battery uses, so counts match it exactly.
+    the per-problem ``pass_at_k(n, c, k)`` the base-anchor bootstrap resamples. A completion
+    counts toward `cot` only when its lenient answer is correct AND its chain is valid
+    (>=1 ``<<a op b=c>>`` step, all steps compute) — the stricter bar the CoT-Pass@K
+    critique argues for — so ``cot[i] <= lenient[i]`` and CoT-gated pass@k <= vanilla.
+    Reuses the same extraction + verifier + chain check as `run_battery`, so both counts
+    match its pass@k exactly.
     """
     scores = _score_completions(problems, completions_by_id)
-    return scores.lenient_counts, scores.n
-
-
-def cot_counts_by_problem(
-    problems: ProblemSet, completions_by_id: Mapping[str, Sequence[str]]
-) -> tuple[list[int], int]:
-    """Per-problem count of CoT-gated-correct completions (problem order), plus the uniform n.
-
-    The CoT twin of `lenient_counts_by_problem`: a completion counts only when its lenient
-    answer is correct AND its chain is valid (>=1 ``<<a op b=c>>`` step, all steps compute) —
-    the stricter bar the CoT-Pass@K critique argues for. Always <= the lenient count per
-    problem, so CoT-gated pass@k <= vanilla. Reuses the same extraction + verifier + chain
-    check as `run_battery`, so these per-problem counts match its `cot_gated` pass@k exactly.
-    """
-    scores = _score_completions(problems, completions_by_id)
-    return scores.cot_counts, scores.n
+    return ProblemCounts(lenient=scores.lenient_counts, cot=scores.cot_counts, n=scores.n)
 
 
 _EXTRACTORS = {"strict": extract_strict, "lenient": extract_lenient}

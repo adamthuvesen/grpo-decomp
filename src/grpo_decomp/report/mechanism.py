@@ -23,7 +23,7 @@ from typing import NamedTuple
 
 from pydantic import Field
 
-from grpo_decomp.eval.battery import lenient_counts_by_problem
+from grpo_decomp.eval.battery import counts_by_problem
 from grpo_decomp.eval.completions import CompletionSet
 from grpo_decomp.eval.passk import pass_at_k
 from grpo_decomp.schemas import Record
@@ -103,7 +103,7 @@ def _pooled_correct_counts(
     for completion_set in correct_by_seed:
         if _problem_ids(completion_set) != expected_ids:
             raise ValueError("base and correct arms must cover the same problems in the same order")
-        counts, n_correct = lenient_counts_by_problem(
+        counts, _cot, n_correct = counts_by_problem(
             completion_set.problem_set(), completion_set.completions_by_id()
         )
         n_correct_each.add(n_correct)
@@ -165,7 +165,7 @@ def build_mechanism(
     if not 0.0 < tau <= 1.0:
         raise ValueError(f"tau must satisfy 0 < tau <= 1, got {tau}")
 
-    base_counts, n_base = lenient_counts_by_problem(base.problem_set(), base.completions_by_id())
+    base_counts, _cot, n_base = counts_by_problem(base.problem_set(), base.completions_by_id())
     if not 1 <= k <= n_base:
         raise ValueError(f"pass@{k} envelope needs 1<=k<=n_base; base has n={n_base}")
     pooled, n_pool = _pooled_correct_counts(correct_by_seed, expected_ids=_problem_ids(base))

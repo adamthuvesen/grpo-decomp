@@ -41,25 +41,13 @@ from grpo_decomp.registries import (
 from grpo_decomp.report.control_seeds import aggregate_control_rows
 from grpo_decomp.report.decomposition import build_single_seed_decomposition
 from grpo_decomp.report.inputs import (
-    base_and_correct_seeds as _base_and_correct_seeds,
-)
-from grpo_decomp.report.inputs import (
-    discover_completion_sets as _discover_completion_sets,
-)
-from grpo_decomp.report.inputs import (
-    greedy_pass1 as _pass1,
-)
-from grpo_decomp.report.inputs import (
-    seed_label as _seed_label,
-)
-from grpo_decomp.report.inputs import (
-    validate_completion_set as _validate_completion_set,
-)
-from grpo_decomp.report.inputs import (
-    validate_report_artifacts as _validate_report_artifacts,
-)
-from grpo_decomp.report.inputs import (
-    validate_same_prompt_strategy as _validate_same_prompt_strategy,
+    base_and_correct_seeds,
+    discover_completion_sets,
+    greedy_pass1,
+    seed_label,
+    validate_completion_set,
+    validate_report_artifacts,
+    validate_same_prompt_strategy,
 )
 from grpo_decomp.report.mechanism import build_mechanism
 from grpo_decomp.report.passk_seeds import aggregate_passk_seeds
@@ -301,12 +289,12 @@ def _cmd_battery(args: argparse.Namespace) -> int:
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
-    grouped = _discover_completion_sets(args.completions_dir)
+    grouped = discover_completion_sets(args.completions_dir)
     task = args.task_set
     if task not in grouped or not all(arm in grouped[task] for arm in ARMS):
         present = {s: sorted(a) for s, a in grouped.items()}
         raise ValueError(f"report needs base/correct/random for task set {task!r}; found {present}")
-    _validate_report_artifacts(grouped)
+    validate_report_artifacts(grouped)
 
     decomposition = build_single_seed_decomposition(grouped, task, base_model=args.base_model)
 
@@ -332,15 +320,20 @@ def _cmd_report_seeds(args: argparse.Namespace) -> int:
         battery_dir = Path(battery_dir)
         correct = load_completion_set(battery_dir / f"correct__{args.task_set}")
         random_arm = load_completion_set(battery_dir / f"random__{args.task_set}")
-        _validate_completion_set(args.task_set, "correct", correct, expected)
-        _validate_completion_set(args.task_set, "random", random_arm, expected)
+        validate_completion_set(args.task_set, "correct", correct, expected)
+        validate_completion_set(args.task_set, "random", random_arm, expected)
         prompt_sets[f"{battery_dir.name}:correct"] = correct
         prompt_sets[f"{battery_dir.name}:random"] = random_arm
         comparisons.append(
-            compare("random", _pass1(random_arm, "lenient"), "correct", _pass1(correct, "lenient"))
+            compare(
+                "random",
+                greedy_pass1(random_arm, "lenient"),
+                "correct",
+                greedy_pass1(correct, "lenient"),
+            )
         )
-        seeds.append(_seed_label(battery_dir))
-    _validate_same_prompt_strategy(args.task_set, prompt_sets)
+        seeds.append(seed_label(battery_dir))
+    validate_same_prompt_strategy(args.task_set, prompt_sets)
 
     placebo_comparison = aggregate_placebo_comparison(comparisons, seeds, task=args.task_set)
     _write_json(placebo_comparison, args.out, "seed-level placebo comparison")
@@ -349,7 +342,7 @@ def _cmd_report_seeds(args: argparse.Namespace) -> int:
 
 
 def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
-    base, correct_by_seed = _base_and_correct_seeds(args.completions_dir, args.task_set)
+    base, correct_by_seed = base_and_correct_seeds(args.completions_dir, args.task_set)
 
     panel = aggregate_passk_seeds(base, correct_by_seed, task=args.task_set, k=args.k)
     _write_json(panel, args.out, f"multi-seed pass@{panel.k} panel")
@@ -358,7 +351,7 @@ def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
 
 
 def _cmd_report_mechanism(args: argparse.Namespace) -> int:
-    base, correct_by_seed = _base_and_correct_seeds(args.completions_dir, args.task_set)
+    base, correct_by_seed = base_and_correct_seeds(args.completions_dir, args.task_set)
     correct = [completion_set for _seed, completion_set in correct_by_seed]
 
     report = build_mechanism(base, correct, task=args.task_set, k=args.k, tau=args.tau)
@@ -370,7 +363,7 @@ def _cmd_report_mechanism(args: argparse.Namespace) -> int:
 def _cmd_report_control_seeds(args: argparse.Namespace) -> int:
     battery_dirs = [Path(d) for d in args.battery_dirs]
     seed0 = battery_dirs[0]  # the seed-0 battery holds the seed-independent base arm
-    seeds = [_seed_label(d) for d in battery_dirs]
+    seeds = [seed_label(d) for d in battery_dirs]
     rows: list[tuple[str, str, list[Comparison]]] = []
     for control in args.control_sets:
         if control not in EVAL_SETS:
@@ -379,16 +372,18 @@ def _cmd_report_control_seeds(args: argparse.Namespace) -> int:
             )
         expected = EVAL_SETS[control]()
         base = load_completion_set(seed0 / f"base__{control}")
-        _validate_completion_set(control, "base", base, expected)
+        validate_completion_set(control, "base", base, expected)
         prompt_sets = {"base": base}
-        base_grade = _pass1(base, "lenient")
+        base_grade = greedy_pass1(base, "lenient")
         comparisons = []
         for battery_dir in battery_dirs:
             correct = load_completion_set(battery_dir / f"correct__{control}")
-            _validate_completion_set(control, "correct", correct, expected)
+            validate_completion_set(control, "correct", correct, expected)
             prompt_sets[f"{battery_dir.name}:correct"] = correct
-            comparisons.append(compare("base", base_grade, "correct", _pass1(correct, "lenient")))
-        _validate_same_prompt_strategy(control, prompt_sets)
+            comparisons.append(
+                compare("base", base_grade, "correct", greedy_pass1(correct, "lenient"))
+            )
+        validate_same_prompt_strategy(control, prompt_sets)
         rows.append((control, PROBES.get(control, control), comparisons))
 
     decomp = aggregate_control_rows(rows, seeds, task=args.task_set)

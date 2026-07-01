@@ -17,7 +17,7 @@ from typing import NamedTuple
 import numpy as np
 from pydantic import Field
 
-from grpo_decomp.eval.battery import cot_counts_by_problem, lenient_counts_by_problem
+from grpo_decomp.eval.battery import counts_by_problem
 from grpo_decomp.eval.code_reasoning import code_reasoning_frequency
 from grpo_decomp.eval.completions import CompletionSet
 from grpo_decomp.eval.cot import has_verifiable_chain
@@ -237,10 +237,7 @@ def _coverage_stats(
 
 def _arm_metrics(cs: CompletionSet, k: int) -> _ArmMetrics:
     """All pass@k metrics for one sampled arm — vanilla and CoT-gated share the problem set."""
-    problems = cs.problem_set()
-    completions_by_id = cs.completions_by_id()
-    counts, n = lenient_counts_by_problem(problems, completions_by_id)
-    cot_counts, _ = cot_counts_by_problem(problems, completions_by_id)
+    counts, cot_counts, n = counts_by_problem(cs.problem_set(), cs.completions_by_id())
     if not 1 <= k <= n:
         raise ValueError(f"pass@{k} needs 1<=k<=n; arm has n={n}")
     samples = [sample for item in cs.items for sample in item.samples]

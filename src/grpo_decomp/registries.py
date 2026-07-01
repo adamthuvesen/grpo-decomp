@@ -28,8 +28,6 @@ if TYPE_CHECKING:
 #: (the ``<arm>__<set>`` run-dir prefix), independent of which reward function backs the
 #: treatment — a new task keeps ``name: correct`` while setting ``reward: <its reward>``.
 ARMS: tuple[str, ...] = ("base", "correct", "random")
-TREATMENT_ARM = "correct"
-PLACEBO_ARM = "random"
 
 #: The placebo reward, provided by the harness (it is the control the method leans on).
 PLACEBO_REWARD = "random"

@@ -37,7 +37,7 @@ class HeldoutCurve(Record):
 
 
 def select_checkpoint(
-    points: Sequence[HeldoutPoint] | Sequence[dict],
+    points: Sequence[HeldoutPoint],
     rule: str,
     final_step: int,
 ) -> tuple[str, int]:
@@ -46,18 +46,15 @@ def select_checkpoint(
     `final` always takes the end-of-training checkpoint; `best_on_validation` takes the
     highest held-out accuracy, breaking ties toward the later (more-trained) step.
     """
-    normalized = [
-        p if isinstance(p, HeldoutPoint) else HeldoutPoint.model_validate(p) for p in points
-    ]
     if rule == "final":
-        if not any(point.checkpoint == "final" for point in normalized):
+        if not any(point.checkpoint == "final" for point in points):
             raise ValueError("final checkpoint selection needs a discovered final checkpoint")
         return "final", final_step
     if rule == "best_on_validation":
-        if not normalized:
+        if not points:
             raise ValueError("best_on_validation needs a non-empty held-out curve")
         best = max(
-            normalized,
+            points,
             key=lambda p: (p.accuracy, p.step if p.step is not None else final_step),
         )
         return best.checkpoint, best.step if best.step is not None else final_step
