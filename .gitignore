@@ -15,9 +15,15 @@ __pycache__/
 /exports/
 /artifacts/
 /outputs/
+/completions/
+/completion-payloads/
+/payloads/
 /logs/
 /modal-logs/
 /wandb/
+/models/
+/model-weights/
+/weights/
 *.safetensors
 *.pt
 *.ckpt
@@ -25,12 +31,25 @@ __pycache__/
 *.gguf
 *.onnx
 *.log
+completions.jsonl
+heldout.json
+provenance.json
 
 # Cached/generated datasets and hub downloads.
 /.cache/
 /.modal/
+/modal-cache/
+/hf-cache/
+/huggingface/
 /data/
 /datasets/
+/raw/
+/raw-data/
 
 # OpenSpec — local only, not tracked in git
 /openspec/
+
+# Local operator notes stay out of public release branches unless curated.
+/notes/
+/operator-notes/
+/scratch/

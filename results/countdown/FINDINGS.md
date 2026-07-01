@@ -78,7 +78,7 @@ close to overlapping, so the contrast rests on neither a single draw nor a noise
 The decomposition isn't biased toward "it's all fake": on a task where RL genuinely teaches
 new ability, it reports expansion with higher pass@8 coverage; on a saturated benchmark it reports
 elicitation. That two-sidedness is what makes the GSM8K "mostly elicitation" finding
-trustworthy rather than a null-by-construction artifact.
+trustworthy rather than a null-by-construction result.
 
 ## Bottom line
 

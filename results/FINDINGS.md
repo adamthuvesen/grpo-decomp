@@ -11,7 +11,7 @@ Holm-corrected controls), `summary.json` (seed-0 full decomposition), `decomposi
 
 A **small (~+4pp), correctness-driven, and statistically significant** GSM8K gain that
 is nonetheless **mostly elicitation** of latent base capability, not new reasoning, not
-contamination, not formatting. Two corrections to the naive read: the flashy single-seed
+contamination, not formatting. Two corrections to the single-seed read: the seed-0
 number (+6.1pp, McNemar p=3e-9) **overstated the magnitude** (six seeds settle it at
 **+3.9pp [2.3, 5.6]**), and the **6-seed** pass@k panel shows pass@8 coverage barely moves
 (Δ **+0.7pp**, propagated CI **[−0.4, +1.9]** — consistent with zero): the gain is the model
@@ -73,8 +73,8 @@ panel's +1.7 pp was the seed-0 high.
   (near-ceiling; n=8 resolves the between-seed panel, no escalation needed).
 - **The style shift does not replicate.** The published seed-0 panel's code-reasoning drop
   (84% → 63%) was a seed-0 idiosyncrasy: across six seeds correct code-reasoning is **83.1%**
-  (per-seed 63–91%) vs base 85.4% — essentially no shift, with only seed 0 at 63%. A second
-  single-seed artifact (alongside the +6.1 pp placebo high) that regresses under seeds.
+  (per-seed 63–91%) vs base 85.4% — essentially no shift, with only seed 0 at 63%. This is
+  another seed-0 result that does not hold under aggregation.
 - **Decontaminated — the envelope is not memorization.** Re-running this panel on **renumbered**
   problems (GSM-Symbolic) and **cleaned labels** (GSM8K-Platinum) leaves base pass@8 high
   (**90.8%** / **95.6%**) and far above correct pass@1, and Δ pass@8 small (**+1.8** / **+0.8**
@@ -117,7 +117,7 @@ The gain survives every control under family-wise correction. correct - base per
 (base is seed-independent), a seed-level t CI (df=5), and Holm-Bonferroni across the three rows
 (`decomposition-multiseed.json`):
 
-| control | probes | Δ (pp), 6 seeds | 95% CI | p (Holm) |
+| control | check | Δ (pp), 6 seeds | 95% CI | p (Holm) |
 | --- | --- | --- | --- | --- |
 | gsm-symbolic | memorization (renumbered) | +4.1 | [0.8, 7.5] | 0.0253 |
 | gsm-plus | robustness (perturbation) | +3.5 | [2.7, 4.4] | 0.00028 |
@@ -149,7 +149,7 @@ GSM8K's ceiling (base pass@8 = 94%) is the limiting factor: the saturation is a 
 of the **base × dataset** pair, not the dataset alone (general Qwen2.5-1.5B scores 68.5
 GSM8K / 35.0 MATH vs the math model's 76.8 / 49.8).
 
-**Done — the positive control.** Countdown (a TinyZero-style search task the base genuinely
+**Positive control.** Countdown (a TinyZero-style search task the base genuinely
 lacks) was run on this exact protocol and **does** expand capability: pass@8 coverage moves
 53.6 → 94.6 (Δ +41.0 pp) and 10.9% of the gain is genuinely new. It proves the decomposition
 detects expansion when it exists, which is what makes the GSM8K "mostly elicitation" verdict
@@ -162,4 +162,4 @@ Two follow-ups remain — to find genuine expansion on *math*, and to harden the
   enough reward signal; reuses the `math-verify` reward (needs a MATH loader). The
   highest-signal cheap test.
 - **Cross-family arm (Llama)** to upgrade the placebo from a within-Qwen lower bound to a
-  cross-family artifact verdict.
+  cross-family study verdict.
