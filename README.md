@@ -45,6 +45,19 @@ Per problem, 10.9% on Countdown is genuinely new capability.
 
 ![GSM8K vs Countdown](results/fig-task-contrast.svg)
 
+A from-scratch model is the third study — the harness is not Qwen-specific.
+`Esme-214M-RL` is a 214M model pretrained from scratch, then SFT/DPO/GRPO'd on a
+Countdown-Lite variant. Its reward-shaping story differs from GSM8K's
+reliability-inside-the-envelope: here the signal concentrates on **form**. Real
+verifier reward lifts the valid-expression rate from base 0.8% to **27.1%**, while
+a same-budget random-reward placebo stays at the base rate (0.8%) — paired
+**+26.2 pp, 95% CI [+17.3, +36.0] pp**. Exact-solve moves the same way (pass@16
+13.3% vs placebo 0.0% vs base 3.3%) but is underpowered at n=30. **Preliminary:
+single training seed** (the +26 pp form gain is far outside seed-scale noise and
+replicates the accepted run's direction; a multi-seed placebo band is the
+documented follow-up). Details:
+[`results/esme-countdown/sampled_decomposition.md`](results/esme-countdown/sampled_decomposition.md).
+
 The committed tables, JSON summaries, and figures live under `results/`.
 
 ## How It Works
