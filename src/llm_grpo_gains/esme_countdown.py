@@ -124,6 +124,36 @@ def is_valid_esme_countdown_solution(text: str, numbers: tuple[int, ...], target
     return Counter(leaves) == Counter(numbers)
 
 
+def is_wellformed_esme_countdown(text: str, numbers: tuple[int, ...]) -> bool:
+    """True iff `text` is a legal Esme Countdown-Lite *expression*, target aside.
+
+    Same grammar as `is_valid_esme_countdown_solution` (parses, only ``+ - *`` and unary ±,
+    integer literals, each supplied number used **exactly once**) but with the ``== target``
+    check dropped. This is the axis the training reward's ``valid_expression`` rung pays for
+    (invalid 0.0 < valid 0.3 < exact 1.0): does the model emit a well-formed arithmetic
+    expression over the given numbers at all, independent of whether it hits the target. It is
+    where a real verifier reward concentrates its gradient and where a random-reward placebo
+    has none — so it separates the arms far more sharply than the sparse exact-solve rung.
+    """
+    evaluated = _evaluate(text)
+    if evaluated is None:
+        return False
+    _value, leaves = evaluated
+    return Counter(leaves) == Counter(numbers)
+
+
+def esme_countdown_is_wellformed(extracted: str | None, gold: str) -> bool:
+    """`is_wellformed_esme_countdown` on an extracted expression + Esme key (verifier signature).
+
+    Mirrors `esme_countdown_is_correct` but grades well-formedness rather than exact solve,
+    so the same extraction path feeds both the exact-solve and valid-expression axes.
+    """
+    if extracted is None:
+        return False
+    numbers, _target = parse_countdown_key(gold)
+    return is_wellformed_esme_countdown(extracted, numbers)
+
+
 def esme_countdown_is_correct(extracted: str | None, gold: str) -> bool:
     """Grade an extracted expression against an Esme Countdown key (the eval-layer verifier).
 

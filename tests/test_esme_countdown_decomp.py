@@ -28,6 +28,7 @@ from llm_grpo_gains.data.countdown import parse_countdown_key
 from llm_grpo_gains.esme_countdown import (
     ESME_COUNTDOWN_SOURCE,
     esme_countdown_is_correct,
+    esme_countdown_is_wellformed,
     load_esme_countdown,
 )
 
@@ -111,6 +112,28 @@ def test_esme_verifier_rules() -> None:
     assert esme_countdown_is_correct("9", gold) is False  # not all numbers used
     assert esme_countdown_is_correct("1 + 1", "target=2;numbers=1,9") is False  # number reuse
     assert esme_countdown_is_correct(None, gold) is False
+
+
+def test_esme_wellformed_rules() -> None:
+    """Well-formedness is the exact-solve grammar minus the ``== target`` check.
+
+    This is the valid-expression axis the sampled decomposition scores: a legal expression
+    over the given numbers is well-formed even when it misses the target (where a real reward
+    concentrates its signal), while grammar violations — division, number reuse/omission —
+    are still rejected.
+    """
+    gold = "target=10;numbers=1,9"
+    # Hits the target: well-formed AND correct.
+    assert esme_countdown_is_wellformed("1 + 9", gold) is True
+    assert esme_countdown_is_correct("1 + 9", gold) is True
+    # Legal expression, wrong value: well-formed but NOT correct — the axis separation.
+    assert esme_countdown_is_wellformed("9 * 1", gold) is True
+    assert esme_countdown_is_correct("9 * 1", gold) is False
+    # Grammar violations are rejected on both axes.
+    assert esme_countdown_is_wellformed("9 / 1 + 1", gold) is False  # division illegal
+    assert esme_countdown_is_wellformed("9", gold) is False  # not all numbers used
+    assert esme_countdown_is_wellformed("1 + 1", gold) is False  # number reuse / omission
+    assert esme_countdown_is_wellformed(None, gold) is False
 
 
 def test_report_decomposes_three_arms(tmp_path: Path) -> None:

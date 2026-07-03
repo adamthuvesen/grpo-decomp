@@ -1,0 +1,64 @@
+{
+  "task_set": "esme-countdown",
+  "n_problems": 30,
+  "n_samples": 16,
+  "temperature": 1.0,
+  "k_values": [
+    1,
+    8,
+    16
+  ],
+  "arms": {
+    "base": {
+      "valid_rate": 0.008333333333333333,
+      "pass_at_k": {
+        "1": 0.0020833333333333333,
+        "8": 0.016666666666666666,
+        "16": 0.03333333333333333
+      },
+      "any_exact_solved": 1
+    },
+    "correct": {
+      "valid_rate": 0.2708333333333333,
+      "pass_at_k": {
+        "1": 0.05625,
+        "8": 0.11538461538461539,
+        "16": 0.13333333333333333
+      },
+      "any_exact_solved": 4
+    },
+    "random": {
+      "valid_rate": 0.008333333333333333,
+      "pass_at_k": {
+        "1": 0.0,
+        "8": 0.0,
+        "16": 0.0
+      },
+      "any_exact_solved": 0
+    }
+  },
+  "valid_rate_tests": {
+    "random": {
+      "mean_delta": 0.2625,
+      "ci_low": 0.17291666666666666,
+      "ci_high": 0.36041666666666666
+    },
+    "base": {
+      "mean_delta": 0.2625,
+      "ci_low": 0.175,
+      "ci_high": 0.35833333333333334
+    }
+  },
+  "exact_solve_test": {
+    "label_a": "random",
+    "label_b": "correct",
+    "accuracy_a": 0.0,
+    "accuracy_b": 0.13333333333333333,
+    "delta": 0.13333333333333333,
+    "ci_low": 0.03333333333333333,
+    "ci_high": 0.26666666666666666,
+    "p_value": 0.125,
+    "n_discordant": 4,
+    "test": "exact-binomial"
+  }
+}
