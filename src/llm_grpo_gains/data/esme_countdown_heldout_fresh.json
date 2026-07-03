@@ -1,0 +1,160 @@
+{
+  "dataset": {
+    "config": "heldout_fresh",
+    "name": "esme-countdown",
+    "revision": "heldout_fresh+e6e671c24ca56d27",
+    "split": "heldout_fresh"
+  },
+  "problems": [
+    {
+      "gold_answer": "target=10;numbers=1,9",
+      "id": "countdown_heldout_fresh_easy_0000",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 1, 9\nTarget: 10\nExpression:"
+    },
+    {
+      "gold_answer": "target=18;numbers=3,6",
+      "id": "countdown_heldout_fresh_easy_0001",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 3, 6\nTarget: 18\nExpression:"
+    },
+    {
+      "gold_answer": "target=4;numbers=1,3",
+      "id": "countdown_heldout_fresh_easy_0002",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 1, 3\nTarget: 4\nExpression:"
+    },
+    {
+      "gold_answer": "target=3;numbers=1,3",
+      "id": "countdown_heldout_fresh_easy_0003",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 1, 3\nTarget: 3\nExpression:"
+    },
+    {
+      "gold_answer": "target=7;numbers=1,8",
+      "id": "countdown_heldout_fresh_easy_0004",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 1, 8\nTarget: 7\nExpression:"
+    },
+    {
+      "gold_answer": "target=10;numbers=3,5,5",
+      "id": "countdown_heldout_fresh_medium_0000",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 3, 5, 5\nTarget: 10\nExpression:"
+    },
+    {
+      "gold_answer": "target=5;numbers=6,7,8",
+      "id": "countdown_heldout_fresh_medium_0001",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 6, 7, 8\nTarget: 5\nExpression:"
+    },
+    {
+      "gold_answer": "target=31;numbers=4,5,7",
+      "id": "countdown_heldout_fresh_medium_0002",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 4, 5, 7\nTarget: 31\nExpression:"
+    },
+    {
+      "gold_answer": "target=5;numbers=6,6,7",
+      "id": "countdown_heldout_fresh_medium_0003",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 6, 6, 7\nTarget: 5\nExpression:"
+    },
+    {
+      "gold_answer": "target=12;numbers=3,3,6",
+      "id": "countdown_heldout_fresh_medium_0004",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 3, 3, 6\nTarget: 12\nExpression:"
+    },
+    {
+      "gold_answer": "target=16;numbers=2,2,4",
+      "id": "countdown_heldout_fresh_medium_0005",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 2, 2, 4\nTarget: 16\nExpression:"
+    },
+    {
+      "gold_answer": "target=12;numbers=3,6,9",
+      "id": "countdown_heldout_fresh_medium_0006",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 3, 6, 9\nTarget: 12\nExpression:"
+    },
+    {
+      "gold_answer": "target=9;numbers=3,3,9",
+      "id": "countdown_heldout_fresh_medium_0007",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 3, 3, 9\nTarget: 9\nExpression:"
+    },
+    {
+      "gold_answer": "target=4;numbers=3,4,4",
+      "id": "countdown_heldout_fresh_medium_0008",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 3, 4, 4\nTarget: 4\nExpression:"
+    },
+    {
+      "gold_answer": "target=21;numbers=3,3,6",
+      "id": "countdown_heldout_fresh_medium_0009",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 3, 3, 6\nTarget: 21\nExpression:"
+    },
+    {
+      "gold_answer": "target=12;numbers=1,5,7",
+      "id": "countdown_heldout_fresh_medium_0010",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 1, 5, 7\nTarget: 12\nExpression:"
+    },
+    {
+      "gold_answer": "target=0;numbers=5,7,7",
+      "id": "countdown_heldout_fresh_medium_0011",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 5, 7, 7\nTarget: 0\nExpression:"
+    },
+    {
+      "gold_answer": "target=19;numbers=4,5,6",
+      "id": "countdown_heldout_fresh_medium_0012",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 4, 5, 6\nTarget: 19\nExpression:"
+    },
+    {
+      "gold_answer": "target=36;numbers=4,4,5",
+      "id": "countdown_heldout_fresh_medium_0013",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 4, 4, 5\nTarget: 36\nExpression:"
+    },
+    {
+      "gold_answer": "target=8;numbers=3,4,4",
+      "id": "countdown_heldout_fresh_medium_0014",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 3, 4, 4\nTarget: 8\nExpression:"
+    },
+    {
+      "gold_answer": "target=52;numbers=3,7,7",
+      "id": "countdown_heldout_fresh_hard_0000",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 3, 7, 7\nTarget: 52\nExpression:"
+    },
+    {
+      "gold_answer": "target=47;numbers=5,7,8",
+      "id": "countdown_heldout_fresh_hard_0001",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 5, 7, 8\nTarget: 47\nExpression:"
+    },
+    {
+      "gold_answer": "target=49;numbers=6,7,7",
+      "id": "countdown_heldout_fresh_hard_0002",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 6, 7, 7\nTarget: 49\nExpression:"
+    },
+    {
+      "gold_answer": "target=49;numbers=5,6,9",
+      "id": "countdown_heldout_fresh_hard_0003",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 5, 6, 9\nTarget: 49\nExpression:"
+    },
+    {
+      "gold_answer": "target=60;numbers=4,6,9",
+      "id": "countdown_heldout_fresh_hard_0004",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 4, 6, 9\nTarget: 60\nExpression:"
+    },
+    {
+      "gold_answer": "target=39;numbers=5,6,9",
+      "id": "countdown_heldout_fresh_hard_0005",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 5, 6, 9\nTarget: 39\nExpression:"
+    },
+    {
+      "gold_answer": "target=63;numbers=1,7,9",
+      "id": "countdown_heldout_fresh_hard_0006",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 1, 7, 9\nTarget: 63\nExpression:"
+    },
+    {
+      "gold_answer": "target=45;numbers=1,5,8",
+      "id": "countdown_heldout_fresh_hard_0007",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 1, 5, 8\nTarget: 45\nExpression:"
+    },
+    {
+      "gold_answer": "target=55;numbers=5,5,6",
+      "id": "countdown_heldout_fresh_hard_0008",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 5, 5, 6\nTarget: 55\nExpression:"
+    },
+    {
+      "gold_answer": "target=43;numbers=5,7,8",
+      "id": "countdown_heldout_fresh_hard_0009",
+      "question": "Solve this Countdown-Lite task. Use each supplied number exactly once. Allowed operators are +, -, and *. Parentheses are allowed. Return only the arithmetic expression, with no explanation.\nNumbers: 5, 7, 8\nTarget: 43\nExpression:"
+    }
+  ]
+}

@@ -33,6 +33,11 @@ from llm_grpo_gains.data import (
     load_gsm_plus,
     load_gsm_symbolic,
 )
+from llm_grpo_gains.esme_countdown import (
+    ESME_COUNTDOWN_SOURCE,
+    esme_countdown_is_correct,
+    load_esme_countdown,
+)
 from llm_grpo_gains.rewards import correct, countdown
 
 #: GSM8K's pinned HuggingFace repo id — the `DatasetRef.name` its loader stamps.
@@ -59,6 +64,9 @@ def register() -> None:
     register_eval_set("gsm8k-platinum", load_gsm8k_platinum)
     register_eval_set("countdown-test", lambda: load_countdown("test"))
     register_eval_set("countdown-dev", lambda: load_countdown("dev"))
+    # Esme-214M-RL decomposition: the held-out Countdown-Lite set the esme-posttrain
+    # emitter samples over. The completions arrive as artifacts; the harness only grades.
+    register_eval_set("esme-countdown", lambda: load_esme_countdown("heldout_fresh"))
 
     # Training datasets (ArmConfig.dataset). GSM8K carves a per-seed validation split from
     # train; Countdown ships a fixed, seed-independent one.
@@ -81,6 +89,9 @@ def register() -> None:
 
     # Grading: GSM8K family uses the harness default (math-verify); Countdown overrides.
     register_verifier(_COUNTDOWN_SOURCE, countdown_is_correct)
+    # Esme Countdown-Lite is stricter than the general Countdown control (each supplied
+    # number used exactly once, + - * only), so it registers its own verifier.
+    register_verifier(ESME_COUNTDOWN_SOURCE, esme_countdown_is_correct)
 
     # Held-out reconstruction for `grpo-decomp heldout`.
     register_validation_reconstructor(_GSM8K_SOURCE, _gsm8k_validation)
