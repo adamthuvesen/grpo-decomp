@@ -179,6 +179,22 @@ worked example.
   seeds, and sampling settings.
 - Make skipped records, malformed artifacts, and unparseable completions visible.
 
+## Related Repositories
+
+These repositories are separate codebases connected by model artifacts and
+measurement questions:
+
+- [`esme-pretrain`](https://github.com/adamthuvesen/esme-pretrain): trains
+  `Esme-214M-Base` from scratch.
+- [`esme-posttrain`](https://github.com/adamthuvesen/esme-posttrain): adapts
+  the base checkpoint with SFT, DPO, and verifier-backed RLVR.
+- [`llm-infer`](https://github.com/adamthuvesen/llm-infer): loads, serves, and
+  benchmarks exported Esme checkpoints.
+- [`llm-rlvr`](https://github.com/adamthuvesen/llm-rlvr): provides a reusable
+  RLVR harness with text-to-SQL as the reference task.
+- [`grpo-decomp`](https://github.com/adamthuvesen/grpo-decomp): measures where
+  GRPO gains come from, separating reliability from new capability.
+
 ## Stack
 
 Python 3.11+ · `uv` · Pydantic · TRL GRPO · transformers · vLLM · Modal ·
