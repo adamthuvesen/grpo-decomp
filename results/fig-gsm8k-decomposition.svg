@@ -23,21 +23,21 @@
   <g transform="translate(66 132)">
     <text class="label" x="0" y="0">Confirmatory placebo comparison</text>
     <text class="small" x="0" y="24">correct reward - random reward, 6 seeds</text>
-    <line class="axis" x1="30" y1="178" x2="360" y2="178"/>
-    <line class="grid" x1="30" y1="66" x2="30" y2="178"/>
-    <line class="grid" x1="112.5" y1="66" x2="112.5" y2="178"/>
-    <line class="grid" x1="195" y1="66" x2="195" y2="178"/>
-    <line class="grid" x1="277.5" y1="66" x2="277.5" y2="178"/>
-    <line class="grid" x1="360" y1="66" x2="360" y2="178"/>
-    <text class="tick" x="30" y="202" text-anchor="middle">0</text>
-    <text class="tick" x="112.5" y="202" text-anchor="middle">2</text>
-    <text class="tick" x="195" y="202" text-anchor="middle">4</text>
-    <text class="tick" x="277.5" y="202" text-anchor="middle">6</text>
-    <text class="tick" x="360" y="202" text-anchor="middle">8 pp</text>
-    <line x1="124.5" y1="120" x2="260.7" y2="120" stroke="#636efa" stroke-width="5" stroke-linecap="round"/>
-    <circle cx="192.7" cy="120" r="8" fill="#636efa"/>
-    <text class="value" x="192.7" y="96" text-anchor="middle">+3.9 pp</text>
-    <text class="small" x="192.7" y="148" text-anchor="middle">95% CI [2.3, 5.6]</text>
+    <line class="axis" x1="30" y1="300" x2="345" y2="300"/>
+    <line class="grid" x1="30" y1="50" x2="30" y2="300"/>
+    <line class="grid" x1="108.75" y1="50" x2="108.75" y2="300"/>
+    <line class="grid" x1="187.5" y1="50" x2="187.5" y2="300"/>
+    <line class="grid" x1="266.25" y1="50" x2="266.25" y2="300"/>
+    <line class="grid" x1="345" y1="50" x2="345" y2="300"/>
+    <text class="tick" x="30" y="324" text-anchor="middle">0</text>
+    <text class="tick" x="108.75" y="324" text-anchor="middle">2</text>
+    <text class="tick" x="187.5" y="324" text-anchor="middle">4</text>
+    <text class="tick" x="266.25" y="324" text-anchor="middle">6</text>
+    <text class="tick" x="345" y="324" text-anchor="middle">8 pp</text>
+    <line x1="120.6" y1="175" x2="250.5" y2="175" stroke="#636efa" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="183.6" cy="175" r="8" fill="#636efa"/>
+    <text class="value" x="183.6" y="150" text-anchor="middle">+3.9 pp</text>
+    <text class="small" x="183.6" y="205" text-anchor="middle">95% CI [2.3, 5.6]</text>
   </g>
 
   <g transform="translate(490 132)">
