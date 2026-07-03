@@ -12,6 +12,7 @@ The figures are committed artifacts; this script documents their inputs.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TypeVar
 
@@ -441,6 +442,134 @@ def _decontam_figure(test: dict, symbolic: dict, platinum: dict) -> None:
     plt.close(fig)
 
 
+def _esme_sampled_figure(summary: dict) -> None:
+    """Esme's held-out signal is form first, exact solving second."""
+    valid = {
+        "base": summary["arms"]["base"]["valid_rate"] * PP,
+        "random": summary["arms"]["random"]["valid_rate"] * PP,
+        "correct": summary["arms"]["correct"]["valid_rate"] * PP,
+    }
+    pass16 = {
+        "base": summary["arms"]["base"]["pass_at_k"]["16"] * PP,
+        "random": summary["arms"]["random"]["pass_at_k"]["16"] * PP,
+        "correct": summary["arms"]["correct"]["pass_at_k"]["16"] * PP,
+    }
+    valid_test = summary["valid_rate_tests"]["random"]
+
+    def y(value: float) -> float:
+        return 300 - (value / 30) * 260
+
+    def h(value: float) -> float:
+        return (value / 30) * 260
+
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="920" height="620"
+  viewBox="0 0 920 620" role="img" aria-labelledby="title desc">
+  <title id="title">Esme-214M-RL sampled decomposition</title>
+  <desc id="desc">Two-panel chart showing that Esme-214M-RL separates from placebo on
+    valid-expression form, while exact solving moves in the same direction but is
+    underpowered.</desc>
+  <style>
+    .bg {{ fill: #ffffff; }}
+    .panel {{ fill: #ffffff; stroke: #d9dde7; stroke-width: 1; }}
+    text {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
+    .title {{ fill: #1f2937; font-size: 22px; font-weight: 700; }}
+    .subtitle {{ fill: #6b7280; font-size: 14px; }}
+    .axis {{ stroke: #cfd5df; stroke-width: 1; }}
+    .grid {{ stroke: #eef1f6; stroke-width: 1; }}
+    .tick {{ fill: #6b7280; font-size: 12px; }}
+    .label {{ fill: #374151; font-size: 13px; }}
+    .value {{ fill: #1f2937; font-size: 13px; font-weight: 700; }}
+    .small {{ fill: #6b7280; font-size: 12px; }}
+    .legend {{ fill: #374151; font-size: 13px; }}
+  </style>
+  <rect class="bg" width="920" height="620" rx="10"/>
+  <rect class="panel" x="28" y="24" width="864" height="560" rx="8"/>
+
+  <text class="title" x="56" y="64">Esme-214M-RL: reward sharpens form first</text>
+  <text class="subtitle" x="56" y="88">Held-out Countdown-Lite: real reward separates from
+    placebo on valid expressions; exact solving remains underpowered.</text>
+
+  <g transform="translate(90 142)">
+    <text class="label" x="0" y="0">Form validity</text>
+    <text class="small" x="0" y="24">valid-expression rate, 16 samples/problem</text>
+    <line class="grid" x1="0" y1="300" x2="330" y2="300"/>
+    <line class="grid" x1="0" y1="213.3" x2="330" y2="213.3"/>
+    <line class="grid" x1="0" y1="126.7" x2="330" y2="126.7"/>
+    <line class="grid" x1="0" y1="40" x2="330" y2="40"/>
+    <line class="axis" x1="0" y1="40" x2="0" y2="300"/>
+    <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
+    <text class="tick" x="-24" y="304" text-anchor="end">0%</text>
+    <text class="tick" x="-24" y="217.3" text-anchor="end">10%</text>
+    <text class="tick" x="-24" y="130.7" text-anchor="end">20%</text>
+    <text class="tick" x="-24" y="44" text-anchor="end">30%</text>
+    <rect x="50" y="{y(valid["base"]):.1f}" width="54"
+      height="{h(valid["base"]):.1f}" fill="#c7d2e8" rx="4"/>
+    <rect x="138" y="{y(valid["random"]):.1f}" width="54"
+      height="{h(valid["random"]):.1f}" fill="#aeb6ff" rx="4"/>
+    <rect x="226" y="{y(valid["correct"]):.1f}" width="54"
+      height="{h(valid["correct"]):.1f}" fill="#ef553b" rx="4"/>
+    <text class="value" x="77" y="{y(valid["base"]) - 10:.1f}"
+      text-anchor="middle">{valid["base"]:.1f}%</text>
+    <text class="value" x="165" y="{y(valid["random"]) - 10:.1f}"
+      text-anchor="middle">{valid["random"]:.1f}%</text>
+    <text class="value" x="253" y="{y(valid["correct"]) - 10:.1f}"
+      text-anchor="middle">{valid["correct"]:.1f}%</text>
+    <text class="label" x="77" y="326" text-anchor="middle">base</text>
+    <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
+    <text class="label" x="253" y="326" text-anchor="middle">real reward</text>
+    <text class="value" x="165" y="74" text-anchor="middle">
+      +{valid_test["mean_delta"] * PP:.1f} pp</text>
+    <text class="small" x="165" y="94" text-anchor="middle">
+      95% CI [{valid_test["ci_low"] * PP:.1f}, {valid_test["ci_high"] * PP:.1f}]
+    </text>
+  </g>
+
+  <g transform="translate(512 142)">
+    <text class="label" x="0" y="0">Exact solving</text>
+    <text class="small" x="0" y="24">pass@16 exact solve rate</text>
+    <line class="grid" x1="0" y1="300" x2="330" y2="300"/>
+    <line class="grid" x1="0" y1="213.3" x2="330" y2="213.3"/>
+    <line class="grid" x1="0" y1="126.7" x2="330" y2="126.7"/>
+    <line class="grid" x1="0" y1="40" x2="330" y2="40"/>
+    <line class="axis" x1="0" y1="40" x2="0" y2="300"/>
+    <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
+    <text class="tick" x="-24" y="304" text-anchor="end">0%</text>
+    <text class="tick" x="-24" y="217.3" text-anchor="end">10%</text>
+    <text class="tick" x="-24" y="130.7" text-anchor="end">20%</text>
+    <text class="tick" x="-24" y="44" text-anchor="end">30%</text>
+    <rect x="50" y="{y(pass16["base"]):.1f}" width="54"
+      height="{h(pass16["base"]):.1f}" fill="#c7d2e8" rx="4"/>
+    <rect x="138" y="{y(pass16["random"]):.1f}" width="54"
+      height="{h(pass16["random"]):.1f}" fill="#aeb6ff" rx="4"/>
+    <rect x="226" y="{y(pass16["correct"]):.1f}" width="54"
+      height="{h(pass16["correct"]):.1f}" fill="#ef553b" rx="4"/>
+    <text class="value" x="77" y="{y(pass16["base"]) - 10:.1f}"
+      text-anchor="middle">{pass16["base"]:.1f}%</text>
+    <text class="value" x="165" y="{y(pass16["random"]) - 10:.1f}"
+      text-anchor="middle">{pass16["random"]:.1f}%</text>
+    <text class="value" x="253" y="{y(pass16["correct"]) - 10:.1f}"
+      text-anchor="middle">{pass16["correct"]:.1f}%</text>
+    <text class="label" x="77" y="326" text-anchor="middle">base</text>
+    <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
+    <text class="label" x="253" y="326" text-anchor="middle">real reward</text>
+  </g>
+
+  <g transform="translate(506 520)">
+    <rect x="0" y="-10" width="12" height="12" fill="#c7d2e8" rx="2"/>
+    <text class="legend" x="18" y="1">base</text>
+    <rect x="78" y="-10" width="12" height="12" fill="#aeb6ff" rx="2"/>
+    <text class="legend" x="96" y="1">placebo</text>
+    <rect x="176" y="-10" width="12" height="12" fill="#ef553b" rx="2"/>
+    <text class="legend" x="194" y="1">real reward</text>
+  </g>
+  <text class="small" x="56" y="560">Preliminary: one training seed. The significant
+    signal is form validity; exact solve moves the same way but is underpowered at n=30.
+  </text>
+</svg>
+"""
+    (HERE / "esme-countdown" / "fig-sampled-form-vs-exact.svg").write_text(svg, encoding="utf-8")
+
+
 def main() -> None:
     placebo = _load_record(HERE / "seed-placebo-comparison.json", SeedPlaceboComparison)
     panel = _load_record(HERE / "pass8-multiseed.json", PassKMultiSeed)
@@ -449,14 +578,17 @@ def main() -> None:
     mech_cd = _load_record(HERE / "countdown" / "mechanism.json", MechanismReport)
     symbolic = _load_record(HERE / "decontam" / "pass8-symbolic.json", PassKMultiSeed)
     platinum = _load_record(HERE / "decontam" / "pass8-platinum.json", PassKMultiSeed)
+    esme_sampled = json.loads((HERE / "esme-countdown" / "sampled_summary.json").read_text())
     _placebo_comparison_figure(placebo)
     _passk_curve_figure(panel)
     _contrast_figure(panel, countdown)
     _mechanism_figure(mech, mech_cd)
     _decontam_figure(panel, symbolic, platinum)
+    _esme_sampled_figure(esme_sampled)
     print(
         "wrote fig-placebo-comparison.png, fig-passk-curve.png, fig-passk-contrast.png, "
-        "fig-mechanism.png, decontam/fig-decontam.png"
+        "fig-mechanism.png, decontam/fig-decontam.png, "
+        "esme-countdown/fig-sampled-form-vs-exact.svg"
     )
 
 

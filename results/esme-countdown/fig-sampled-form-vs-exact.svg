@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="620"
+  viewBox="0 0 920 620" role="img" aria-labelledby="title desc">
+  <title id="title">Esme-214M-RL sampled decomposition</title>
+  <desc id="desc">Two-panel chart showing that Esme-214M-RL separates from placebo on
+    valid-expression form, while exact solving moves in the same direction but is
+    underpowered.</desc>
+  <style>
+    .bg { fill: #ffffff; }
+    .panel { fill: #ffffff; stroke: #d9dde7; stroke-width: 1; }
+    text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .title { fill: #1f2937; font-size: 22px; font-weight: 700; }
+    .subtitle { fill: #6b7280; font-size: 14px; }
+    .axis { stroke: #cfd5df; stroke-width: 1; }
+    .grid { stroke: #eef1f6; stroke-width: 1; }
+    .tick { fill: #6b7280; font-size: 12px; }
+    .label { fill: #374151; font-size: 13px; }
+    .value { fill: #1f2937; font-size: 13px; font-weight: 700; }
+    .small { fill: #6b7280; font-size: 12px; }
+    .legend { fill: #374151; font-size: 13px; }
+  </style>
+  <rect class="bg" width="920" height="620" rx="10"/>
+  <rect class="panel" x="28" y="24" width="864" height="560" rx="8"/>
+
+  <text class="title" x="56" y="64">Esme-214M-RL: reward sharpens form first</text>
+  <text class="subtitle" x="56" y="88">Held-out Countdown-Lite: real reward separates from
+    placebo on valid expressions; exact solving remains underpowered.</text>
+
+  <g transform="translate(90 142)">
+    <text class="label" x="0" y="0">Form validity</text>
+    <text class="small" x="0" y="24">valid-expression rate, 16 samples/problem</text>
+    <line class="grid" x1="0" y1="300" x2="330" y2="300"/>
+    <line class="grid" x1="0" y1="213.3" x2="330" y2="213.3"/>
+    <line class="grid" x1="0" y1="126.7" x2="330" y2="126.7"/>
+    <line class="grid" x1="0" y1="40" x2="330" y2="40"/>
+    <line class="axis" x1="0" y1="40" x2="0" y2="300"/>
+    <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
+    <text class="tick" x="-24" y="304" text-anchor="end">0%</text>
+    <text class="tick" x="-24" y="217.3" text-anchor="end">10%</text>
+    <text class="tick" x="-24" y="130.7" text-anchor="end">20%</text>
+    <text class="tick" x="-24" y="44" text-anchor="end">30%</text>
+    <rect x="50" y="292.8" width="54"
+      height="7.2" fill="#c7d2e8" rx="4"/>
+    <rect x="138" y="292.8" width="54"
+      height="7.2" fill="#aeb6ff" rx="4"/>
+    <rect x="226" y="65.3" width="54"
+      height="234.7" fill="#ef553b" rx="4"/>
+    <text class="value" x="77" y="282.8"
+      text-anchor="middle">0.8%</text>
+    <text class="value" x="165" y="282.8"
+      text-anchor="middle">0.8%</text>
+    <text class="value" x="253" y="55.3"
+      text-anchor="middle">27.1%</text>
+    <text class="label" x="77" y="326" text-anchor="middle">base</text>
+    <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
+    <text class="label" x="253" y="326" text-anchor="middle">real reward</text>
+    <text class="value" x="165" y="74" text-anchor="middle">
+      +26.2 pp</text>
+    <text class="small" x="165" y="94" text-anchor="middle">
+      95% CI [17.3, 36.0]
+    </text>
+  </g>
+
+  <g transform="translate(512 142)">
+    <text class="label" x="0" y="0">Exact solving</text>
+    <text class="small" x="0" y="24">pass@16 exact solve rate</text>
+    <line class="grid" x1="0" y1="300" x2="330" y2="300"/>
+    <line class="grid" x1="0" y1="213.3" x2="330" y2="213.3"/>
+    <line class="grid" x1="0" y1="126.7" x2="330" y2="126.7"/>
+    <line class="grid" x1="0" y1="40" x2="330" y2="40"/>
+    <line class="axis" x1="0" y1="40" x2="0" y2="300"/>
+    <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
+    <text class="tick" x="-24" y="304" text-anchor="end">0%</text>
+    <text class="tick" x="-24" y="217.3" text-anchor="end">10%</text>
+    <text class="tick" x="-24" y="130.7" text-anchor="end">20%</text>
+    <text class="tick" x="-24" y="44" text-anchor="end">30%</text>
+    <rect x="50" y="271.1" width="54"
+      height="28.9" fill="#c7d2e8" rx="4"/>
+    <rect x="138" y="300.0" width="54"
+      height="0.0" fill="#aeb6ff" rx="4"/>
+    <rect x="226" y="184.4" width="54"
+      height="115.6" fill="#ef553b" rx="4"/>
+    <text class="value" x="77" y="261.1"
+      text-anchor="middle">3.3%</text>
+    <text class="value" x="165" y="290.0"
+      text-anchor="middle">0.0%</text>
+    <text class="value" x="253" y="174.4"
+      text-anchor="middle">13.3%</text>
+    <text class="label" x="77" y="326" text-anchor="middle">base</text>
+    <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
+    <text class="label" x="253" y="326" text-anchor="middle">real reward</text>
+  </g>
+
+  <g transform="translate(506 520)">
+    <rect x="0" y="-10" width="12" height="12" fill="#c7d2e8" rx="2"/>
+    <text class="legend" x="18" y="1">base</text>
+    <rect x="78" y="-10" width="12" height="12" fill="#aeb6ff" rx="2"/>
+    <text class="legend" x="96" y="1">placebo</text>
+    <rect x="176" y="-10" width="12" height="12" fill="#ef553b" rx="2"/>
+    <text class="legend" x="194" y="1">real reward</text>
+  </g>
+  <text class="small" x="56" y="560">Preliminary: one training seed. The significant
+    signal is form validity; exact solve moves the same way but is underpowered at n=30.
+  </text>
+</svg>

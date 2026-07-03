@@ -1,64 +1,61 @@
 # grpo-decomp
 
-`grpo-decomp` is a measurement framework for GRPO gains. It asks a
-simple question:
+A tool for measuring GRPO gains. It asks one question: did reinforcement
+learning teach the model new reasoning, or did it mostly make answers the base
+model could already produce show up more reliably?
 
-Did reinforcement learning teach the model new reasoning, or did it mostly make
-answers the base model could already produce show up more reliably?
+Two packages:
 
-The repo contains two packages:
+- `grpo_decomp`: the task-agnostic harness. It trains GRPO arms, samples and
+  freezes completions as artifacts, grades them, and reports controlled comparisons.
+- `llm_grpo_gains`: the reference study. It plugs GSM8K and a generated Countdown
+  positive control into the harness.
 
-- **`grpo_decomp`**: the task-agnostic harness. It trains GRPO arms, samples
-  completions, freezes them as artifacts, grades them, and reports controlled
-  comparisons.
-- **`llm_grpo_gains`**: the reference study. It plugs GSM8K and a generated
-  Countdown positive control into the harness.
+It is not a general RL platform. It is a small measurement system built on controls,
+confidence intervals, paired tests, and reproducible artifacts.
 
-The harness is not a general RL platform. It is a small measurement system built
-around controls, confidence intervals, paired tests, and reproducible artifacts.
+## Result
 
-## Current Result
+Three studies, one controlled protocol: placebo, confidence intervals, paired tests.
+Each measures a different thing GRPO can do, and only one of the three is new reasoning.
 
-On GSM8K with `Qwen/Qwen2.5-Math-1.5B`, a correctness reward gives a real but
-modest gain over a random-reward placebo: **+3.9 pp, 95% CI [2.3, 5.6]** across
-six seeds.
+**Reading the numbers:** _pass@1_ is reliability (does the base solve it on the first
+try); _pass@8_ is coverage (can it solve it in _any_ of 8 tries). A gain in pass@1
+without pass@8 is answers the model already had showing up more often, not new capability.
 
-That gain is mostly reliability, not new coverage:
+### 1 · GSM8K: reliability, not new coverage
 
-- The base already has the envelope: base pass@8 (94.0%) is above correct pass@1
-  (76.2%).
-- Coverage barely moves: Δ +0.7 pp, 95% CI [-0.4, +1.9].
-- Per problem, 0.0% of the GSM8K gain is new capability; added reliability comes
-  from problems inside the base pass@8 envelope.
-- The envelope survives decontamination: on renumbered GSM-Symbolic problems,
-  base pass@8 holds at 90.8%.
-- CoT-gated pass@k is not informative here because these completions have 0.0%
-  verifiable-chain coverage in the `<<a op b = c>>` format.
+_Qwen2.5-Math-1.5B · 6 seeds_
 
-![GSM8K decomposition](results/fig-gsm8k-decomposition.svg)
+GRPO beats a random-reward placebo by **+3.9 pp, 95% CI [2.3, 5.6]**, real but modest.
+Coverage barely moves: Δ +0.7 pp [-0.4, +1.9]. The answers were already latent, since
+base pass@8 (94.0%) already exceeds correct pass@1 (76.2%), so **0.0% of the GSM8K gain
+is new capability**; RL just makes latent answers show up more reliably. Controls hold:
+base pass@8 holds at 90.8% on renumbered GSM-Symbolic, with 0.0% verifiable-chain coverage
+in the CoT-gated check.
 
-Countdown is the positive control. On a generated search task where the base
-model lacks coverage, the same protocol detects real expansion: the placebo
-comparison is **+46.5 pp, 95% CI [21.4, 71.6]**, pass@8 moves by **Δ +41.0 pp,
-95% CI [35.1, 46.9]**, and coverage goes from base 53.6% → correct 94.6%.
-Per problem, 10.9% on Countdown is genuinely new capability.
+### 2 · Countdown: real expansion (positive control)
 
-![GSM8K vs Countdown](results/fig-task-contrast.svg)
+_generated search task · 3 seeds_
 
-A from-scratch model is the third study — the harness is not Qwen-specific.
-`Esme-214M-RL` is a 214M model pretrained from scratch, then SFT/DPO/GRPO'd on a
-Countdown-Lite variant. Its reward-shaping story differs from GSM8K's
-reliability-inside-the-envelope: here the signal concentrates on **form**. Real
-verifier reward lifts the valid-expression rate from base 0.8% to **27.1%**, while
-a same-budget random-reward placebo stays at the base rate (0.8%) — paired
-**+26.2 pp, 95% CI [+17.3, +36.0] pp**. Exact-solve moves the same way (pass@16
-13.3% vs placebo 0.0% vs base 3.3%) but is underpowered at n=30. **Preliminary:
-single training seed** (the +26 pp form gain is far outside seed-scale noise and
-replicates the accepted run's direction; a multi-seed placebo band is the
-documented follow-up). Details:
-[`results/esme-countdown/sampled_decomposition.md`](results/esme-countdown/sampled_decomposition.md).
+A task the base model can't cover, so the same protocol should catch real capability. It
+does. Gain over placebo: **+46.5 pp, 95% CI [21.4, 71.6]**, and this time coverage moves
+with it: **Δ +41.0 pp, 95% CI [35.1, 46.9]** (base 53.6% → correct 94.6%). Per problem,
+10.9% on Countdown is genuinely new. This is the control that proves the GSM8K read is a
+real null, not the method being blind to gains.
 
-The committed tables, JSON summaries, and figures live under `results/`.
+### 3 · Esme-214M-RL: better form (preliminary)
+
+_trained from scratch · 1 seed_
+
+A different axis: not coverage or reliability, but whether outputs are even well-formed.
+Valid-expression rate rises from 0.8% to 27.1% while the random-reward placebo stays flat.
+Single seed, still preliminary.
+
+Full writeups, figures, and the decontamination / mechanism / CoT-gated checks:
+[GSM8K](results/FINDINGS.md) · [Countdown](results/countdown/FINDINGS.md) ·
+[Esme](results/esme-countdown/sampled_decomposition.md). Committed tables, JSON summaries,
+and figures are under `results/`.
 
 ## How It Works
 
@@ -66,147 +63,56 @@ Training and analysis are separated by a committed artifact boundary:
 
 1. Train one arm with a recorded base model, reward, seed, dataset, and config.
 2. Generate completions from the base model and trained checkpoints.
-3. Freeze answers as `CompletionSet` directories.
+3. Freeze them as `CompletionSet` directories.
 4. Grade and report offline on CPU.
 
 Only training and generation need a model backend. Once a `CompletionSet` exists,
-analysis is deterministic and needs no GPU, network, or Hugging Face access.
+analysis is deterministic: no GPU, network, or Hugging Face access.
 
-The harness stays task-agnostic through registries in `grpo_decomp/registries.py`.
-The study package registers datasets, rewards, verifiers, prompt strategies, and
-task profiles through the `grpo_decomp.plugins` entry point.
+The harness stays task-agnostic through registries in `grpo_decomp/registries.py`; the
+study registers its datasets, rewards, verifiers, and prompt strategies through the
+`grpo_decomp.plugins` entry point. Published runs used Modal for training/generation
+and W&B for curves; the public repo ships the derived result JSON and figures, not the
+run volumes or checkpoints. Module map and data flow: [docs/architecture.md](docs/architecture.md).
 
-For the module map and data flow, read [`docs/architecture.md`](docs/architecture.md).
-For local checks and reproducibility commands, read [`docs/runbook.md`](docs/runbook.md).
-
-## Install
-
-```bash
-make install
-```
-
-This installs the CPU environment for data loading, rewards, evaluation,
-statistics, reports, and tests.
-
-Optional extras:
+## Quickstart
 
 ```bash
-uv sync --extra generate  # local transformers generation
-uv sync --extra train     # GPU training stack: TRL + vLLM + W&B
+make install   # CPU env: data, rewards, eval, stats, report, tests
+make check     # ruff + unit tests + docs consistency
+make results   # rebuild committed figures from JSON, then docs <-> JSON check
+make demo      # score two tiny committed CompletionSets; no model load
 ```
 
-## Check The Published Numbers
-
-```bash
-make results
-```
-
-This rebuilds the committed figures from JSON and runs the docs-to-JSON
-consistency check. The normal local gate is:
-
-```bash
-make check
-```
-
-## Try The CPU Eval Path
-
-`make demo` scores two tiny committed `CompletionSet` fixtures. It does not load a
-model.
-
-```bash
-make demo
-```
-
-Expected strict accuracy:
-
-- base fixture: `0.3333333333333333`
-- correct fixture: `0.5`
-
-## Generate A Completion Set
-
-Local generation uses the optional `generate` extra:
+Generation and training need a model backend; everything else runs on CPU:
 
 ```bash
 uv sync --extra generate
-grpo-decomp generate \
-  --model Qwen/Qwen2.5-Math-1.5B \
-  --set dev \
-  --backend transformers \
-  --out runs/base__dev
-grpo-decomp battery --completions runs/base__dev --k 1
+grpo-decomp generate --model Qwen/Qwen2.5-Math-1.5B --set dev --backend transformers --out runs/base__dev
+grpo-decomp battery  --completions runs/base__dev --k 1
+grpo-decomp report   --completions-dir runs/ --out results/   # <arm>__<set> dirs -> table + summary.json
 ```
 
-For GPU training on Modal:
-
-```bash
-modal run --detach modal_app.py --arm configs/correct.yaml
-```
-
-## Main CLI Commands
-
-- `generate`: load a model and write a `CompletionSet`
-- `battery`: score a `CompletionSet`
-- `report`: build a single-seed decomposition table
-- `report-seeds`: aggregate the placebo comparison
-- `report-passk-seeds`: aggregate pass@k coverage
-- `report-mechanism`: report per-problem migration vs. new capability
-- `report-control-seeds`: aggregate control-set results
-- `heldout`: score checkpoints on a validation split
-
-Example report layout:
-
-```bash
-grpo-decomp report --completions-dir runs/ --out results/
-```
-
-`runs/` should contain directories named `<arm>__<set>`, such as
-`base__gsm8k-test` and `correct__gsm-symbolic`.
+Run `grpo-decomp --help` for the full command set. To train an arm on Modal and
+reproduce the published runs, see [docs/runbook.md](docs/runbook.md).
 
 ## Plug In Your Own Model And Task
 
-Point `--model` or `ArmConfig.base_model` at any Hugging Face id or local
-checkpoint path, then register the task:
-
-```python
-from grpo_decomp.registries import register_eval_set, register_reward, register_train_dataset
-
-def register() -> None:
-    register_eval_set("my-test", load_my_test)
-    register_train_dataset(TrainDataset("my-task", load_my_train_and_validation))
-    register_reward("my-reward", lambda seed: my_reward)
-```
-
-Most tasks also register a verifier and validation reconstructor; chat-template
-models can register a prompt strategy. Declare the function under the
-`grpo_decomp.plugins` entry-point group so the CLI and Modal app discover it.
-
-[`src/llm_grpo_gains/registration.py`](src/llm_grpo_gains/registration.py) is the
-worked example.
+`--model` / `ArmConfig.base_model` takes any Hugging Face id or local checkpoint path.
+To add a task, write a `register()` that registers your eval set, train dataset, and
+reward (plus a verifier and validation reconstructor for non-boxed-math tasks), then
+declare it under the `grpo_decomp.plugins` entry point.
+[src/llm_grpo_gains/registration.py](src/llm_grpo_gains/registration.py) is the worked
+example.
 
 ## Study Rules
 
 - No headline gain without controls, confidence intervals, and paired tests.
-- Aggregate over seeds before making a claim.
+- Aggregate over seeds before making a claim; below three seeds, label it preliminary.
 - Treat reward curves as training diagnostics, not evidence.
-- Record dataset revisions, model revisions, config, commit, dependency versions,
-  seeds, and sampling settings.
+- Record dataset and model revisions, config, commit, dependency versions, seeds, and
+  sampling settings on every artifact.
 - Make skipped records, malformed artifacts, and unparseable completions visible.
-
-## Related Repositories
-
-These repositories are separate codebases connected by model artifacts and
-measurement questions:
-
-- [`esme-pretrain`](https://github.com/adamthuvesen/esme-pretrain): trains
-  `Esme-214M-Base` from scratch.
-- [`esme-posttrain`](https://github.com/adamthuvesen/esme-posttrain): adapts
-  the base checkpoint with SFT, DPO, and verifier-backed RLVR.
-- [`llm-infer`](https://github.com/adamthuvesen/llm-infer): loads, serves, and
-  benchmarks exported Esme checkpoints.
-- [`llm-rlvr`](https://github.com/adamthuvesen/llm-rlvr): provides a reusable
-  RLVR harness with text-to-SQL as the reference task.
-- [`grpo-decomp`](https://github.com/adamthuvesen/grpo-decomp): measures where
-  GRPO gains come from, separating reliability from new capability.
 
 ## Stack
 

@@ -1,7 +1,11 @@
 # Runbook
 
 This is the public runbook for installing the project, checking the committed
-results, running CPU evaluation, and launching a GRPO arm.
+results, and running CPU evaluation.
+
+The published GPU runs used Modal for training/generation and W&B for training
+curves. Those raw run directories and checkpoints are not part of the public
+reproducibility path; the committed JSON and figures are.
 
 ## Install
 
@@ -12,11 +16,10 @@ make install
 This syncs the CPU environment, including dev tools and the eval/statistics
 layer.
 
-Optional extras:
+Optional extra for local generation:
 
 ```bash
 uv sync --extra generate  # local transformers generation
-uv sync --extra train     # GPU training stack
 ```
 
 ## Local Checks
@@ -63,55 +66,17 @@ grpo-decomp battery --completions runs/base__dev --k 1
 Generation writes a `CompletionSet` containing the sampled answers, source
 problems, and provenance. `battery` grades that artifact offline.
 
-## Train On Modal
-
-Prerequisites:
-
-- Modal account and CLI authentication
-- Weights & Biases secret named `wandb`
-
-```bash
-uv tool install modal
-modal setup
-export WANDB_API_KEY="..."
-modal secret create wandb WANDB_API_KEY="$WANDB_API_KEY"
-```
-
-Launch one arm:
-
-```bash
-modal run --detach modal_app.py --arm configs/correct.yaml
-```
-
-Score held-out checkpoints for an arm:
-
-```bash
-modal run --detach modal_app.py --arm configs/correct.yaml --command heldout
-```
-
-The Modal app writes checkpoints, provenance, held-out curves, and generated
-completion sets to the `assay-runs` Volume.
-
 ## Reproduce Published Results
 
-The committed JSON and figures can be checked without Modal:
+The committed JSON and figures can be checked locally:
 
 ```bash
 make install
 make results
 ```
 
-To re-derive JSON from completion artifacts, first pull the expected run
-directories from the `assay-runs` Volume:
-
-```bash
-modal volume get assay-runs passk-multiseed           runs/passk-multiseed
-modal volume get assay-runs passk-multiseed-countdown runs/passk-multiseed-countdown
-modal volume get assay-runs battery                   runs/battery
-for s in 1 2 3 4 5; do modal volume get assay-runs battery-seed$s runs/battery-seed$s; done
-```
-
-Then rebuild aggregate JSON:
+To re-derive JSON, place matching `CompletionSet` directories under `runs/` and
+run the aggregate commands:
 
 ```bash
 make aggregate
@@ -123,7 +88,9 @@ make results
 ```
 
 `make aggregate` rebuilds the pass@k, mechanism, control, Countdown, and
-decontamination aggregate artifacts from local `runs/` inputs.
+decontamination aggregate files from local `runs/` inputs. The committed
+repository includes the derived JSON and figures, not the private run storage or
+full training outputs.
 
 ## Operational Constraints
 

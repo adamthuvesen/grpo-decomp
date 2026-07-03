@@ -5,6 +5,8 @@ same 30 held-out Countdown problems, but sampled (**n=16, temperature 1.0**) ins
 pass@1, and scored on two axes instead of one. Produced by `scripts/esme_sampled_decomp.py`;
 raw numbers in `sampled_summary.json`.
 
+![Esme-214M-RL form vs exact solving: real reward separates from the random-reward placebo on valid-expression rate first, exact solving second](fig-sampled-form-vs-exact.svg)
+
 ## Why this exists
 
 The greedy report scored one deterministic sample per problem on **exact-solve only**. For a

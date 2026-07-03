@@ -118,7 +118,7 @@ Study — `src/llm_grpo_gains/` (+ repo-root `configs/`, `results/`, `modal_app.
 | `registration.py`  | `register()`: wires the study's datasets/rewards/verifiers/task profiles into the harness. |
 | `configs/`         | One YAML per (arm, seed).                                                                  |
 | `results/`         | Committed outputs: decomposition table, `summary.json`, findings.                          |
-| `modal_app.py`     | Rents an A100 on Modal and runs the GPU steps (loads the study plugin).                    |
+| `modal_app.py`     | The cloud runner used for the published GPU jobs.                                           |
 
 The dependency direction is one-way: the study depends on the harness, never the reverse
 (a standalone-import check enforces it). Within the harness, `schemas`/`registries` sit at
@@ -382,72 +382,29 @@ back to one commit.
 
 ---
 
-## Execution on Modal
+## GPU execution
 
-The GPU steps run on a single A100 rented through Modal. `modal_app.py` defines the
-image and five A100 functions; the local entrypoint computes the git commit/dirty
-state (the image strips `.git`) and passes it in, so a cloud run is still traceable
-to the code that produced it.
+Training and generation are intentionally outside the CPU-only analysis path.
+The public reproducibility surface is the `CompletionSet` boundary: once model
+samples have been written to disk, every grading, aggregation, figure, and docs
+consistency check runs locally without GPU access.
 
-```mermaid
-flowchart TB
-    subgraph local["local entrypoint"]
-        ENT["modal_app.main<br/>computes git commit + dirty"]
-    end
-    subgraph img["container image: two cache layers"]
-        L1["layer 1: dependencies<br/>keyed on pyproject.toml + uv.lock"]
-        L2["layer 2: source<br/>fast --no-deps editable relink"]
-        L1 --> L2
-    end
-    subgraph fns["A100 functions"]
-        TA["train_arm"]
-        HA["heldout_arm"]
-        EM["eval_matrix"]
-        EL["elicitation"]
-        EMS["elicitation_multiseed"]
-    end
-    VOL[("Volume: assay-runs<br/>checkpoints + battery artifacts")]
-    SEC["wandb secret (curves)"]
+The published runs used Modal for the GPU jobs and W&B for training curves. The
+private run volume and raw checkpoints are not exposed; the public artifacts are
+the committed result JSON, figures, and provenance records.
 
-    ENT --> TA
-    ENT --> HA
-    ENT --> EM
-    ENT --> EL
-    ENT --> EMS
-    img -.->|builds| fns
-    SEC --> TA
-    TA --> VOL
-    HA --> VOL
-    EM --> VOL
-    EL --> VOL
-    EMS --> VOL
-```
+The same code paths support three GPU-side jobs, regardless of where the model is
+run:
 
-- **The image is split on purpose.** Dependencies install in a layer keyed only on
-  `pyproject.toml` + `uv.lock` (via `uv export`), and the source copies in a later
-  layer that ends with a `--no-deps` editable relink. Editing source re-runs only
-  the fast relink, never the multi-gigabyte GPU-stack download.
-- **`train_arm`** trains one arm and commits checkpoints + provenance to the Volume.
-- **`heldout_arm`** scores a finished run's checkpoints and records the selection.
-- **`eval_matrix`** generates the greedy (pass@1) decomposition battery, with three
-  scopes. `scope=full` (seed 0) covers base/correct/random over the task set plus
-  the three control sets; `scope=placebo` (replicate seeds) covers just the
-  correct-vs-random pair on the task set, which is all an extra placebo seed needs;
-  `scope=controls` (replicate seeds) covers just the correct arm on the control
-  sets — the per-seed upgrade of the seed-0 control rows (base is seed-independent,
-  reused from seed 0), feeding the Holm-corrected §3 table.
-- **`elicitation`** samples base and correct (seed 0) with `n>1` to measure pass@k:
-  whether the gain is new capability or capability the base already had.
-- **`elicitation_multiseed`** generalizes that panel so the verdict does not rest
-  on one seed: a base anchor sampled once plus every correct training seed, with an
-  optional `set_name` to re-run the same checkpoints off a control distribution. It
-  produced the committed `passk-multiseed` panels and the decontamination cells.
+- Train one configured arm and write run provenance.
+- Score saved checkpoints on a held-out validation split when checkpoint
+  selection is configured.
+- Generate `CompletionSet`s for base, reward-trained, placebo, and control-set
+  comparisons.
 
-The three eval functions (`eval_matrix`, `elicitation`, `elicitation_multiseed`)
-take a `task` (`gsm8k` or `countdown`); `_eval_task` maps it to the base config,
-eval set, control sets, and run-name prefix. GSM8K carries the three
-perturbation/clean-label controls and unprefixed run dirs; Countdown has no
-controls and uses `countdown-`-prefixed runs.
+Those jobs must preserve the same invariants as the CPU path: fixed seeds,
+pinned model and dataset revisions, recorded sampling settings, and matching
+problem ids across compared arms.
 
 ---
 
@@ -475,7 +432,7 @@ grpo-decomp/
 │   └── registration.py          # wires the study into the harness registries
 ├── configs/                     # one YAML per (arm, seed)
 ├── results/                     # committed tables, summary.json, findings
-├── modal_app.py                 # Modal image + GPU functions + entrypoint
+├── modal_app.py                 # cloud runner used for the published GPU jobs
 └── docs/                        # this document
 ```
 
