@@ -1,6 +1,6 @@
 # grpo-decomp
 
-`grpo-decomp` is a measurement harness for GRPO gains. It asks a
+`grpo-decomp` is a measurement framework for GRPO gains. It asks a
 simple question:
 
 Did reinforcement learning teach the model new reasoning, or did it mostly make
