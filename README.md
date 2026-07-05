@@ -44,13 +44,15 @@ with it: **Δ +41.0 pp, 95% CI [35.1, 46.9]** (base 53.6% → correct 94.6%). Pe
 10.9% on Countdown is genuinely new. This is the control that proves the GSM8K read is a
 real null, not the method being blind to gains.
 
-### 3 · Esme-214M-RL: better form (preliminary)
+### 3 · Esme-214M-RL: reward sharpens form
 
-_trained from scratch · 1 seed_
+_trained from scratch · 6 seeds_
 
 A different axis: not coverage or reliability, but whether outputs are even well-formed.
-Valid-expression rate rises from 0.8% to 27.1% while the random-reward placebo stays flat.
-Single seed, still preliminary.
+Seed-aggregated valid-expression rate is 85.4% for real reward vs 0.8% for the
+random-reward placebo. Real reward separates from placebo on held-out Countdown validity:
+**+84.7 pp, 95% CI [+54.6, +114.7]** across six training seeds. Exact-any also clears
+across seeds: **+8.9 pp, 95% CI [+6.0, +11.7]**.
 
 Full writeups, figures, and the decontamination / mechanism / CoT-gated checks:
 [GSM8K](results/FINDINGS.md) · [Countdown](results/countdown/FINDINGS.md) ·

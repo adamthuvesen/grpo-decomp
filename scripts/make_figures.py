@@ -444,23 +444,83 @@ def _decontam_figure(test: dict, symbolic: dict, platinum: dict) -> None:
 
 def _esme_sampled_figure(summary: dict) -> None:
     """Esme's held-out signal is form first, exact solving second."""
-    valid = {
-        "base": summary["arms"]["base"]["valid_rate"] * PP,
-        "random": summary["arms"]["random"]["valid_rate"] * PP,
-        "correct": summary["arms"]["correct"]["valid_rate"] * PP,
-    }
-    pass16 = {
-        "base": summary["arms"]["base"]["pass_at_k"]["16"] * PP,
-        "random": summary["arms"]["random"]["pass_at_k"]["16"] * PP,
-        "correct": summary["arms"]["correct"]["pass_at_k"]["16"] * PP,
-    }
-    valid_test = summary["valid_rate_tests"]["random"]
+    multiseed = "valid_rate_seed_aggregate" in summary
+    if multiseed:
+        valid = {
+            "base": summary["arms"]["base"]["valid_rate"] * PP,
+            "random": summary["arms"]["random"]["mean_valid_rate"] * PP,
+            "correct": summary["arms"]["correct"]["mean_valid_rate"] * PP,
+        }
+        pass16 = {
+            "base": summary["arms"]["base"]["pass_at_k"]["16"] * PP,
+            "random": summary["arms"]["random"]["mean_pass_at_k"]["16"] * PP,
+            "correct": summary["arms"]["correct"]["mean_pass_at_k"]["16"] * PP,
+        }
+        valid_test = summary["valid_rate_seed_aggregate"]
+        supported = (
+            str(summary.get("conclusion", "")).startswith("supported:")
+            or float(valid_test["ci_low"]) > 0.0
+        )
+        if supported:
+            seed_note = f"{summary['n_seeds']} training seeds; seed-level CI includes run variance."
+            subtitle = (
+                "Held-out Countdown-Lite: seed-aggregated validity separates real reward "
+                "from placebo."
+            )
+        else:
+            seed_note = (
+                f"{summary['n_seeds']} training seeds; every added seed matters here because "
+                "214M validity gains vary sharply run to run."
+            )
+            subtitle = (
+                "Held-out Countdown-Lite: real reward helps within seeds, but the 3-seed "
+                "validity interval is still too wide for a stable headline."
+            )
+    else:
+        valid = {
+            "base": summary["arms"]["base"]["valid_rate"] * PP,
+            "random": summary["arms"]["random"]["valid_rate"] * PP,
+            "correct": summary["arms"]["correct"]["valid_rate"] * PP,
+        }
+        pass16 = {
+            "base": summary["arms"]["base"]["pass_at_k"]["16"] * PP,
+            "random": summary["arms"]["random"]["pass_at_k"]["16"] * PP,
+            "correct": summary["arms"]["correct"]["pass_at_k"]["16"] * PP,
+        }
+        valid_test = summary["valid_rate_tests"]["random"]
+        seed_note = (
+            "Preliminary: one training seed. The significant signal is form validity; "
+            "exact solve moves the same way but is underpowered at n=30."
+        )
+        subtitle = (
+            "Held-out Countdown-Lite: validity separates first; exact solving is underpowered."
+        )
 
-    def y(value: float) -> float:
-        return 300 - (value / 30) * 260
+    valid_axis_max = 100.0 if max(valid.values()) > 30.0 else 30.0
+    pass16_axis_max = 100.0 if max(pass16.values()) > 30.0 else 30.0
 
-    def h(value: float) -> float:
-        return (value / 30) * 260
+    def y(value: float, axis_max: float) -> float:
+        return 300 - (value / axis_max) * 260
+
+    def h(value: float, axis_max: float) -> float:
+        return (value / axis_max) * 260
+
+    def ticks(axis_max: float) -> str:
+        values = [0.0, 25.0, 50.0, 75.0, 100.0] if axis_max == 100.0 else [0.0, 10.0, 20.0, 30.0]
+        parts = []
+        for value in values:
+            y_pos = y(value, axis_max)
+            parts.append(
+                f'    <line class="grid" x1="0" y1="{y_pos:.1f}" x2="330" y2="{y_pos:.1f}"/>'
+            )
+            parts.append(
+                f'    <text class="tick" x="-24" y="{y_pos + 4:.1f}" '
+                f'text-anchor="end">{value:.0f}%</text>'
+            )
+        return "\n".join(parts)
+
+    valid_ticks = ticks(valid_axis_max)
+    pass16_ticks = ticks(pass16_axis_max)
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="920" height="620"
   viewBox="0 0 920 620" role="img" aria-labelledby="title desc">
@@ -486,33 +546,25 @@ def _esme_sampled_figure(summary: dict) -> None:
   <rect class="panel" x="28" y="24" width="864" height="560" rx="8"/>
 
   <text class="title" x="56" y="64">Esme-214M-RL: reward sharpens form first</text>
-  <text class="subtitle" x="56" y="88">Held-out Countdown-Lite: real reward separates from
-    placebo on valid expressions; exact solving remains underpowered.</text>
+  <text class="subtitle" x="56" y="88">{subtitle}</text>
 
   <g transform="translate(90 142)">
     <text class="label" x="0" y="0">Form validity</text>
     <text class="small" x="0" y="24">valid-expression rate, 16 samples/problem</text>
-    <line class="grid" x1="0" y1="300" x2="330" y2="300"/>
-    <line class="grid" x1="0" y1="213.3" x2="330" y2="213.3"/>
-    <line class="grid" x1="0" y1="126.7" x2="330" y2="126.7"/>
-    <line class="grid" x1="0" y1="40" x2="330" y2="40"/>
+{valid_ticks}
     <line class="axis" x1="0" y1="40" x2="0" y2="300"/>
     <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
-    <text class="tick" x="-24" y="304" text-anchor="end">0%</text>
-    <text class="tick" x="-24" y="217.3" text-anchor="end">10%</text>
-    <text class="tick" x="-24" y="130.7" text-anchor="end">20%</text>
-    <text class="tick" x="-24" y="44" text-anchor="end">30%</text>
-    <rect x="50" y="{y(valid["base"]):.1f}" width="54"
-      height="{h(valid["base"]):.1f}" fill="#c7d2e8" rx="4"/>
-    <rect x="138" y="{y(valid["random"]):.1f}" width="54"
-      height="{h(valid["random"]):.1f}" fill="#aeb6ff" rx="4"/>
-    <rect x="226" y="{y(valid["correct"]):.1f}" width="54"
-      height="{h(valid["correct"]):.1f}" fill="#ef553b" rx="4"/>
-    <text class="value" x="77" y="{y(valid["base"]) - 10:.1f}"
+    <rect x="50" y="{y(valid["base"], valid_axis_max):.1f}" width="54"
+      height="{h(valid["base"], valid_axis_max):.1f}" fill="#c7d2e8" rx="4"/>
+    <rect x="138" y="{y(valid["random"], valid_axis_max):.1f}" width="54"
+      height="{h(valid["random"], valid_axis_max):.1f}" fill="#aeb6ff" rx="4"/>
+    <rect x="226" y="{y(valid["correct"], valid_axis_max):.1f}" width="54"
+      height="{h(valid["correct"], valid_axis_max):.1f}" fill="#ef553b" rx="4"/>
+    <text class="value" x="77" y="{y(valid["base"], valid_axis_max) - 10:.1f}"
       text-anchor="middle">{valid["base"]:.1f}%</text>
-    <text class="value" x="165" y="{y(valid["random"]) - 10:.1f}"
+    <text class="value" x="165" y="{y(valid["random"], valid_axis_max) - 10:.1f}"
       text-anchor="middle">{valid["random"]:.1f}%</text>
-    <text class="value" x="253" y="{y(valid["correct"]) - 10:.1f}"
+    <text class="value" x="253" y="{y(valid["correct"], valid_axis_max) - 10:.1f}"
       text-anchor="middle">{valid["correct"]:.1f}%</text>
     <text class="label" x="77" y="326" text-anchor="middle">base</text>
     <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
@@ -527,27 +579,20 @@ def _esme_sampled_figure(summary: dict) -> None:
   <g transform="translate(512 142)">
     <text class="label" x="0" y="0">Exact solving</text>
     <text class="small" x="0" y="24">pass@16 exact solve rate</text>
-    <line class="grid" x1="0" y1="300" x2="330" y2="300"/>
-    <line class="grid" x1="0" y1="213.3" x2="330" y2="213.3"/>
-    <line class="grid" x1="0" y1="126.7" x2="330" y2="126.7"/>
-    <line class="grid" x1="0" y1="40" x2="330" y2="40"/>
+{pass16_ticks}
     <line class="axis" x1="0" y1="40" x2="0" y2="300"/>
     <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
-    <text class="tick" x="-24" y="304" text-anchor="end">0%</text>
-    <text class="tick" x="-24" y="217.3" text-anchor="end">10%</text>
-    <text class="tick" x="-24" y="130.7" text-anchor="end">20%</text>
-    <text class="tick" x="-24" y="44" text-anchor="end">30%</text>
-    <rect x="50" y="{y(pass16["base"]):.1f}" width="54"
-      height="{h(pass16["base"]):.1f}" fill="#c7d2e8" rx="4"/>
-    <rect x="138" y="{y(pass16["random"]):.1f}" width="54"
-      height="{h(pass16["random"]):.1f}" fill="#aeb6ff" rx="4"/>
-    <rect x="226" y="{y(pass16["correct"]):.1f}" width="54"
-      height="{h(pass16["correct"]):.1f}" fill="#ef553b" rx="4"/>
-    <text class="value" x="77" y="{y(pass16["base"]) - 10:.1f}"
+    <rect x="50" y="{y(pass16["base"], pass16_axis_max):.1f}" width="54"
+      height="{h(pass16["base"], pass16_axis_max):.1f}" fill="#c7d2e8" rx="4"/>
+    <rect x="138" y="{y(pass16["random"], pass16_axis_max):.1f}" width="54"
+      height="{h(pass16["random"], pass16_axis_max):.1f}" fill="#aeb6ff" rx="4"/>
+    <rect x="226" y="{y(pass16["correct"], pass16_axis_max):.1f}" width="54"
+      height="{h(pass16["correct"], pass16_axis_max):.1f}" fill="#ef553b" rx="4"/>
+    <text class="value" x="77" y="{y(pass16["base"], pass16_axis_max) - 10:.1f}"
       text-anchor="middle">{pass16["base"]:.1f}%</text>
-    <text class="value" x="165" y="{y(pass16["random"]) - 10:.1f}"
+    <text class="value" x="165" y="{y(pass16["random"], pass16_axis_max) - 10:.1f}"
       text-anchor="middle">{pass16["random"]:.1f}%</text>
-    <text class="value" x="253" y="{y(pass16["correct"]) - 10:.1f}"
+    <text class="value" x="253" y="{y(pass16["correct"], pass16_axis_max) - 10:.1f}"
       text-anchor="middle">{pass16["correct"]:.1f}%</text>
     <text class="label" x="77" y="326" text-anchor="middle">base</text>
     <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
@@ -562,9 +607,7 @@ def _esme_sampled_figure(summary: dict) -> None:
     <rect x="176" y="-10" width="12" height="12" fill="#ef553b" rx="2"/>
     <text class="legend" x="194" y="1">real reward</text>
   </g>
-  <text class="small" x="56" y="560">Preliminary: one training seed. The significant
-    signal is form validity; exact solve moves the same way but is underpowered at n=30.
-  </text>
+  <text class="small" x="56" y="560">{seed_note}</text>
 </svg>
 """
     (HERE / "esme-countdown" / "fig-sampled-form-vs-exact.svg").write_text(svg, encoding="utf-8")
@@ -578,7 +621,13 @@ def main() -> None:
     mech_cd = _load_record(HERE / "countdown" / "mechanism.json", MechanismReport)
     symbolic = _load_record(HERE / "decontam" / "pass8-symbolic.json", PassKMultiSeed)
     platinum = _load_record(HERE / "decontam" / "pass8-platinum.json", PassKMultiSeed)
-    esme_sampled = json.loads((HERE / "esme-countdown" / "sampled_summary.json").read_text())
+    esme_multiseed = HERE / "esme-countdown" / "sampled_multiseed_summary.json"
+    esme_sampled_path = (
+        esme_multiseed
+        if esme_multiseed.exists()
+        else HERE / "esme-countdown" / "sampled_summary.json"
+    )
+    esme_sampled = json.loads(esme_sampled_path.read_text())
     _placebo_comparison_figure(placebo)
     _passk_curve_figure(panel)
     _contrast_figure(panel, countdown)

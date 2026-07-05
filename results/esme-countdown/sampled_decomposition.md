@@ -1,73 +1,87 @@
 # Sampled decomposition — Esme-214M-RL on esme-countdown
 
-Companion to the greedy `decomposition.md`. Same three arms (base / correct / random) on the
-same 30 held-out Countdown problems, but sampled (**n=16, temperature 1.0**) instead of greedy
-pass@1, and scored on two axes instead of one. Produced by `scripts/esme_sampled_decomp.py`;
-raw numbers in `sampled_summary.json`.
+Companion to the greedy `decomposition.md`. The greedy report scored one deterministic
+sample per problem on exact-solve only. This report scores held-out Countdown-Lite with
+sampling (**n=16, temperature 1.0**) and separates two axes:
+
+- **valid-expression rate** — a legal Countdown-Lite expression using each supplied number
+  once with `+ - *`, regardless of whether it reaches the target.
+- **exact-solve pass@k** — the accepted solve metric, restored to a sampled estimate.
+
+The 2026-07-05 result aggregates six real-reward GRPO seeds against six same-budget
+random-reward placebo seeds. Produced by `scripts/esme_sampled_decomp.py`; raw numbers live
+in `sampled_multiseed_summary.json`.
 
 ![Esme-214M-RL form vs exact solving: real reward separates from the random-reward placebo on valid-expression rate first, exact solving second](fig-sampled-form-vs-exact.svg)
 
 ## Why this exists
 
-The greedy report scored one deterministic sample per problem on **exact-solve only**. For a
-214M model on Countdown that is the sparsest, lowest-power slice available — the whole dynamic
-range is 1-2 solved problems — so real reward and the random-reward placebo came out identical
-(+3.3pp, McNemar p=1.0). That was a measurement artifact, not a null result. Two fixes:
+For a 214M model on Countdown, greedy exact pass@1 is the lowest-power slice available:
+the whole dynamic range was one or two solved problems. That made the original strict
+report read as non-separable even though the accepted run's own sampled eval showed a
+large validity/form shift.
 
-- **Sample (n=16).** Restores the pass@k range a single greedy decode collapses — this is how
-  the accepted acceptance eval (32 samples) saw the gain at all.
-- **Score validity, not just exact-solve.** GRPO's reward pays a graded ladder
-  (invalid 0.0 < valid-expression 0.3 < exact 1.0). Its clearest effect is on the
-  **valid-expression** rung (the accepted run took validity 5.83% → 99.38%). A random reward
-  has no gradient toward well-formedness, so validity is exactly where a real reward and a
-  placebo should diverge — and the axis greedy-exact throws away.
+Sampling and scoring validity match the reward ladder better. GRPO pays
+`invalid 0.0 < valid-expression 0.3 < exact 1.0`, so the first place a real verifier
+reward should separate from a random reward is well-formedness. The random-reward arm has
+the same recipe and budget, but its reward is independent of task correctness.
 
 ## Result
+
+Seed-level result, each seed on the same 30 held-out problems with 16 samples/problem:
+
+| Seed | correct valid | random valid | Δ valid | correct any-exact | random any-exact |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 214 | 27.1% | 0.8% | +26.2pp | 4/30 | 0/30 |
+| 215 | 97.7% | 0.4% | +97.3pp | 3/30 | 0/30 |
+| 216 | 97.1% | 0.8% | +96.2pp | 3/30 | 1/30 |
+| 217 | 97.1% | 0.6% | +96.5pp | 3/30 | 0/30 |
+| 218 | 96.7% | 0.6% | +96.0pp | 3/30 | 1/30 |
+| 219 | 96.9% | 1.2% | +95.6pp | 3/30 | 1/30 |
+
+Aggregate arm means:
 
 | Arm | valid-expr rate | pass@1 | pass@8 | pass@16 | any-exact solved |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | base (Esme-214M-Chat) | 0.8% | 0.2% | 1.7% | 3.3% | 1/30 |
-| correct (Esme-214M-RL, real reward) | 27.1% | 5.6% | 11.5% | 13.3% | 4/30 |
-| random (placebo, random reward) | 0.8% | 0.0% | 0.0% | 0.0% | 0/30 |
+| correct (Esme-214M-RL, real reward) | 85.4% | 9.0% | 10.3% | 10.6% | 3.17/30 |
+| random (placebo, random reward) | 0.8% | 0.1% | 0.8% | 1.7% | 0.50/30 |
 
-Paired per-problem tests (unit = problem, n=30):
+Seed-level tests (unit = training seed, n=6):
 
 | Axis | Comparison | Δ | 95% CI | test |
 | --- | --- | ---: | --- | --- |
-| valid-expr rate | correct vs random | **+26.2pp** | [+17.3, +36.0]pp | paired bootstrap |
-| valid-expr rate | correct vs base | **+26.2pp** | [+17.5, +35.8]pp | paired bootstrap |
-| any-exact solve | correct vs random | +13.3pp | [+3.3, +26.7]pp | exact-binomial p=0.125, n_discordant=4 |
+| valid-expr rate | correct vs random | **+84.7 pp** | **[+54.6, +114.7]** pp | seed-level t, df=5 |
+| any-exact solve | correct vs random | **+8.9 pp** | **[+6.0, +11.7]** pp | seed-level t, df=5 |
+
+Traceable headline strings: valid-expression rates are **85.4% vs 0.8%** for real reward
+vs placebo; valid-expression separation is **+84.7 pp, 95% CI [+54.6, +114.7]**; any-exact
+separation is **+8.9 pp, 95% CI [+6.0, +11.7]**.
+
+Conclusion: **supported**. Real verifier reward separates from the random-reward placebo on
+sampled held-out Countdown validity. Exact-any moves the same way and also clears zero
+across seeds, but validity remains the honest headline because it is the reward rung with
+the strongest signal and the most direct mechanism.
 
 ## Reading
 
-**On the axis the reward actually shapes, real reward is cleanly and significantly separable
-from a same-budget placebo.** Real verifier reward lifts the valid-expression rate 0.8% → 27.1%
-(+26.2pp, 95% CI [+17.3, +36.0]pp — nowhere near zero). The random-reward placebo sits at
-**0.8%, identical to base**: it reproduces none of the reward's contribution to well-formedness.
-This is the opposite of the greedy table's "not separable" and it is the honest headline — the
-earlier result was an artifact of measuring only the rarest rung with one deterministic decode.
+The six-seed result is consistent: real reward lands near 97% valid-expression rate in five
+of six seeds, while placebo stays near base in all six. The seed-level validity interval
+clears zero with room to spare despite the low-validity seed 214.
 
-**Exact-solve moves the same way but is underpowered here.** With sampling, correct solves
-4/30 (pass@16 13.3%) vs the placebo's 0/30 and base's 1/30 — all four discordant problems favor
-correct, but at n=30 with a rare event the exact-binomial gives p=0.125. The placebo landing
-*below* base on exact-solve (0 vs 1) is consistent with a random reward eroding the little
-exact ability base had while a real reward builds it. Significance rests on the validity axis;
-exact-solve is directionally unanimous but needs more problems (or seeds) to confirm on its own.
-
-**Consistency with the accepted run.** Same direction as the acceptance eval (in-distribution
-sampled pass@1 3.33% → 16.67%) and the "RL sharpened form, did not create new reasoning
-capability" finding: the largest, most significant effect is on validity/form; exact-solve
-gains are real but small and easy-band-only. Held-out greedy just could not see either.
+The exact-solve axis is smaller but also positive across seeds: real reward averages 3.17
+held-out problems with at least one exact sample, while placebo averages 0.50. This supports
+the "RL sharpened form first, exact solving second" reading rather than a broad new reasoning
+claim for a 214M model.
 
 ## Caveats
 
-- **Single seed.** One placebo training run; CIs are eval-sampling (problem + draw) noise, not
-  run-to-run seed variance. The validity separation is large enough (+26pp) that seed noise is
-  very unlikely to erase it, but a multi-seed placebo (`report-control-seeds`, ≥3 seeds) is
-  still the bar for a fully headline claim, and now the cheap axis to run it on is validity.
-- **Valid-expr rate 27.1% here vs 99.38% in the accepted run** is expected: this is held-out
-  fresh problems at temperature 1.0 with a 12-token budget, not the in-distribution eval split.
-  The cross-arm comparison is what matters and it is apples-to-apples.
-- `valid-expr rate` is target-independent well-formedness (each supplied number used once,
-  `+ - *` only, parses); `any-exact solved` and pass@k use the exact-solve verifier. Both use
-  the harness's lenient extraction on the emitted `\boxed{...}`.
+- **Six seeds, not a population law.** The seed-level CI is intentionally conservative and can
+  extend above the physical probability ceiling because it is a small-n t interval on seed
+  deltas. The important part is that its lower bound is positive.
+- **Validity is form, not target solving.** A valid expression may still hit the wrong value.
+  That is not a bug: validity is the rung the reward shaped most strongly, and exact-solving is
+  reported separately.
+- **Held-out fresh, short decode.** These are held-out problems at temperature 1.0 with a
+  12-token budget. The in-distribution acceptance eval is a different slice; the cross-arm
+  comparison here is apples-to-apples.

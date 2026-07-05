@@ -9,6 +9,8 @@ esme-posttrain test proves the emitter and the placebo GRPO mode that produce th
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from itertools import permutations, product
 from pathlib import Path
 
@@ -185,3 +187,61 @@ def test_report_decomposes_three_arms(tmp_path: Path) -> None:
     placebo = summary["confirmatory_comparison"]
     assert placebo["comparison"]["delta"] == pytest.approx(1.0)
     assert (out / "decomposition.md").is_file()
+
+
+def test_sampled_decomp_writes_multiseed_summary(tmp_path: Path) -> None:
+    problems = load_esme_countdown()
+    solutions = {
+        problem.id: _solve(*parse_countdown_key(problem.gold_answer)) for problem in problems
+    }
+    base = tmp_path / "base__esme-countdown"
+    _write_arm(
+        base,
+        model="Esme-214M-Chat",
+        samples_for={problem.id: "\\boxed{}" for problem in problems},
+    )
+
+    seed_args: list[str] = []
+    for seed in ("214", "215", "216"):
+        seed_dir = tmp_path / f"seed{seed}"
+        _write_arm(
+            seed_dir / "correct__esme-countdown",
+            model=f"Esme-214M-RL-seed{seed}",
+            samples_for={pid: f"\\boxed{{{expr}}}" for pid, expr in solutions.items()},
+        )
+        _write_arm(
+            seed_dir / "random__esme-countdown",
+            model=f"Esme-214M-RL-random-seed{seed}",
+            samples_for={problem.id: "\\boxed{}" for problem in problems},
+        )
+        seed_args.extend(["--seed", f"{seed}={seed_dir}"])
+
+    out = tmp_path / "out"
+    script = Path(__file__).resolve().parents[1] / "scripts" / "esme_sampled_decomp.py"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            *seed_args,
+            "--base-completions-dir",
+            str(base),
+            "--task-set",
+            "esme-countdown",
+            "--k",
+            "1",
+            "--out",
+            str(out),
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    assert "sampled multiseed decomposition" in result.stdout
+
+    summary = json.loads((out / "sampled_multiseed_summary.json").read_text(encoding="utf-8"))
+    assert summary["n_seeds"] == 3
+    assert summary["preliminary"] is False
+    assert summary["valid_rate_seed_aggregate"]["mean_delta"] == pytest.approx(1.0)
+    assert summary["valid_rate_seed_aggregate"]["ci_low"] == pytest.approx(1.0)
+    assert summary["conclusion"].startswith("supported:")

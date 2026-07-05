@@ -60,6 +60,7 @@ _MECH_CD = _load("results/countdown/mechanism.json")
 _SYM = _load("results/decontam/pass8-symbolic.json")  # renumbered (GSM-Symbolic)
 _PLAT = _load("results/decontam/pass8-platinum.json")  # cleaned labels (GSM8K-Platinum)
 _DECOMP = _load("results/decomposition-multiseed.json")  # 6-seed Holm-corrected controls
+_ESME = _load("results/esme-countdown/sampled_multiseed_summary.json")
 
 
 def _summary_control_comparison(needle: str) -> dict:
@@ -85,9 +86,12 @@ _CTRL_PLATINUM = _multiseed_control_row("gsm8k-platinum")
 _FIND_G = "results/FINDINGS.md"
 _FIND_C = "results/countdown/FINDINGS.md"
 _FIND_D = "results/decontam/FINDINGS.md"
+_FIND_E = "results/esme-countdown/sampled_decomposition.md"
 _README = "README.md"
 
 _crf_mean = statistics.fmean(_GP["per_seed_code_reasoning_freq"])
+_ESME_VALID = _ESME["valid_rate_seed_aggregate"]
+_ESME_EXACT = _ESME["exact_any_seed_aggregate"]
 
 # (claim_id, doc, expected substring derived from the JSON above).
 _CLAIMS: list[tuple[str, str, str]] = [
@@ -319,6 +323,34 @@ _CLAIMS: list[tuple[str, str, str]] = [
         "readme.cd-base-correct",
         _README,
         f"base {_pct(_CP8['base_passk'])}% {_ARROW} correct {_pct(_CP8['mean_correct_passk'])}%",
+    ),
+    # -- Esme sampled multiseed result (esme-countdown/sampled_multiseed_summary.json) --
+    (
+        "esme.readme-valid",
+        _README,
+        f"{_pct(_ESME_VALID['mean_delta'], sign=True)} pp, 95% CI "
+        f"[{_pct(_ESME_VALID['ci_low'], sign=True)}, "
+        f"{_pct(_ESME_VALID['ci_high'], sign=True)}]",
+    ),
+    (
+        "esme.result-valid",
+        _FIND_E,
+        f"{_pct(_ESME_VALID['mean_delta'], sign=True)} pp, 95% CI "
+        f"[{_pct(_ESME_VALID['ci_low'], sign=True)}, "
+        f"{_pct(_ESME_VALID['ci_high'], sign=True)}]",
+    ),
+    (
+        "esme.result-valid-rates",
+        _FIND_E,
+        f"{_pct(_ESME['arms']['correct']['mean_valid_rate'])}% vs "
+        f"{_pct(_ESME['arms']['random']['mean_valid_rate'])}%",
+    ),
+    (
+        "esme.result-exact",
+        _FIND_E,
+        f"{_pct(_ESME_EXACT['mean_delta'], sign=True)} pp, 95% CI "
+        f"[{_pct(_ESME_EXACT['ci_low'], sign=True)}, "
+        f"{_pct(_ESME_EXACT['ci_high'], sign=True)}]",
     ),
     # -- GSM8K controls: 6-seed Holm-corrected table (decomposition-multiseed.json) --
     (
