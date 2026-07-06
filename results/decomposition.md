@@ -1,4 +1,4 @@
-# Decomposition — Qwen/Qwen2.5-Math-1.5B on gsm8k-test [PRELIMINARY]
+# Decomposition: Qwen/Qwen2.5-Math-1.5B on gsm8k-test [PRELIMINARY]
 
 Artifact scope: Single-seed descriptive decomposition (1 seed). Treat the comparison below as a per-seed diagnostic; the headline claim must come from seed-level aggregation such as `seed-placebo-comparison.json`.
 
@@ -16,7 +16,7 @@ Elicitation (separate panel): pass@1: base=0.76, correct=0.81; pass@k coverage i
 
 Caveats:
 
-- Rows are independent re-measurements of the raw gain under each control; they overlap and MUST NOT be summed into an additive partition.
-- The placebo (correct - random) delta is a within-Qwen lower bound on non-correctness-driven gain, not a cross-family study verdict.
-- Only the placebo comparison is the pre-registered confirmatory test; every table row is descriptive/exploratory and its 95% CI is marginal (per-row), NOT family-wise corrected — do not read a single row's p<0.05 as confirmed.
-- PRELIMINARY: aggregated over 1 seed(s) (< 3); CIs reflect eval-sampling noise only, not run-to-run / seed variance — not a headline claim.
+- Rows re-measure the raw gain under each control. They overlap, so do not sum them into an additive partition.
+- The placebo (correct - random) delta is a within-Qwen lower bound on non-correctness-driven gain, not a cross-family verdict.
+- Only the placebo comparison is the pre-registered confirmatory test. Every other row is descriptive, and its 95% CI is marginal (per-row), not family-wise corrected. Do not read a single row's p<0.05 as confirmed.
+- PRELIMINARY: aggregated over 1 seed(s) (< 3). CIs reflect eval-sampling noise only; they do not include run-to-run seed variance, so this is not a headline claim.

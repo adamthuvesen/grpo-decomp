@@ -1,11 +1,11 @@
 """Assemble the headline decomposition from paired comparisons.
 
-The table re-measures the raw GSM8K gain under each control **independently** —
-rows are overlapping lenses on one gain, never an additive partition. The placebo
+The table re-measures the raw GSM8K gain under each control **independently**.
+Rows are overlapping lenses on one gain, never an additive partition. The placebo
 (correct - random) delta is the confirmatory comparison; the pass@k / CoT result is a
 directional verdict in its own panel, not a percentage-point row. A result over
 fewer than three seeds is flagged preliminary, with CIs reflecting eval-sampling
-noise only — not a headline claim.
+noise only, so it is not a headline claim.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ class Decomposition(Record):
         description="Independent re-measurements (non-additive)."
     )
     elicitation_note: str = Field(
-        description="The pass@k / CoT verdict — a separate panel, not a row."
+        description="The pass@k / CoT verdict. This is a separate panel, not a row."
     )
     caveats: tuple[str, ...]
 
@@ -74,14 +74,14 @@ def build_decomposition(
     preliminary = is_preliminary_seed_count(seeds)
     artifact_scope = artifact_scope_for(seeds)
     caveats = [
-        "Rows are independent re-measurements of the raw gain under each control; "
-        "they overlap and MUST NOT be summed into an additive partition.",
+        "Rows re-measure the raw gain under each control. They overlap, so do not "
+        "sum them into an additive partition.",
         "The placebo (correct - random) delta is a within-Qwen lower bound on "
-        "non-correctness-driven gain, not a cross-family artifact verdict "
+        "non-correctness-driven gain, not a cross-family verdict "
         "(needs the v2 Llama arm).",
-        "Only the placebo comparison is the pre-registered confirmatory test; every table "
-        "row is descriptive/exploratory and its 95% CI is marginal (per-row), NOT "
-        "family-wise corrected — do not read a single row's p<0.05 as confirmed.",
+        "Only the placebo comparison is the pre-registered confirmatory test. Every other "
+        "row is descriptive, and its 95% CI is marginal (per-row), not family-wise "
+        "corrected. Do not read a single row's p<0.05 as confirmed.",
     ]
     preliminary_caveat = preliminary_caveat_for(seeds)
     if preliminary_caveat is not None:

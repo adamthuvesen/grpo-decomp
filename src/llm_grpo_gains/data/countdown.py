@@ -88,7 +88,7 @@ class CountdownKey(Record):
         return f"target={self.target};numbers={sorted_numbers}"
 
     def as_tuple(self) -> tuple[tuple[int, ...], int]:
-        """Compatibility shape used by existing reward/eval code."""
+        """Tuple form consumed by reward and eval code."""
         return self.numbers, self.target
 
 

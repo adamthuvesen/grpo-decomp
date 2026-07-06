@@ -4,8 +4,8 @@ This is the public runbook for installing the project, checking the committed
 results, and running CPU evaluation.
 
 The published GPU runs used Modal for training/generation and W&B for training
-curves. Those raw run directories and checkpoints are not part of the public
-reproducibility path; the committed JSON and figures are.
+curves. The public reproducibility path uses the committed JSON and figures, not
+the raw run directories or checkpoints.
 
 ## Install
 
@@ -13,8 +13,7 @@ reproducibility path; the committed JSON and figures are.
 make install
 ```
 
-This syncs the CPU environment, including dev tools and the eval/statistics
-layer.
+This syncs the CPU environment, including dev tools, eval, and statistics code.
 
 Optional extra for local generation:
 
@@ -28,7 +27,7 @@ uv sync --extra generate  # local transformers generation
 make check
 ```
 
-`make check` runs Ruff, unit tests, and the docs-to-JSON consistency guard for
+`make check` runs Ruff, unit tests, and the docs-to-JSON consistency check for
 the committed result numbers.
 
 To rebuild public figures from committed JSON:
@@ -63,7 +62,7 @@ grpo-decomp generate \
 grpo-decomp battery --completions runs/base__dev --k 1
 ```
 
-Generation writes a `CompletionSet` containing the sampled answers, source
+Generation writes a `CompletionSet` with the sampled answers, source
 problems, and provenance. `battery` grades that artifact offline.
 
 ## Reproduce Published Results
@@ -88,9 +87,9 @@ make results
 ```
 
 `make aggregate` rebuilds the pass@k, mechanism, control, Countdown, and
-decontamination aggregate files from local `runs/` inputs. The committed
-repository includes the derived JSON and figures, not the private run storage or
-full training outputs.
+decontamination aggregate files from local `runs/` inputs. The committed repo
+includes the derived JSON and figures, not the private run storage or full
+training outputs.
 
 ## Operational Constraints
 
@@ -100,5 +99,5 @@ full training outputs.
   starting a new study: `max_steps=500`, `save_steps=100`,
   `max_completion_length=1024`, `num_generations=8`.
 - `vllm` is pinned to `==0.17.1`, the top of TRL 1.0.0's supported range.
-- The correctness reward uses strict `\boxed{}` extraction. A reward change
-  creates a new study, not a comparable continuation.
+- The correctness reward uses strict `\boxed{}` extraction. Changing the reward
+  starts a new study; it is not a comparable continuation.

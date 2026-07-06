@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "grpo-decomp"
 version = "0.1.0"
-description = "Research framework for analyzing what drives GRPO gains."
+description = "Controls-first tool for analyzing what drives GRPO gains."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

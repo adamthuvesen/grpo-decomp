@@ -1,17 +1,17 @@
 # Architecture: grpo-decomp + llm_grpo_gains
 
-The codebase is **two packages with a one-way boundary**:
+The codebase has **two packages with a one-way boundary**:
 
-- **`grpo_decomp`** — the harness. It trains a GRPO arm, samples completions, grades them,
+- **`grpo_decomp`**: the harness. It trains a GRPO arm, samples completions, grades them,
   and runs an adversarial decomposition that tries to explain away the benchmark gain:
   "how much of the gain is real reasoning, and how much is elicitation, contamination,
   formatting, or noise?". It is task- and model-agnostic.
-- **`llm_grpo_gains`** — the reference study. It instantiates the harness on GSM8K (the
+- **`llm_grpo_gains`**: the reference study. It instantiates the harness on GSM8K (the
   primary panel) and a generated Countdown positive control, supplying the datasets,
   verifiable rewards, configs, results, and the `registration.py` that wires them in.
 
 The controls are the product; a headline number without its controls is treated as
-worthless. The harness never imports the study — a study (or a new RL task) injects its
+worthless. The harness never imports the study. A study, or a new RL task, injects its
 concrete pieces through the registries in `grpo_decomp/registries.py`, discovered at
 startup via a `grpo_decomp.plugins` entry point (`grpo_decomp/plugins.py`). That seam is
 what lets the harness point at your own model and task without a fork.
@@ -44,8 +44,8 @@ The same pipeline runs two tasks. **GSM8K** (grade-school math on the
 `Qwen2.5-Math-1.5B` base) is the primary decomposition. **Countdown** (a generated
 search task on the general `Qwen2.5-1.5B` base) is the positive control: a skill the
 base genuinely lacks, so it shows the decomposition can detect real capability
-_expansion_, not only _elicitation_. Both share the loaders, rewards, prompt, eval
-battery, and statistics below; only the dataset and reward change.
+_expansion_ as well as _elicitation_. Both share the loaders, rewards, prompt, eval
+battery, and statistics below. Only the dataset and reward change.
 
 ```mermaid
 flowchart LR
@@ -93,7 +93,7 @@ they do.
 
 ## Module map
 
-Harness — `src/grpo_decomp/`:
+Harness: `src/grpo_decomp/`
 
 | Module           | Responsibility                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -101,6 +101,7 @@ Harness — `src/grpo_decomp/`:
 | `registries.py`  | The plug-in surface: eval sets, train datasets, rewards, verifiers, validation reconstructors, prompt strategies, task profiles + `ARMS`. |
 | `plugins.py`     | Loads study `register()`s from the `grpo_decomp.plugins` entry-point group.                                 |
 | `prompts.py`     | Prompt strategies (`PromptStrategy`); ships the built-in `r1_zero`. Train and eval use the _same_ strategy. |
+| `grading.py`     | Answer extraction policies and math correctness checks.                                                     |
 | `splits.py`      | Deterministic `dev_slice` / `validation_split` over a `ProblemSet`.                                         |
 | `provenance.py`  | Git commit/dirty state and pinned dependency versions.                                                      |
 | `rewards/`       | `get_reward` (registry-resolved) + the harness-provided `random` placebo control.                          |
@@ -109,7 +110,7 @@ Harness — `src/grpo_decomp/`:
 | `stats/`         | Paired comparison: delta + bootstrap CI (via `eval-audit`), McNemar and Holm (local).                       |
 | `report/`        | The single-seed decomposition table plus the multi-seed aggregators (placebo, pass@k, mechanism, controls). |
 
-Study — `src/llm_grpo_gains/` (+ repo-root `configs/`, `results/`, `modal_app.py`):
+Study: `src/llm_grpo_gains/` plus repo-root `configs/`, `results/`, `modal_app.py`
 
 | Module             | Responsibility                                                                            |
 | ------------------ | ----------------------------------------------------------------------------------------- |
@@ -123,8 +124,8 @@ Study — `src/llm_grpo_gains/` (+ repo-root `configs/`, `results/`, `modal_app.
 The dependency direction is one-way: the study depends on the harness, never the reverse
 (a standalone-import check enforces it). Within the harness, `schemas`/`registries` sit at
 the bottom, `eval`/`train` depend on them, `stats` depends on nothing GPU, and `report`
-sits on top of `stats` and `eval`. Heavy GPU imports (`trl`, `vllm`, `torch`) are lazy —
-imported inside the function that needs them — so the analysis path imports on a
+sits on top of `stats` and `eval`. Heavy GPU imports (`trl`, `vllm`, `torch`) are lazy:
+imported inside the function that needs them, so the analysis path imports on a
 laptop with no CUDA.
 
 ---
@@ -199,8 +200,8 @@ registers the verifiable rewards.
 
 Grading at eval time mirrors this: `grpo_decomp.registries.verifier_for(source)` returns
 the harness default (math-verify on the boxed answer) unless a study registered an override
-for that `DatasetRef.name` (Countdown does). A format reward is deliberately absent — on
-this substrate it is itself a confound.
+for that `DatasetRef.name` (Countdown does). There is no format reward because, on this
+substrate, it would be a confound.
 
 ---
 
@@ -280,7 +281,7 @@ classDiagram
   prompt and stop on the model's native end-of-text token, so evaluation measures
   the model on the distribution it trained on. Greedy decoding with `n>1` raises an
   explicit error (it would return identical samples).
-- `answers.py`: two extraction policies. **strict** reads only the final
+- `grading.py`: two extraction policies. **strict** reads only the final
   `\boxed{...}`; **lenient** falls back to the last number if nothing is boxed.
   Lenient is a strict superset, so strict accuracy is always at most lenient
   accuracy, and the gap between them _is_ the format-sensitivity signal.
@@ -317,7 +318,7 @@ and builds one `Comparison` per question, each carrying a paired bootstrap CI an
 a McNemar p-value (`stats/compare.py`, with the bootstrap delegated to
 `eval-audit`). A comparison requires both arms to cover the same problem ids, so a
 misalignment is a clear error, never a silent positional mismatch. This produces
-the per-seed `summary.json` + `decomposition.md` — a diagnostic, flagged
+the per-seed `summary.json` + `decomposition.md`: a diagnostic, flagged
 `[PRELIMINARY]` because one run's CI reflects evaluation sampling only.
 
 ```mermaid
@@ -354,7 +355,7 @@ Two things to keep straight when reading the output:
 
 ### The committed multi-seed artifacts
 
-Each FINDINGS number traces to one aggregator → one JSON in `results/` (the
+Each FINDINGS number traces to one aggregator and one JSON file in `results/` (the
 `scripts/make_figures.py` figures and the docs↔JSON consistency test read these, never the
 single-seed table):
 
@@ -417,12 +418,13 @@ grpo-decomp/
 │   ├── registries.py            # the plug-in surface (datasets, rewards, verifiers, ...)
 │   ├── plugins.py               # entry-point loader for study register()s
 │   ├── prompts.py               # PromptStrategy + the built-in r1_zero
+│   ├── grading.py               # answer extraction + math correctness checks
 │   ├── splits.py                # dev_slice, validation_split
 │   ├── provenance.py            # git + dependency fingerprint
 │   ├── rewards/                 # get_reward + the random placebo control
 │   ├── train/                   # config, launcher, run provenance
 │   ├── eval/                    # generate, completions, battery, passk,
-│   │                            #   cot, code_reasoning, answers, cli
+│   │                            #   cot, code_reasoning, cli
 │   ├── stats/                   # compare, bootstrap, significance (McNemar + Holm)
 │   └── report/                  # decomposition, render, seeds, passk_seeds,
 │                                #   mechanism, control_seeds
@@ -440,7 +442,8 @@ grpo-decomp/
 
 1. `grpo_decomp/schemas.py` and `llm_grpo_gains/data/gsm8k.py`: what a problem is and where it comes from.
 2. `grpo_decomp/registries.py` and `llm_grpo_gains/registration.py`: the plug-in seam and how the study fills it.
-3. `llm_grpo_gains/rewards/correct.py` and `grpo_decomp/rewards/placebo.py`: the real grader and the placebo.
+3. `grpo_decomp/grading.py`, `llm_grpo_gains/rewards/correct.py`, and
+   `grpo_decomp/rewards/placebo.py`: extraction, the real reward, and the placebo.
 4. `grpo_decomp/train/config.py` and `grpo_decomp/train/launcher.py`: how an arm is configured and run.
 5. `grpo_decomp/eval/completions.py`: the artifact that separates generation from analysis.
 6. `grpo_decomp/eval/cli.py`: how generation, grading, and the report are driven.

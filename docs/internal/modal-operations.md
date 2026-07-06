@@ -1,8 +1,8 @@
 # Internal Modal Operations
 
-These notes are for repo operators. They are intentionally separate from the
-public runbook because they cover launch choreography, failure modes, and
-debugging signals rather than the ordinary reader path.
+These notes are for repo operators. They live outside the public runbook because
+they cover launch choreography, failure modes, and debugging signals rather than
+the ordinary reader path.
 
 ## Scope
 
@@ -24,7 +24,7 @@ modal secret create wandb WANDB_API_KEY="$WANDB_API_KEY"
 ```
 
 Hugging Face auth is optional for the public Qwen and GSM8K assets. If rate
-limits become a blocker, create a `huggingface` secret and add it to the Modal
+limits block runs, create a `huggingface` secret and add it to the Modal
 functions in `modal_app.py`.
 
 ```bash
@@ -34,7 +34,7 @@ modal secret create huggingface HF_TOKEN="$HF_TOKEN"
 
 ## Cheap Preflight
 
-Use the short blocking run when validating infrastructure changes:
+Use the short blocking run when checking infrastructure changes:
 
 ```bash
 modal run modal_app.py --no-spawn --arm configs/correct.yaml --smoke-problems 8 --max-steps 5
@@ -56,8 +56,8 @@ modal run --detach modal_app.py --arm configs/random.yaml
 modal run --detach modal_app.py --arm configs/random.yaml --command heldout
 ```
 
-A plain attached long run can be killed with the local client even if W&B later
-shows training finished. Monitor durable runs through Modal logs and the Volume:
+A plain attached long run can die with the local client even if W&B later shows
+training finished. Monitor durable runs through Modal logs and the Volume:
 
 ```bash
 modal app logs grpo-decomp

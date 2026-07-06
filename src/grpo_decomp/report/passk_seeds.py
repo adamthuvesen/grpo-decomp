@@ -62,7 +62,7 @@ class PassKMultiSeed(Record):
 
     delta: float = Field(description="mean correct pass@k - base pass@k.")
     delta_ci_low: float = Field(
-        description="Seed-level t CI on Δ — between-seed variance only, base treated as a fixed "
+        description="Seed-level t CI on Δ. Between-seed variance only; base treated as a fixed "
         "anchor. Understates Δ uncertainty when the anchor's own sampling SE is large."
     )
     delta_ci_high: float
@@ -74,8 +74,8 @@ class PassKMultiSeed(Record):
     delta_propagated_ci_high: float
 
     # CoT-gated (valid-chain) twins: pass@k counting a sample only when its answer is correct
-    # AND its <<a op b=c>> chain verifies. The CoT-Pass@K critique's stricter yardstick — does
-    # RL move *valid-chain* coverage, or just right-answer coverage? Always <= the vanilla twin.
+    # AND its <<a op b=c>> chain verifies. The CoT-Pass@K critique asks whether RL moves
+    # *valid-chain* coverage or only right-answer coverage. Always <= the vanilla twin.
     base_cot_pass1: float
     base_cot_passk: float = Field(description="Base CoT-gated pass@k anchor (seed-independent).")
     base_cot_passk_ci_low: float = Field(description="Problem-bootstrap CI low on the CoT anchor.")
@@ -98,7 +98,7 @@ class PassKMultiSeed(Record):
     cot_delta_ci_high: float
     cot_delta_propagated_ci_low: float = Field(
         description="CoT Δ CI folding the CoT anchor's problem-bootstrap half-width into the "
-        "seed-level half-width (quadrature) — the honest CoT-gated headline interval."
+        "seed-level half-width (quadrature). The honest CoT-gated headline interval."
     )
     cot_delta_propagated_ci_high: float
 
@@ -124,7 +124,7 @@ class PassKMultiSeed(Record):
         )
 
     def cot_headline(self) -> str:
-        """The CoT-gated (valid-chain) line — the CoT-Pass@K yardstick beside the vanilla one.
+        """The CoT-gated (valid-chain) line beside the vanilla pass@k line.
 
         Counts a solve only with a verified ``<<a op b=c>>`` chain. If such chains are rare the
         level reads low (a coverage limit of the non-neural check, not necessarily a reasoning
@@ -236,7 +236,7 @@ def _coverage_stats(
 
 
 def _arm_metrics(cs: CompletionSet, k: int) -> _ArmMetrics:
-    """All pass@k metrics for one sampled arm — vanilla and CoT-gated share the problem set."""
+    """All pass@k metrics for one sampled arm; vanilla and CoT-gated share the problem set."""
     counts, cot_counts, n = counts_by_problem(cs.problem_set(), cs.completions_by_id())
     if not 1 <= k <= n:
         raise ValueError(f"pass@{k} needs 1<=k<=n; arm has n={n}")

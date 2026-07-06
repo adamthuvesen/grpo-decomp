@@ -26,9 +26,9 @@ positive.
 | 1 | 4.2% | 55.7% | +51.6 |
 | 2 | 0.0% | 53.1% | +53.1 |
 
-- **The correct arm learned the task.** From a base of ~11% pass@1 (§2) it reaches ~49–56%
+- **The correct arm learned the task.** From a base of ~11% pass@1 (§2) it reaches ~49-56%
   held-out pass@1, a skill the base genuinely lacked, not reliability on a skill it had.
-- **The placebo genuinely doesn't help.** Random reward sits at 0–14% (≈ base or below; a
+- **The placebo does not help.** Random reward sits at 0-14% (≈ base or below; a
   correctness-blind reward can't teach search). Seed 2's random arm collapsed to 0%.
 - Three seeds, not six: the effect is so large that the seed-level interval clears zero
   decisively (the GSM8K comparison needed six only because +3.9pp is small).
@@ -48,7 +48,7 @@ correct pass@8 over **3 seeds** vs the seed-independent base pass@8 anchor (`pas
   by definition outside the base's pass@k envelope.
 - Contrast GSM8K, where Δ pass@8 = **+0.7 pp** (propagated **[−0.4, +1.9]**, consistent with
   zero): coverage barely moves, so the gain is elicitation. **Same decomposition, same protocol,
-  opposite verdicts** — the propagated intervals (**[−0.4, +1.9]** vs **[+35.1, +46.9]**) do not
+  opposite verdicts**. The propagated intervals (**[−0.4, +1.9]** vs **[+35.1, +46.9]**) do not
   come close to overlapping.
 
 ### Mechanism: real new capability, not just reliability
@@ -69,24 +69,24 @@ RL finds the target more directly, not by searching longer.
 | new-capability mass (mechanism) | **0.0%** | **10.9%** |
 | verdict | **elicitation** (saturated base) | **expansion** (base lacked the skill) |
 
-![pass@8 coverage: GSM8K barely moves (+0.7 pp, elicitation) while Countdown leaps from 53.6 to 94.6 (+41.0 pp, expansion) — same decomposition, opposite verdicts](../fig-passk-contrast.png)
+![pass@8 coverage: GSM8K barely moves (+0.7 pp, elicitation) while Countdown leaps from 53.6 to 94.6 (+41.0 pp, expansion) with the same decomposition and opposite verdicts](../fig-passk-contrast.png)
 
 Both pass@8 rows are now seed-level (the panel was seed-0-only before) and their CIs fold in the
 base anchor's own sampling uncertainty (propagated, not anchor-fixed); the intervals do not come
 close to overlapping, so the contrast rests on neither a single draw nor a noiseless anchor.
 
-The decomposition isn't biased toward "it's all fake": on a task where RL genuinely teaches
+The decomposition is not biased toward "it's all fake": on a task where RL genuinely teaches
 new ability, it reports expansion with higher pass@8 coverage; on a saturated benchmark it reports
 elicitation. That two-sidedness is what makes the GSM8K "mostly elicitation" finding
 trustworthy rather than a null-by-construction result.
 
 ## Bottom line
 
-On Countdown — a verifiable, uncontaminated search task the base cannot do — GRPO with a
+On Countdown, a verifiable, uncontaminated search task the base cannot do, GRPO with a
 correctness reward delivers a **large, significant, genuinely-new-capability** gain (+46.5pp
 placebo comparison; Δ pass@8 +41.0 pp, propagated [35.1, 46.9], coverage 53.6 → 94.6). It is the
 positive control that proves the decomposition can detect expansion when it exists. Paired with GSM8K's
-controlled elicitation result, the instrument is validated from both sides — now with both
+controlled elicitation result, the instrument is validated from both sides, now with both
 pass@8 panels seed-level, not seed-0 draws.
 
 ## Caveats
@@ -99,5 +99,5 @@ pass@8 panels seed-level, not seed-0 draws.
   claim broad reasoning transfer. It is the control, not a marquee capability result.
 - **CoT-gated pass@k is uninformative here too**: chain coverage is 0.0% (Countdown completions
   do not emit `<<a op b = c>>` calculator steps either), so CoT-gated pass@8 is 0.0% for both
-  arms — the same `<<>>`-proxy coverage limit as GSM8K, not a reasoning verdict. See
+  arms: the same `<<>>`-proxy coverage limit as GSM8K, not a reasoning verdict. See
   `pass8-multiseed.json` (`base_chain_coverage`) and the GSM8K findings' CoT-gated section.
