@@ -1,12 +1,15 @@
-"""`grpo-decomp`: generate completions, score a checkpoint, drive the decomposition.
+"""`grpo-decomp`: generate completions, score artifacts, and report controls.
 
-Three core subcommands, split along the artifact contract:
+Commands follow the artifact contract:
 
 - ``generate`` — the only model-loading command (a generation backend required). One
   model (base or checkpoint) over one problem set -> a `CompletionSet` artifact.
 - ``battery``  — a `CompletionSet` -> a `BatteryResult`. CPU-only.
 - ``report``   — `CompletionSet`s across arms (base/correct/random) and sets ->
   the deterministic decomposition table + ``summary.json``. CPU-only, offline.
+- ``report-seeds`` / ``report-passk-seeds`` / ``report-mechanism`` /
+  ``report-control-seeds`` — seed-level aggregate reports.
+- ``heldout`` — checkpoint selection from a run's validation split.
 """
 
 from __future__ import annotations

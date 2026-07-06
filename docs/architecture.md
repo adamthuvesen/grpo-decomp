@@ -101,6 +101,7 @@ Harness — `src/grpo_decomp/`:
 | `registries.py`  | The plug-in surface: eval sets, train datasets, rewards, verifiers, validation reconstructors, prompt strategies, task profiles + `ARMS`. |
 | `plugins.py`     | Loads study `register()`s from the `grpo_decomp.plugins` entry-point group.                                 |
 | `prompts.py`     | Prompt strategies (`PromptStrategy`); ships the built-in `r1_zero`. Train and eval use the _same_ strategy. |
+| `grading.py`     | Answer extraction policies and math correctness checks.                                                     |
 | `splits.py`      | Deterministic `dev_slice` / `validation_split` over a `ProblemSet`.                                         |
 | `provenance.py`  | Git commit/dirty state and pinned dependency versions.                                                      |
 | `rewards/`       | `get_reward` (registry-resolved) + the harness-provided `random` placebo control.                          |
@@ -280,7 +281,7 @@ classDiagram
   prompt and stop on the model's native end-of-text token, so evaluation measures
   the model on the distribution it trained on. Greedy decoding with `n>1` raises an
   explicit error (it would return identical samples).
-- `answers.py`: two extraction policies. **strict** reads only the final
+- `grading.py`: two extraction policies. **strict** reads only the final
   `\boxed{...}`; **lenient** falls back to the last number if nothing is boxed.
   Lenient is a strict superset, so strict accuracy is always at most lenient
   accuracy, and the gap between them _is_ the format-sensitivity signal.
@@ -417,12 +418,13 @@ grpo-decomp/
 │   ├── registries.py            # the plug-in surface (datasets, rewards, verifiers, ...)
 │   ├── plugins.py               # entry-point loader for study register()s
 │   ├── prompts.py               # PromptStrategy + the built-in r1_zero
+│   ├── grading.py               # answer extraction + math correctness checks
 │   ├── splits.py                # dev_slice, validation_split
 │   ├── provenance.py            # git + dependency fingerprint
 │   ├── rewards/                 # get_reward + the random placebo control
 │   ├── train/                   # config, launcher, run provenance
 │   ├── eval/                    # generate, completions, battery, passk,
-│   │                            #   cot, code_reasoning, answers, cli
+│   │                            #   cot, code_reasoning, cli
 │   ├── stats/                   # compare, bootstrap, significance (McNemar + Holm)
 │   └── report/                  # decomposition, render, seeds, passk_seeds,
 │                                #   mechanism, control_seeds
@@ -440,7 +442,8 @@ grpo-decomp/
 
 1. `grpo_decomp/schemas.py` and `llm_grpo_gains/data/gsm8k.py`: what a problem is and where it comes from.
 2. `grpo_decomp/registries.py` and `llm_grpo_gains/registration.py`: the plug-in seam and how the study fills it.
-3. `llm_grpo_gains/rewards/correct.py` and `grpo_decomp/rewards/placebo.py`: the real grader and the placebo.
+3. `grpo_decomp/grading.py`, `llm_grpo_gains/rewards/correct.py`, and
+   `grpo_decomp/rewards/placebo.py`: extraction, the real reward, and the placebo.
 4. `grpo_decomp/train/config.py` and `grpo_decomp/train/launcher.py`: how an arm is configured and run.
 5. `grpo_decomp/eval/completions.py`: the artifact that separates generation from analysis.
 6. `grpo_decomp/eval/cli.py`: how generation, grading, and the report are driven.
