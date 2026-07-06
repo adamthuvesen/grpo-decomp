@@ -42,6 +42,7 @@ def preliminary_caveat_for(seeds: int) -> str | None:
     if not is_preliminary_seed_count(seeds):
         return None
     return (
-        f"PRELIMINARY: aggregated over {seeds} seed(s) (< {MIN_HEADLINE_SEEDS}); CIs reflect "
-        "eval-sampling noise only, not run-to-run / seed variance — not a headline claim."
+        f"PRELIMINARY: aggregated over {seeds} seed(s) (< {MIN_HEADLINE_SEEDS}). CIs reflect "
+        "eval-sampling noise only; they do not include run-to-run seed variance, so this is "
+        "not a headline claim."
     )

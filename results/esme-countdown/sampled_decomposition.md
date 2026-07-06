@@ -1,12 +1,12 @@
-# Sampled decomposition — Esme-214M-RL on esme-countdown
+# Sampled decomposition: Esme-214M-RL on esme-countdown
 
 Companion to the greedy `decomposition.md`. The greedy report scored one deterministic
 sample per problem on exact-solve only. This report scores held-out Countdown-Lite with
 sampling (**n=16, temperature 1.0**) and separates two axes:
 
-- **valid-expression rate** — a legal Countdown-Lite expression using each supplied number
+- **valid-expression rate**: a legal Countdown-Lite expression using each supplied number
   once with `+ - *`, regardless of whether it reaches the target.
-- **exact-solve pass@k** — the accepted solve metric, restored to a sampled estimate.
+- **exact-solve pass@k**: the accepted solve metric, restored to a sampled estimate.
 
 The 2026-07-05 result aggregates six real-reward GRPO seeds against six same-budget
 random-reward placebo seeds. Produced by `scripts/esme_sampled_decomp.py`; raw numbers live
@@ -76,7 +76,7 @@ claim for a 214M model.
 
 ## Caveats
 
-- **Six seeds, not a population law.** The seed-level CI is intentionally conservative and can
+- **Six seeds, not a population law.** The seed-level CI is conservative and can
   extend above the physical probability ceiling because it is a small-n t interval on seed
   deltas. The important part is that its lower bound is positive.
 - **Validity is form, not target solving.** A valid expression may still hit the wrong value.

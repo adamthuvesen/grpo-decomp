@@ -5,11 +5,11 @@ shows *why*, per problem, over the same completions. Two readouts:
 
 - migration: at a reliability threshold ``tau``, classify each problem by whether the base
   solves it first-try (pass@1 >= tau), whether the trained model does (correct
-  pass@1 >= tau), and — when the base did not — whether the base could still reach it within
+  pass@1 >= tau), and when the base did not, whether the base could still reach it within
   pass@k. The elicitation signature is problems that migrate from "base needs several tries"
   (base pass@1 < tau <= base pass@k) to "trained solves first try", with almost none genuinely
   new (outside the base's pass@k envelope). Expansion (Countdown) is the opposite.
-- length: the mean completion-length shift (characters + whitespace words), base vs trained —
+- length: the mean completion-length shift (characters + whitespace words), base vs trained:
   the style change that accompanies the reliability gain.
 
 Reads the same base + per-seed correct CompletionSets as the pass@8 panel. Correct samples are
@@ -51,7 +51,7 @@ class MechanismReport(Record):
     frac_base_already_reliable: float = Field(description="base pass@1 >= tau (RL adds nothing).")
     frac_migrated_to_reliable: float = Field(
         description="base pass@1 < tau <= base pass@k and correct pass@1 >= tau: the elicitation "
-        "signature — a within-reach problem made first-try reliable."
+        "signature, a within-reach problem made first-try reliable."
     )
     frac_new_capability: float = Field(
         description="base pass@k < tau <= correct pass@1: outside the base's pass@k envelope."

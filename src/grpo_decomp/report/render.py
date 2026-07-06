@@ -29,7 +29,7 @@ def render_table(decomposition: Decomposition) -> str:
     """Render the decomposition as a deterministic Markdown table + panels."""
     status = preliminary_suffix(decomposition.preliminary)
     lines = [
-        f"# Decomposition — {decomposition.base_model} on {decomposition.task}{status}",
+        f"# Decomposition: {decomposition.base_model} on {decomposition.task}{status}",
         "",
         f"Artifact scope: {decomposition.artifact_scope}",
         "",
@@ -48,7 +48,7 @@ def render_table(decomposition: Decomposition) -> str:
 
 
 def to_summary_json(decomposition: Decomposition) -> str:
-    """Serialize to deterministic JSON (sorted keys) — byte-identical for equal inputs."""
+    """Serialize to deterministic JSON (sorted keys); equal inputs produce equal bytes."""
     return record_json(decomposition)
 
 

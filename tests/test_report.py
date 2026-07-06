@@ -69,7 +69,7 @@ def test_claim_status_helpers_are_the_shared_policy() -> None:
 def test_caveats_cover_preliminary_nonadditivity_and_within_qwen() -> None:
     caveats = _build(1).caveats
     assert any("PRELIMINARY" in c for c in caveats)
-    assert any("MUST NOT be summed" in c for c in caveats)
+    assert any("do not sum" in c for c in caveats)
     assert any("within-Qwen lower bound" in c for c in caveats)
     # The multiple-comparisons guard: rows are descriptive with marginal CIs.
     assert any("descriptive" in c and "marginal" in c for c in caveats)

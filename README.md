@@ -16,8 +16,8 @@ confidence intervals, paired tests, and reproducible artifacts.
 
 ## Result
 
-Three studies, one controlled protocol: placebo, confidence intervals, paired tests.
-Each measures a different thing GRPO can do, and only one of the three is new reasoning.
+Three studies use the same controlled protocol: placebo, confidence intervals, and
+paired tests. Each measures a different thing GRPO can do. Only one shows new reasoning.
 
 **Reading the numbers:** _pass@1_ is reliability (does the base solve it on the first
 try); _pass@8_ is coverage (can it solve it in _any_ of 8 tries). A gain in pass@1
@@ -30,7 +30,7 @@ _Qwen2.5-Math-1.5B · 6 seeds_
 GRPO beats a random-reward placebo by **+3.9 pp, 95% CI [2.3, 5.6]**, real but modest.
 Coverage barely moves: Δ +0.7 pp [-0.4, +1.9]. The answers were already latent, since
 base pass@8 (94.0%) already exceeds correct pass@1 (76.2%), so **0.0% of the GSM8K gain
-is new capability**; RL just makes latent answers show up more reliably. Controls hold:
+is new capability**. RL makes latent answers show up more reliably. Controls hold:
 base pass@8 holds at 90.8% on renumbered GSM-Symbolic, with 0.0% verifiable-chain coverage
 in the CoT-gated check.
 
@@ -38,11 +38,11 @@ in the CoT-gated check.
 
 _generated search task · 3 seeds_
 
-A task the base model can't cover, so the same protocol should catch real capability. It
-does. Gain over placebo: **+46.5 pp, 95% CI [21.4, 71.6]**, and this time coverage moves
-with it: **Δ +41.0 pp, 95% CI [35.1, 46.9]** (base 53.6% → correct 94.6%). Per problem,
-10.9% on Countdown is genuinely new. This is the control that proves the GSM8K read is a
-real null, not the method being blind to gains.
+Countdown is a task the base model can't cover, so the same protocol should catch real
+capability. It does. Gain over placebo: **+46.5 pp, 95% CI [21.4, 71.6]**. This time
+coverage moves with it: **Δ +41.0 pp, 95% CI [35.1, 46.9]** (base 53.6% → correct
+94.6%). Per problem, 10.9% on Countdown is genuinely new. This is the control that
+shows the GSM8K null is real.
 
 ### 3 · Esme-214M-RL: reward sharpens form
 
@@ -61,7 +61,7 @@ and figures are under `results/`.
 
 ## How It Works
 
-Training and analysis are separated by a committed artifact boundary:
+Training and analysis meet at a committed artifact boundary:
 
 1. Train one arm with a recorded base model, reward, seed, dataset, and config.
 2. Generate completions from the base model and trained checkpoints.
@@ -71,10 +71,10 @@ Training and analysis are separated by a committed artifact boundary:
 Only training and generation need a model backend. Once a `CompletionSet` exists,
 analysis is deterministic: no GPU, network, or Hugging Face access.
 
-The harness stays task-agnostic through registries in `grpo_decomp/registries.py`; the
+The harness stays task-agnostic through registries in `grpo_decomp/registries.py`. The
 study registers its datasets, rewards, verifiers, and prompt strategies through the
 `grpo_decomp.plugins` entry point. Published runs used Modal for training/generation
-and W&B for curves; the public repo ships the derived result JSON and figures, not the
+and W&B for curves. The public repo ships the derived result JSON and figures, not the
 run volumes or checkpoints. Module map and data flow: [docs/architecture.md](docs/architecture.md).
 
 ## Quickstart
