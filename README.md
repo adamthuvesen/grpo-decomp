@@ -1,5 +1,7 @@
 # grpo-decomp
 
+![License](https://img.shields.io/github/license/adamthuvesen/grpo-decomp) ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+
 A tool for measuring GRPO gains. It asks one question: did reinforcement
 learning teach the model new reasoning, or did it mostly make answers the base
 model could already produce show up more reliably?
