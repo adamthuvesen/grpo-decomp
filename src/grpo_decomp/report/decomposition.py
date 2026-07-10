@@ -59,6 +59,24 @@ class Decomposition(Record):
     caveats: tuple[str, ...]
 
 
+def _placebo_scope_caveat(base_model: str) -> str:
+    """The placebo delta's scope caveat, worded for the substrate's model family.
+
+    The v2 Llama arm is future work for the Qwen studies only; a from-scratch substrate
+    like Esme has no cross-family arm planned, so its caveat states single-model scope.
+    """
+    if "qwen" in base_model.lower():
+        return (
+            "The placebo (correct - random) delta is a within-Qwen lower bound on "
+            "non-correctness-driven gain, not a cross-family verdict "
+            "(needs the v2 Llama arm)."
+        )
+    return (
+        "The placebo (correct - random) delta is a single-model lower bound on "
+        f"non-correctness-driven gain for {base_model}, not a cross-family verdict."
+    )
+
+
 def build_decomposition(
     *,
     base_model: str,
@@ -76,9 +94,7 @@ def build_decomposition(
     caveats = [
         "Rows re-measure the raw gain under each control. They overlap, so do not "
         "sum them into an additive partition.",
-        "The placebo (correct - random) delta is a within-Qwen lower bound on "
-        "non-correctness-driven gain, not a cross-family verdict "
-        "(needs the v2 Llama arm).",
+        _placebo_scope_caveat(base_model),
         "Only the placebo comparison is the pre-registered confirmatory test. Every other "
         "row is descriptive, and its 95% CI is marginal (per-row), not family-wise "
         "corrected. Do not read a single row's p<0.05 as confirmed.",
