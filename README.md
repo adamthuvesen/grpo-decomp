@@ -59,7 +59,9 @@ across seeds: **+8.9 pp, 95% CI [+6.0, +11.7]**.
 Full writeups, figures, and the decontamination / mechanism / CoT-gated checks:
 [GSM8K](results/FINDINGS.md) · [Countdown](results/countdown/FINDINGS.md) ·
 [Esme](results/esme-countdown/sampled_decomposition.md). Committed tables, JSON summaries,
-and figures are under `results/`.
+and figures are under `results/`. The cross-repo
+[Esme retrospective](https://github.com/adamthuvesen/esme-pretrain/blob/main/docs/retrospective.md)
+places these results in the full pretrain-to-serving chain.
 
 ## How It Works
 
