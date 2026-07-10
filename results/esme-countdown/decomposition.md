@@ -13,6 +13,6 @@ Elicitation (separate panel): pass@1: base=0.03, correct=0.07; pass@k coverage i
 
 Caveats:
 - Rows re-measure the raw gain under each control. They overlap, so do not sum them into an additive partition.
-- The placebo (correct - random) delta is a within-Qwen lower bound on non-correctness-driven gain, not a cross-family verdict (needs the v2 Llama arm).
+- The placebo (correct - random) delta is a single-model lower bound on non-correctness-driven gain for Esme-214M-Chat, not a cross-family verdict.
 - Only the placebo comparison is the pre-registered confirmatory test. Every other row is descriptive, and its 95% CI is marginal (per-row), not family-wise corrected. Do not read a single row's p<0.05 as confirmed.
 - PRELIMINARY: aggregated over 1 seed(s) (< 3). CIs reflect eval-sampling noise only; they do not include run-to-run seed variance, so this is not a headline claim.

@@ -75,6 +75,22 @@ def test_caveats_cover_preliminary_nonadditivity_and_within_qwen() -> None:
     assert any("descriptive" in c and "marginal" in c for c in caveats)
 
 
+def test_placebo_caveat_scopes_to_the_substrate_family() -> None:
+    caveats = build_decomposition(
+        base_model="Esme-214M-Chat",
+        task="esme-countdown",
+        seeds=1,
+        raw_gain=_row("raw gain", "correct vs base", 0.03),
+        control_rows=[],
+        format_row=_row("format sensitivity", "lenient vs strict", 0.0),
+        placebo=_row("placebo (correct - random)", "non-correctness-driven gain", 0.03),
+        elicitation_note="n/a",
+    ).caveats
+    assert any("single-model lower bound" in c and "Esme-214M-Chat" in c for c in caveats)
+    assert not any("within-Qwen" in c for c in caveats)
+    assert not any("Llama arm" in c for c in caveats)
+
+
 def test_artifact_scope_marks_single_seed_reports_as_diagnostic() -> None:
     scope = _build(1).artifact_scope
     assert "Single-seed descriptive decomposition" in scope
