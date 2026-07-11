@@ -85,7 +85,7 @@ run volumes or checkpoints. Module map and data flow: [docs/architecture.md](doc
 
 ```bash
 make install   # CPU env: data, rewards, eval, stats, reports, tests
-make check     # ruff + unit tests + docs consistency
+make check     # Ruff + mypy + unit tests + docs consistency
 make results   # rebuild committed figures from JSON, then docs <-> JSON check
 make demo      # score two tiny committed CompletionSets; no model load
 ```

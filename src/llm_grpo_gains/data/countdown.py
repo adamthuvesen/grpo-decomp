@@ -27,6 +27,7 @@ from collections import Counter
 from collections.abc import Iterator, Sequence
 from fractions import Fraction
 from functools import lru_cache
+from typing import TypeGuard
 
 from pydantic import Field
 
@@ -121,7 +122,7 @@ def _eval_node(
     raise _InvalidExpressionError(f"disallowed node {type(node).__name__}")
 
 
-def _is_plain_int(value: object) -> bool:
+def _is_plain_int(value: object) -> TypeGuard[int]:
     """An integer literal, excluding `bool` (an int subclass) so `True` isn't the number 1."""
     return isinstance(value, int) and not isinstance(value, bool)
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-import numpy as np
 from pydantic import Field
 
 from grpo_decomp.report.status import MIN_HEADLINE_SEEDS
@@ -61,7 +60,7 @@ def aggregate_placebo_comparison(
     if len(comparisons) != len(seeds):
         raise ValueError(f"{len(comparisons)} comparisons but {len(seeds)} seed labels")
 
-    deltas = np.array([c.delta for c in comparisons], dtype=float)
+    deltas = [comparison.delta for comparison in comparisons]
     n = len(deltas)
     single_ci = (comparisons[0].ci_low, comparisons[0].ci_high) if n == 1 else None
     mean, sem, ci_low, ci_high, ci_kind = seed_level_mean_ci(deltas, single_seed_ci=single_ci)

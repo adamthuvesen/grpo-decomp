@@ -63,6 +63,8 @@ dev = [
     # runtime dep the GPU image installs — the image bakes only the `train` extra.
     # Pinned to the surface modal_app.py targets (modal.App / string GPU / spawn-by-default).
     "modal==1.5.0",
+    "mypy>=2.2,<3",
+    "types-pyyaml>=6.0.12.20260518",
 ]
 
 [project.scripts]
@@ -83,6 +85,29 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["grpo_decomp", "llm_grpo_gains"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/grpo_decomp", "src/llm_grpo_gains"]
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+    "datasets",
+    "eval_audit.*",
+    "math_verify",
+    "scipy.*",
+    "torch.*",
+    "transformers.*",
+    "trl.*",
+    "vllm.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

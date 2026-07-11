@@ -25,7 +25,7 @@ and is _not_ duplicated here.
 
 ```bash
 make install        # CPU env: data, rewards, eval, stats, reports
-make check          # ruff + unit tests + docs consistency
+make check          # Ruff + mypy + unit tests + docs consistency
 make demo           # score committed mini CompletionSets; no model load
 make results        # rebuild figures from results/*.json + docs<->JSON consistency check
 
