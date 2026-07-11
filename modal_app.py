@@ -25,6 +25,7 @@ from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.provenance import git_commit, git_is_dirty
 from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, EVAL_SETS, get_task_profile
 from grpo_decomp.schemas import ProblemSet, record_json
+from grpo_decomp.train.provenance import load_run_provenance
 
 # Populate the harness registries with the study's eval sets and task profiles, both
 # locally (entrypoint arg handling) and inside each Modal container (module import).
@@ -90,14 +91,6 @@ class _CompletionJob:
     # The prompt strategy this arm trained on; eval MUST match it or the decomposition
     # compares a model against an off-distribution prompt.
     prompt_strategy: str = DEFAULT_PROMPT_STRATEGY
-
-
-def _load_run_provenance(run_dir: Path):
-    from grpo_decomp.train.provenance import RunProvenance
-
-    return RunProvenance.model_validate_json(
-        (run_dir / "provenance.json").read_text(encoding="utf-8")
-    )
 
 
 def _generate_completion_set_to_volume(
@@ -207,8 +200,7 @@ def heldout_arm(arm_yaml: str) -> str:
 
     arm = load_arm_config(Path(arm_yaml))
     run_dir = Path(RUNS_DIR) / f"{arm.name}-seed{arm.seed}"
-    config = SamplingConfig(temperature=0.0, n=1, max_new_tokens=EVAL_MAX_NEW_TOKENS, seed=0)
-    curve = run_heldout_curve(run_dir, config, backend="vllm")
+    curve = run_heldout_curve(run_dir, backend="vllm")
     out = run_dir / "heldout.json"
     out.write_text(record_json(curve), encoding="utf-8")
     runs.commit()
@@ -248,7 +240,7 @@ def eval_matrix(
 
     def trained_checkpoint(role: str) -> tuple[str, str]:
         run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}{role}-seed{seed}"
-        prov = _load_run_provenance(run_dir)
+        prov = load_run_provenance(run_dir)
         return str(run_dir / "checkpoints" / "final"), prov.prompt_strategy
 
     base_row = ("base", base.base_model, base.base_model_revision, base.prompt_strategy)
@@ -297,7 +289,7 @@ def eval_matrix(
     volumes={RUNS_DIR: runs},
     timeout=6 * 60 * 60,
 )
-def elicitation_multiseed(
+def passk_multiseed(
     task: str = "gsm8k",
     n_base: int = 16,
     n_correct: int = 8,
@@ -340,7 +332,7 @@ def elicitation_multiseed(
 
     def trained_checkpoint(seed: int) -> tuple[str, str]:
         run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}correct-seed{seed}"
-        prov = _load_run_provenance(run_dir)
+        prov = load_run_provenance(run_dir)
         return str(run_dir / "checkpoints" / "final"), prov.prompt_strategy
 
     out_root = Path(RUNS_DIR) / profile.passk_multiseed_root
@@ -409,7 +401,7 @@ def main(
     battery:     modal run --detach modal_app.py --command battery               # seed 0, full
     placebo:     modal run --detach modal_app.py --command battery --seed 1 --scope placebo
     controls:    modal run --detach modal_app.py --command battery --scope controls --seed 1
-    passk-seeds: modal run --detach modal_app.py --command elicitation-multiseed
+    passk-seeds: modal run --detach modal_app.py --command passk-multiseed
     escalated:   ...same, plus --n-base 32 --n-correct 16 (or --task countdown)
     decontam:    ...same, plus --set-name gsm-symbolic --limit 1319 (or --set-name gsm8k-platinum)
     countdown:   modal run --detach modal_app.py --command battery --task countdown \\
@@ -457,9 +449,9 @@ def main(
                 "dirty": dirty,
             },
         )
-    elif command == "elicitation-multiseed":
+    elif command == "passk-multiseed":
         fn, kwargs = (
-            elicitation_multiseed,
+            passk_multiseed,
             {
                 "task": task,
                 "n_base": n_base,
@@ -473,8 +465,7 @@ def main(
         )
     else:
         raise ValueError(
-            "command must be 'train', 'heldout', 'battery', or "
-            f"'elicitation-multiseed', got {command!r}"
+            f"command must be 'train', 'heldout', 'battery', or 'passk-multiseed', got {command!r}"
         )
 
     if spawn:

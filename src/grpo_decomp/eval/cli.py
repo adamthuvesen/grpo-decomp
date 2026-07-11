@@ -356,8 +356,11 @@ def _write_json(record: Record, out: Path | None, label: str) -> None:
 
 def _cmd_heldout(args: argparse.Namespace) -> int:
     run_dir = Path(args.run)
-    config = SamplingConfig(temperature=0.0, n=1, max_new_tokens=args.max_new_tokens, seed=0)
-    curve = run_heldout_curve(run_dir, config, backend=args.backend)
+    curve = run_heldout_curve(
+        run_dir,
+        backend=args.backend,
+        max_new_tokens=args.max_new_tokens,
+    )
     for point in curve.points:
         print(
             f"  {point.checkpoint}: held-out acc {point.accuracy:.3f} ({point.n_correct}/{point.n})"
