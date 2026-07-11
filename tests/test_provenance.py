@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import json
+
+import pytest
+from pydantic import ValidationError
+
 from grpo_decomp.provenance import package_versions
 from grpo_decomp.schemas import DatasetRef
 from grpo_decomp.train.config import ArmConfig
-from grpo_decomp.train.provenance import capture_provenance
+from grpo_decomp.train.provenance import capture_provenance, load_run_provenance
 
 
 def _arm() -> ArmConfig:
@@ -50,3 +55,36 @@ def test_capture_uses_explicit_commit_and_dirty_overrides() -> None:
     )
     assert prov.commit == "deadbeef"
     assert prov.dirty is True
+
+
+def test_load_accepts_retired_checkpoint_fields(tmp_path) -> None:
+    provenance = capture_provenance(_arm(), _dataset(), train_size=7217, validation_size=256)
+    payload = provenance.model_dump()
+    payload.update(
+        checkpoint_selection="best_on_validation",
+        selected_checkpoint="checkpoint-300",
+        selected_step=300,
+    )
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "provenance.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded = load_run_provenance(run_dir)
+
+    assert loaded == provenance
+    assert set(payload) - set(type(loaded).model_fields) == {
+        "checkpoint_selection",
+        "selected_checkpoint",
+        "selected_step",
+    }
+
+
+def test_load_still_rejects_other_unknown_fields(tmp_path) -> None:
+    provenance = capture_provenance(_arm(), _dataset(), train_size=7217, validation_size=256)
+    payload = {**provenance.model_dump(), "unexpected": True}
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "provenance.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="unexpected"):
+        load_run_provenance(run_dir)

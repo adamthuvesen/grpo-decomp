@@ -18,6 +18,7 @@ from completion_set_fixtures import (
 )
 
 from grpo_decomp.eval.cli import main
+from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.eval.heldout import discover_checkpoints
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from grpo_decomp.train.config import ArmConfig
@@ -262,12 +263,14 @@ def _write_run_provenance(run_dir: Path) -> None:
     )
 
 
-def _fake_generate_correct_on(needle: str):
+def _fake_generate_correct_on(needle: str, configs: list[SamplingConfig] | None = None):
     """Fake generate: a checkpoint whose path contains `needle` answers correctly (gold=4)."""
 
     def fake(
         model, problems, config, *, backend="auto", model_revision=None, prompt_strategy="r1_zero"
     ):
+        if configs is not None:
+            configs.append(config)
         boxed = "4" if needle in str(model) else "9"
         return {p.id: [f"\\boxed{{{boxed}}}"] for p in problems}
 
@@ -292,9 +295,27 @@ def test_heldout_writes_curve_for_all_checkpoints(tmp_path, monkeypatch, capsys)
     monkeypatch.setattr(
         "grpo_decomp.eval.heldout.validation_for_run", lambda provenance: _val_problems()
     )
-    monkeypatch.setattr(_GENERATE_MODULE, "generate", _fake_generate_correct_on("final"))
+    configs: list[SamplingConfig] = []
+    monkeypatch.setattr(
+        _GENERATE_MODULE,
+        "generate",
+        _fake_generate_correct_on("final", configs),
+    )
 
-    assert main(["heldout", "--run", str(run), "--backend", "transformers"]) == 0
+    assert (
+        main(
+            [
+                "heldout",
+                "--run",
+                str(run),
+                "--backend",
+                "transformers",
+                "--max-new-tokens",
+                "17",
+            ]
+        )
+        == 0
+    )
 
     payload = json.loads((run / "heldout.json").read_text(encoding="utf-8"))
     assert payload["validation_size"] == 2
@@ -304,6 +325,7 @@ def test_heldout_writes_curve_for_all_checkpoints(tmp_path, monkeypatch, capsys)
         ("checkpoint-100", 100, 0.0),
         ("final", None, 1.0),
     ]
+    assert configs == [SamplingConfig(max_new_tokens=17)] * 3
     assert "held-out acc" in capsys.readouterr().out
 
 

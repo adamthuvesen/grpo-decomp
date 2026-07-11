@@ -8,9 +8,10 @@ from pydantic import Field
 
 from grpo_decomp.eval.battery import grade
 from grpo_decomp.eval.completions import SamplingConfig
+from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.registries import VALIDATION_RECONSTRUCTORS
 from grpo_decomp.schemas import ProblemSet, Record
-from grpo_decomp.train.provenance import RunProvenance
+from grpo_decomp.train.provenance import RunProvenance, load_run_provenance
 
 
 class HeldoutPoint(Record):
@@ -75,13 +76,12 @@ def discover_checkpoints(run_dir: Path) -> list[Path]:
     return numbered
 
 
-def _load_run_provenance(run_dir: Path) -> RunProvenance:
-    return RunProvenance.model_validate_json(
-        (Path(run_dir) / "provenance.json").read_text(encoding="utf-8")
-    )
-
-
-def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) -> HeldoutCurve:
+def run_heldout_curve(
+    run_dir: Path,
+    *,
+    backend: str,
+    max_new_tokens: int = EVAL_MAX_NEW_TOKENS,
+) -> HeldoutCurve:
     """Generate and grade a held-out curve for every checkpoint in one run directory.
 
     The model backend import stays lazy so CPU-only commands do not load GPU dependencies.
@@ -89,8 +89,9 @@ def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) ->
     from grpo_decomp.eval.generate import generate
 
     run_dir = Path(run_dir)
-    provenance = _load_run_provenance(run_dir)
+    provenance = load_run_provenance(run_dir)
     validation = validation_for_run(provenance)
+    config = SamplingConfig(max_new_tokens=max_new_tokens)
 
     points: list[HeldoutPoint] = []
     for checkpoint in discover_checkpoints(run_dir):

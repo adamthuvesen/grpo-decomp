@@ -8,8 +8,10 @@ so its pinned version is part of the record).
 
 from __future__ import annotations
 
+import json
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from pydantic import Field
 
@@ -40,6 +42,28 @@ class RunProvenance(Record):
     dirty: bool = Field(default=False, description="Worktree had uncommitted changes at capture.")
     python_version: str
     package_versions: dict[str, str]
+
+
+_RETIRED_CHECKPOINT_FIELDS = (
+    "checkpoint_selection",
+    "selected_checkpoint",
+    "selected_step",
+)
+
+
+def load_run_provenance(run_dir: Path) -> RunProvenance:
+    """Load run metadata, accepting checkpoint fields written by older releases.
+
+    Checkpoint selection no longer affects evaluation. Existing Modal runs still carry
+    its three provenance fields, so they are removed before the remaining strict schema
+    is checked. Other unknown fields remain errors.
+    """
+    path = Path(run_dir) / "provenance.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        for field in _RETIRED_CHECKPOINT_FIELDS:
+            data.pop(field, None)
+    return RunProvenance.model_validate(data)
 
 
 def capture_provenance(
