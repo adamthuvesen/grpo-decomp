@@ -80,7 +80,9 @@ def _aggregate_one_control(
         raise ValueError(f"control {control!r}: {len(comparisons)} comparisons but {n_seeds} seeds")
     deltas = np.array([comparison.delta for comparison in comparisons], dtype=float)
     single_ci = (comparisons[0].ci_low, comparisons[0].ci_high) if n_seeds == 1 else None
-    mean, _sem, ci_low, ci_high, ci_kind = seed_level_mean_ci(deltas, single_seed_ci=single_ci)
+    mean, _sem, ci_low, ci_high, ci_kind = seed_level_mean_ci(
+        deltas.tolist(), single_seed_ci=single_ci
+    )
     if n_seeds >= 2:
         if np.allclose(deltas, 0.0):
             p_value = 1.0

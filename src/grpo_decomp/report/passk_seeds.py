@@ -215,7 +215,7 @@ def _coverage_stats(
 ) -> _CoverageStats:
     values_array = np.array(values, dtype=float)
     mean = float(values_array.mean())
-    half_width, ci_kind = seed_level_t_half_width(values_array)
+    half_width, ci_kind = seed_level_t_half_width(values)
     delta, delta_ci, delta_propagated_ci = _delta_intervals(mean, anchor, half_width, anchor_ci)
     return _CoverageStats(
         mean=mean,

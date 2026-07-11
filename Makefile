@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := check
-.PHONY: install fmt lint test test-integration check demo results aggregate test-docs
+.PHONY: install fmt lint typecheck test test-integration check demo results aggregate test-docs
 
 install:  ## Sync the dev environment (incl. the CPU eval/stats layer)
 	uv sync --extra dev --extra eval
@@ -12,13 +12,16 @@ lint:  ## Lint and format-check (no changes)
 	uv run ruff check .
 	uv run ruff format --check .
 
+typecheck:  ## Check source-package type annotations
+	uv run mypy
+
 test:  ## Run unit tests (network tests deselected)
 	uv run pytest
 
 test-integration:  ## Run network/HuggingFace integration tests
 	uv run pytest -m integration
 
-check: lint test test-docs  ## Local gate: lint + unit tests + docs consistency
+check: lint typecheck test test-docs  ## Local gate: lint + types + unit tests + docs consistency
 
 test-docs:  ## docs <-> JSON consistency for committed headline numbers
 	uv run pytest tests/test_docs_consistency.py -q

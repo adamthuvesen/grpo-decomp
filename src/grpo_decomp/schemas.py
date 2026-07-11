@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from typing import overload
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -70,6 +71,12 @@ class ProblemSet(Record):
     # BaseModel.__iter__, so use .model_dump() (not dict(...)) for the field map.
     def __iter__(self) -> Iterator[Problem]:  # type: ignore[override]
         return iter(self.problems)
+
+    @overload
+    def __getitem__(self, index: int) -> Problem: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> tuple[Problem, ...]: ...
 
     def __getitem__(self, index: int | slice) -> Problem | tuple[Problem, ...]:
         return self.problems[index]
