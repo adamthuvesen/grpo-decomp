@@ -1,10 +1,4 @@
-"""CPU end-to-end proof for the Esme-214M-RL decomposition (grpo-decomp side).
-
-Proves the grpo-decomp half without Modal or a model: the registered ``esme-countdown``
-eval-set + verifier grade Esme-shaped ``CompletionSet``s, and ``report --task-set
-esme-countdown`` turns three arms (base/correct/random) into a decomposition. The sibling
-esme-posttrain test proves the emitter and the placebo GRPO mode that produce these arms.
-"""
+"""CPU end-to-end proof for the Esme-214M-RL sampled decomposition."""
 
 from __future__ import annotations
 
@@ -16,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from grpo_decomp.eval.cli import main as cli_main
 from grpo_decomp.eval.completions import (
     CompletionSet,
     GenerationProvenance,
@@ -136,57 +129,6 @@ def test_esme_wellformed_rules() -> None:
     assert esme_countdown_is_wellformed("9", gold) is False  # not all numbers used
     assert esme_countdown_is_wellformed("1 + 1", gold) is False  # number reuse / omission
     assert esme_countdown_is_wellformed(None, gold) is False
-
-
-def test_report_decomposes_three_arms(tmp_path: Path) -> None:
-    problems = load_esme_countdown()
-    solutions = {
-        problem.id: _solve(*parse_countdown_key(problem.gold_answer)) for problem in problems
-    }
-
-    # correct solves every problem; base/random emit an empty box (graded wrong). The
-    # emitter wraps expressions in \boxed{...}; the report's strict/lenient extractor
-    # must recover them before the Esme verifier grades — this exercises that path.
-    completions_dir = tmp_path / "runs"
-    _write_arm(
-        completions_dir / "correct__esme-countdown",
-        model="Esme-214M-RL",
-        samples_for={pid: f"\\boxed{{{expr}}}" for pid, expr in solutions.items()},
-    )
-    _write_arm(
-        completions_dir / "base__esme-countdown",
-        model="Esme-214M-Chat",
-        samples_for={problem.id: "\\boxed{}" for problem in problems},
-    )
-    _write_arm(
-        completions_dir / "random__esme-countdown",
-        model="Esme-214M-RL-random",
-        samples_for={problem.id: "\\boxed{}" for problem in problems},
-    )
-
-    out = tmp_path / "out"
-    exit_code = cli_main(
-        [
-            "report",
-            "--completions-dir",
-            str(completions_dir),
-            "--task-set",
-            "esme-countdown",
-            "--out",
-            str(out),
-        ]
-    )
-    assert exit_code == 0
-
-    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
-    assert summary["task"] == "esme-countdown"
-    # correct solves all 30, base solves 0 -> a full raw gain, and correct beats the
-    # random placebo by the same margin (the placebo carries no signal here).
-    raw_gain = next(row for row in summary["rows"] if row["control"] == "raw gain")
-    assert raw_gain["comparison"]["delta"] == pytest.approx(1.0)
-    placebo = summary["confirmatory_comparison"]
-    assert placebo["comparison"]["delta"] == pytest.approx(1.0)
-    assert (out / "decomposition.md").is_file()
 
 
 def test_sampled_decomp_writes_multiseed_summary(tmp_path: Path) -> None:

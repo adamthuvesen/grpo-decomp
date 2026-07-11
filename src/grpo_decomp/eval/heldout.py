@@ -1,8 +1,7 @@
-"""Held-out validation curves and checkpoint selection."""
+"""Held-out validation curves across saved checkpoints."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import Field
@@ -10,7 +9,7 @@ from pydantic import Field
 from grpo_decomp.eval.battery import grade
 from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.registries import VALIDATION_RECONSTRUCTORS
-from grpo_decomp.schemas import ProblemSet, Record, record_json
+from grpo_decomp.schemas import ProblemSet, Record
 from grpo_decomp.train.provenance import RunProvenance
 
 
@@ -25,40 +24,12 @@ class HeldoutPoint(Record):
 
 
 class HeldoutCurve(Record):
-    """A full held-out accuracy curve plus the selection rule metadata."""
+    """A full held-out accuracy curve."""
 
     run: str
     validation_size: int
     policy: str = Field(description="Answer extraction policy used for grading.")
     points: tuple[HeldoutPoint, ...]
-    selected_checkpoint: str | None = None
-    selected_step: int | None = None
-    rule: str | None = None
-
-
-def select_checkpoint(
-    points: Sequence[HeldoutPoint],
-    rule: str,
-    final_step: int,
-) -> tuple[str, int]:
-    """Realize a checkpoint-selection rule over a held-out curve -> (checkpoint dir, step).
-
-    `final` always takes the end-of-training checkpoint; `best_on_validation` takes the
-    highest held-out accuracy, breaking ties toward the later (more-trained) step.
-    """
-    if rule == "final":
-        if not any(point.checkpoint == "final" for point in points):
-            raise ValueError("final checkpoint selection needs a discovered final checkpoint")
-        return "final", final_step
-    if rule == "best_on_validation":
-        if not points:
-            raise ValueError("best_on_validation needs a non-empty held-out curve")
-        best = max(
-            points,
-            key=lambda p: (p.accuracy, p.step if p.step is not None else final_step),
-        )
-        return best.checkpoint, best.step if best.step is not None else final_step
-    raise ValueError(f"unknown checkpoint_selection rule {rule!r}")
 
 
 def validation_for_run(provenance: RunProvenance) -> ProblemSet:
@@ -110,15 +81,10 @@ def _load_run_provenance(run_dir: Path) -> RunProvenance:
     )
 
 
-def _write_run_provenance(run_dir: Path, provenance: RunProvenance) -> None:
-    (Path(run_dir) / "provenance.json").write_text(record_json(provenance), encoding="utf-8")
-
-
 def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) -> HeldoutCurve:
     """Generate and grade a held-out curve for every checkpoint in one run directory.
 
-    The model backend import stays lazy so report-only commands can import this module
-    without loading GPU dependencies.
+    The model backend import stays lazy so CPU-only commands do not load GPU dependencies.
     """
     from grpo_decomp.eval.generate import generate
 
@@ -128,8 +94,7 @@ def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) ->
 
     points: list[HeldoutPoint] = []
     for checkpoint in discover_checkpoints(run_dir):
-        # Score on the SAME prompt strategy the run trained on, or checkpoint selection
-        # would compare an off-distribution prompt against the training distribution.
+        # Score on the same prompt strategy the run trained on.
         samples = generate(
             str(checkpoint),
             validation,
@@ -150,28 +115,9 @@ def run_heldout_curve(run_dir: Path, config: SamplingConfig, *, backend: str) ->
             )
         )
 
-    name, step = select_checkpoint(
-        points, provenance.checkpoint_selection, provenance.grpo.max_steps
-    )
     return HeldoutCurve(
         run=str(run_dir),
         validation_size=len(validation),
         policy="lenient",
         points=tuple(points),
-        selected_checkpoint=name,
-        selected_step=step,
-        rule=provenance.checkpoint_selection,
     )
-
-
-def write_selected_provenance(run_dir: Path, curve: HeldoutCurve) -> None:
-    """Record the checkpoint selected by a held-out curve in run provenance."""
-    run_dir = Path(run_dir)
-    provenance = _load_run_provenance(run_dir)
-    selected = provenance.model_copy(
-        update={
-            "selected_step": curve.selected_step,
-            "selected_checkpoint": curve.selected_checkpoint,
-        }
-    )
-    _write_run_provenance(run_dir, selected)

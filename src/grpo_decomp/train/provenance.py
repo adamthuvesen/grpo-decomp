@@ -36,11 +36,6 @@ class RunProvenance(Record):
     validation_size: int
     seed: int
     grpo: GRPOSettings
-    checkpoint_selection: str
-    selected_step: int | None
-    selected_checkpoint: str | None = Field(
-        default=None, description="Realized checkpoint dir (e.g. 'final' or 'checkpoint-300')."
-    )
     commit: str
     dirty: bool = Field(default=False, description="Worktree had uncommitted changes at capture.")
     python_version: str
@@ -53,8 +48,6 @@ def capture_provenance(
     *,
     train_size: int,
     validation_size: int,
-    selected_step: int | None = None,
-    selected_checkpoint: str | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
     packages: Sequence[str] = PROVENANCE_PACKAGES,
@@ -63,8 +56,6 @@ def capture_provenance(
 
     `train_size` / `validation_size` are the realized split sizes (so a smoke
     subset is distinguishable from a full run, which otherwise share a DatasetRef).
-    `selected_step` is the checkpoint step chosen per `arm.checkpoint_selection`;
-    it is filled in by the GPU run and left None at launch time.
     """
     return RunProvenance(
         arm=arm.name,
@@ -77,9 +68,6 @@ def capture_provenance(
         validation_size=validation_size,
         seed=arm.seed,
         grpo=arm.grpo,
-        checkpoint_selection=arm.checkpoint_selection,
-        selected_step=selected_step,
-        selected_checkpoint=selected_checkpoint,
         # Overrides win when given: on Modal the image strips .git, so the container
         # can't read git — the local entrypoint computes these and passes them in.
         commit=commit if commit is not None else git_commit(),

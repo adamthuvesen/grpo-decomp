@@ -70,7 +70,7 @@ Training and analysis meet at a committed artifact boundary:
 1. Train one arm with a recorded base model, reward, seed, dataset, and config.
 2. Generate completions from the base model and trained checkpoints.
 3. Freeze them as `CompletionSet` directories.
-4. Grade and report offline on CPU.
+4. Grade and aggregate across seeds offline on CPU.
 
 Only training and generation need a model backend. Once a `CompletionSet` exists,
 analysis is deterministic: no GPU, network, or Hugging Face access.
@@ -84,7 +84,7 @@ run volumes or checkpoints. Module map and data flow: [docs/architecture.md](doc
 ## Quickstart
 
 ```bash
-make install   # CPU env: data, rewards, eval, stats, report, tests
+make install   # CPU env: data, rewards, eval, stats, reports, tests
 make check     # ruff + unit tests + docs consistency
 make results   # rebuild committed figures from JSON, then docs <-> JSON check
 make demo      # score two tiny committed CompletionSets; no model load
@@ -96,7 +96,6 @@ Generation and training need a model backend; everything else runs on CPU:
 uv sync --extra generate
 grpo-decomp generate --model Qwen/Qwen2.5-Math-1.5B --set dev --backend transformers --out runs/base__dev
 grpo-decomp battery  --completions runs/base__dev --k 1
-grpo-decomp report   --completions-dir runs/ --out results/   # <arm>__<set> dirs -> table + summary.json
 ```
 
 Run `grpo-decomp --help` for the full command set. To train an arm on Modal and

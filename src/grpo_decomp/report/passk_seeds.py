@@ -18,7 +18,6 @@ import numpy as np
 from pydantic import Field
 
 from grpo_decomp.eval.battery import counts_by_problem
-from grpo_decomp.eval.code_reasoning import code_reasoning_frequency
 from grpo_decomp.eval.completions import CompletionSet
 from grpo_decomp.eval.cot import has_verifiable_chain
 from grpo_decomp.eval.passk import estimate_pass_at_k, pass_at_k
@@ -50,11 +49,8 @@ class PassKMultiSeed(Record):
     base_passk: float = Field(description="Base pass@k anchor (seed-independent).")
     base_passk_ci_low: float = Field(description="Problem-bootstrap CI low on the base anchor.")
     base_passk_ci_high: float
-    base_code_reasoning_freq: float
-
     per_seed_correct_pass1: tuple[float, ...]
     per_seed_correct_passk: tuple[float, ...]
-    per_seed_code_reasoning_freq: tuple[float, ...]
     mean_correct_pass1: float
     mean_correct_passk: float
     correct_passk_ci_low: float = Field(description="Seed-level t CI low on correct pass@k.")
@@ -140,15 +136,12 @@ class PassKMultiSeed(Record):
 
 
 class _ArmMetrics(NamedTuple):
-    """One sampled arm's pass@1/pass@k (vanilla + CoT-gated), code-reasoning frequency, and the
-    per-problem lenient/CoT counts that both the panel estimate and the base bootstrap resample.
-    """
+    """One sampled arm's pass@1/pass@k metrics and per-problem counts."""
 
     pass1: float
     passk: float
     cot_pass1: float
     cot_passk: float
-    crf: float
     chain_coverage: float
     counts: list[int]
     cot_counts: list[int]
@@ -162,7 +155,6 @@ class _CorrectMetrics(NamedTuple):
     passks: tuple[float, ...]
     cot_pass1s: tuple[float, ...]
     cot_passks: tuple[float, ...]
-    crfs: tuple[float, ...]
     chain_coverages: tuple[float, ...]
 
 
@@ -250,7 +242,6 @@ def _arm_metrics(cs: CompletionSet, k: int) -> _ArmMetrics:
         passk=estimate_pass_at_k(counts, k, n=n),
         cot_pass1=estimate_pass_at_k(cot_counts, 1, n=n),
         cot_passk=estimate_pass_at_k(cot_counts, k, n=n),
-        crf=code_reasoning_frequency(samples),
         chain_coverage=chain_cov,
         counts=counts,
         cot_counts=cot_counts,
@@ -266,7 +257,6 @@ def _collect_correct_metrics(
     passks: list[float] = []
     cot_pass1s: list[float] = []
     cot_passks: list[float] = []
-    crfs: list[float] = []
     chain_coverages: list[float] = []
     n_corrects: set[int] = set()
     for label, cs in correct_by_seed:
@@ -276,7 +266,6 @@ def _collect_correct_metrics(
         passks.append(metrics.passk)
         cot_pass1s.append(metrics.cot_pass1)
         cot_passks.append(metrics.cot_passk)
-        crfs.append(metrics.crf)
         chain_coverages.append(metrics.chain_coverage)
         n_corrects.add(metrics.n)
     if len(n_corrects) != 1:
@@ -288,7 +277,6 @@ def _collect_correct_metrics(
         passks=tuple(passks),
         cot_pass1s=tuple(cot_pass1s),
         cot_passks=tuple(cot_passks),
-        crfs=tuple(crfs),
         chain_coverages=tuple(chain_coverages),
     )
 
@@ -331,10 +319,8 @@ def aggregate_passk_seeds(
         base_passk=base_m.passk,
         base_passk_ci_low=base_ci[0],
         base_passk_ci_high=base_ci[1],
-        base_code_reasoning_freq=base_m.crf,
         per_seed_correct_pass1=correct.pass1s,
         per_seed_correct_passk=correct.passks,
-        per_seed_code_reasoning_freq=correct.crfs,
         mean_correct_pass1=float(np.mean(correct.pass1s)),
         mean_correct_passk=vanilla.mean,
         correct_passk_ci_low=vanilla.ci[0],

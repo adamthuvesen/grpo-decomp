@@ -24,17 +24,17 @@ and is _not_ duplicated here.
 ## Quickstart
 
 ```bash
-make install        # CPU env: data, rewards, eval, stats, report
+make install        # CPU env: data, rewards, eval, stats, reports
 make check          # ruff + unit tests + docs consistency
 make demo           # score committed mini CompletionSets; no model load
 make results        # rebuild figures from results/*.json + docs<->JSON consistency check
 
 modal run --detach modal_app.py --arm configs/correct.yaml  # train one arm on an A100 (see docs/runbook.md)
 grpo-decomp battery --completions runs/base__dev --k 1      # grade a CompletionSet (CPU)
-grpo-decomp report  --completions-dir runs/ --out results/  # <arm>__<set> dirs -> table + summary.json
+grpo-decomp report-passk-seeds --completions-dir runs/passk-multiseed --task-set gsm8k-test
 ```
 
-Only `generate` (and training) needs a model/GPU; `battery`, `report`, and `make results` run on CPU.
+Only `generate` (and training) needs a model/GPU; grading and reports run on CPU.
 
 ## Conventions
 
@@ -59,7 +59,7 @@ any task through registries. No fork is required:
 
 1. Write a `register()` that calls `register_eval_set`, `register_train_dataset`,
    `register_reward`, `register_verifier` (if not boxed-math), and
-   `register_validation_reconstructor` (for held-out selection). Optionally
+   `register_validation_reconstructor` (for held-out diagnostics). Optionally
    `register_prompt_strategy` for a chat-template model; the harness default is `r1_zero`.
 2. Declare it under the `grpo_decomp.plugins` entry-point group so the CLI/Modal discover it.
 3. Point an `ArmConfig` at your `base_model` + your registered `reward`/`dataset`/`prompt_strategy`.

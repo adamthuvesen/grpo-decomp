@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import re
-import statistics
 from pathlib import Path
 
 import pytest
@@ -89,7 +88,6 @@ _FIND_D = "results/decontam/FINDINGS.md"
 _FIND_E = "results/esme-countdown/sampled_decomposition.md"
 _README = "README.md"
 
-_crf_mean = statistics.fmean(_GP["per_seed_code_reasoning_freq"])
 _ESME_VALID = _ESME["valid_rate_seed_aggregate"]
 _ESME_EXACT = _ESME["exact_any_seed_aggregate"]
 
@@ -139,8 +137,6 @@ _CLAIMS: list[tuple[str, str, str]] = [
         _FIND_G,
         f"[{_pct(_GP['delta_ci_low'], sign=True)}, {_pct(_GP['delta_ci_high'], sign=True)}]",
     ),
-    ("gsm.base-crf", _FIND_G, f"base {_pct(_GP['base_code_reasoning_freq'])}%"),
-    ("gsm.correct-crf", _FIND_G, f"correct code-reasoning is {_pct(_crf_mean)}%"),
     ("readme.gsm-base-pass8", _README, f"base pass@8 ({_pct(_GP['base_passk'])}%)"),
     ("readme.gsm-correct-pass1", _README, f"correct pass@1 ({_pct(_GP['mean_correct_pass1'])}%)"),
     ("readme.gsm-delta", _README, f"{_DELTA} {_pct(_GP['delta'], sign=True)} pp"),

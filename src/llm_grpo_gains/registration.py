@@ -55,15 +55,13 @@ def _gsm8k_validation(provenance: RunProvenance) -> ProblemSet:
 
 def register() -> None:
     """Register every study dataset, reward, verifier, and task profile (idempotent)."""
-    # Named eval sets (`generate --set`, report `--task-set`).
+    # Named eval sets (`generate --set`, report commands' `--task-set`).
     register_eval_set("gsm8k-test", lambda: load_gsm8k("test"))
-    register_eval_set("gsm8k-train", lambda: load_gsm8k("train"))
     register_eval_set("dev", lambda: dev_slice(load_gsm8k("test")))
     register_eval_set("gsm-symbolic", lambda: load_gsm_symbolic("main"))
     register_eval_set("gsm-plus", lambda: load_gsm_plus("test"))
     register_eval_set("gsm8k-platinum", load_gsm8k_platinum)
     register_eval_set("countdown-test", lambda: load_countdown("test"))
-    register_eval_set("countdown-dev", lambda: load_countdown("dev"))
     # Esme-214M-RL decomposition: the held-out Countdown-Lite set the esme-posttrain
     # emitter samples over. The completions arrive as artifacts; the harness only grades.
     register_eval_set("esme-countdown", lambda: load_esme_countdown("heldout_fresh"))
@@ -113,7 +111,6 @@ def register() -> None:
             control_sets=("gsm-symbolic", "gsm-plus", "gsm8k-platinum"),
             run_prefix="",
             battery_root="battery",
-            elicitation_root="elicitation",
             passk_multiseed_root="passk-multiseed",
         ),
     )
@@ -125,7 +122,6 @@ def register() -> None:
             control_sets=(),
             run_prefix="countdown-",
             battery_root="battery-countdown",
-            elicitation_root="elicitation-countdown",
             passk_multiseed_root="passk-multiseed-countdown",
         ),
     )

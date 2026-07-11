@@ -6,8 +6,7 @@ from pathlib import Path
 
 from grpo_decomp.eval.battery import grade
 from grpo_decomp.eval.completions import CompletionSet, load_completion_set
-from grpo_decomp.registries import ARMS, EVAL_SETS
-from grpo_decomp.schemas import ProblemSet
+from grpo_decomp.registries import EVAL_SETS
 
 
 def base_and_correct_seeds(
@@ -50,60 +49,19 @@ def seed_label(battery_dir: Path) -> int | str:
     return int(tail) if head and tail.isdigit() else name
 
 
-def discover_completion_sets(root: Path) -> dict[str, dict[str, CompletionSet]]:
-    """Load ``<arm>__<set>`` subdirectories into ``{set: {arm: CompletionSet}}``."""
-    root = Path(root)
-    if not root.is_dir():
-        raise ValueError(f"completions dir {root} does not exist")
-    grouped: dict[str, dict[str, CompletionSet]] = {}
-    for sub in sorted(root.iterdir()):
-        if not sub.is_dir() or "__" not in sub.name:
-            continue
-        arm, _, slug = sub.name.partition("__")
-        if arm not in ARMS:
-            continue
-        grouped.setdefault(slug, {})[arm] = load_completion_set(sub)
-    if not grouped:
-        raise ValueError(f"no '<arm>__<set>' completion dirs found under {root}")
-    return grouped
-
-
-def validate_report_artifacts(grouped: dict[str, dict[str, CompletionSet]]) -> None:
-    """Require report artifacts to match the registered eval sets they claim to be.
-
-    Also require all arms compared within a set to share one prompt strategy: comparing a
-    base arm generated with one strategy against a trained arm generated with another is
-    exactly the distribution shift the decomposition must not silently absorb.
-    """
-    for slug, arms in grouped.items():
-        if slug not in EVAL_SETS:
+def validate_aligned_artifacts(slug: str, arms: dict[str, CompletionSet]) -> None:
+    """Require compared artifacts to carry identical data and prompt provenance."""
+    validate_same_prompt_strategy(slug, arms)
+    anchor_arm, anchor = next(iter(arms.items()))
+    anchor_problems = tuple(item.problem for item in anchor.items)
+    for arm, completion_set in arms.items():
+        if completion_set.provenance.dataset != anchor.provenance.dataset:
             raise ValueError(
-                f"unknown report set {slug!r}; known sets are {tuple(sorted(EVAL_SETS))}"
+                f"{arm}__{slug}: dataset metadata does not match {anchor_arm} "
+                f"{anchor.provenance.dataset.model_dump()}"
             )
-        validate_same_prompt_strategy(slug, arms)
-        expected = EVAL_SETS[slug]()
-        for arm, completion_set in arms.items():
-            validate_completion_set(slug, arm, completion_set, expected)
-
-
-def validate_completion_set(
-    slug: str, arm: str, completion_set: CompletionSet, expected: ProblemSet
-) -> None:
-    """Require one artifact to match its registered dataset metadata and problem records."""
-    if completion_set.provenance.dataset != expected.source:
-        raise ValueError(
-            f"{arm}__{slug}: dataset metadata does not match registered set "
-            f"{expected.source.model_dump()}"
-        )
-    expected_problems = tuple(expected.problems)
-    actual_problems = tuple(item.problem for item in completion_set.items)
-    if actual_problems != expected_problems:
-        expected_ids = tuple(problem.id for problem in expected_problems)
-        actual_ids = tuple(problem.id for problem in actual_problems)
-        raise ValueError(
-            f"{arm}__{slug}: problem records do not match registered set "
-            f"(expected {len(expected_ids)}, got {len(actual_ids)})"
-        )
+        if tuple(item.problem for item in completion_set.items) != anchor_problems:
+            raise ValueError(f"{arm}__{slug}: problem records do not match {anchor_arm}")
 
 
 def validate_same_prompt_strategy(slug: str, arms: dict[str, CompletionSet]) -> None:
@@ -123,19 +81,9 @@ def validate_seed_artifacts(
 ) -> None:
     """Require seed-report artifacts to align without reloading the full registered set."""
     arms = {"base": base, **{f"correct-seed{seed}": cs for seed, cs in correct_by_seed}}
-    validate_same_prompt_strategy(slug, arms)
-
-    base_problems = tuple(item.problem for item in base.items)
-    base_dataset = base.provenance.dataset
+    validate_aligned_artifacts(slug, arms)
     correct_sample_counts: dict[int | str, int] = {}
     for seed, completion_set in correct_by_seed:
-        arm = f"correct-seed{seed}"
-        if completion_set.provenance.dataset != base_dataset:
-            raise ValueError(
-                f"{arm}__{slug}: dataset metadata does not match base {base_dataset.model_dump()}"
-            )
-        if tuple(item.problem for item in completion_set.items) != base_problems:
-            raise ValueError(f"{arm}__{slug}: problem records do not match base")
         correct_sample_counts[seed] = completion_set.provenance.sampling.n
     if len(set(correct_sample_counts.values())) > 1:
         raise ValueError(

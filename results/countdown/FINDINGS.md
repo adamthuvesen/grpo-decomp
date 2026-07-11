@@ -4,7 +4,7 @@ The **positive control**. Placebo comparison: **3 seeds per arm**; held-out `cou
 (n=192, disjoint from train, procedurally generated so uncontaminated); pass@1 greedy. The
 pass@k coverage panel is now **3 seeds** too (base n=16 / correct n=8, temp 0.7). Commit-pinned
 artifacts: `seed-placebo-comparison.json`, `pass8-multiseed.json` (3-seed pass@k),
-`elicitation.json` (historical seed-0 panel), `summary.json`, `decomposition.md`.
+with the retired seed-0 `summary.json` and `decomposition.md` retained for historical context.
 
 ## Headline (controlled)
 

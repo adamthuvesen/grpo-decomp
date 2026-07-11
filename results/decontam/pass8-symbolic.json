@@ -1,6 +1,5 @@
 {
   "base_chain_coverage": 0.0,
-  "base_code_reasoning_freq": 0.7419920394238059,
   "base_cot_pass1": 0.0,
   "base_cot_passk": 0.0,
   "base_cot_passk_ci_high": 0.0,
@@ -33,14 +32,6 @@
   "n_base": 16,
   "n_correct": 8,
   "n_seeds": 6,
-  "per_seed_code_reasoning_freq": [
-    0.3977445034116755,
-    0.7553070507960576,
-    0.8031652767247915,
-    0.7847801364670205,
-    0.8538665655799849,
-    0.689442759666414
-  ],
   "per_seed_correct_cot_passk": [
     0.0,
     0.0,

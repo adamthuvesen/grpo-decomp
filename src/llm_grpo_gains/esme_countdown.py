@@ -2,14 +2,14 @@
 
 `esme-posttrain` trains a from-scratch 214M model on a *Countdown-Lite* variant (each supplied
 number used **exactly once**, operators **+ - ***, no division, integer result equal to the
-target). This module plugs that task into the harness so `report --task-set esme-countdown`
-grades Esme-emitted `CompletionSet`s.
+target). This module plugs that task into the harness so the Esme sampled analysis grades
+Esme-emitted `CompletionSet`s.
 
 Two pieces, both study-specific (they live on the study side of the one-way boundary):
 
 - ``load_esme_countdown`` — loads the pinned held-out problem set from a committed fixture.
   The fixture is the exact set the `esme-posttrain` emitter samples over, so the arms' problem
-  records and ``DatasetRef`` match it byte-for-byte (`report`'s artifact check requires this).
+  records and ``DatasetRef`` match it byte-for-byte.
 - ``esme_countdown_is_correct`` — the verifier the harness routes to for ``DatasetRef.name ==
   'esme-countdown'``. It applies Esme's rules, which are stricter than the general Countdown
   reward here (exact-once, no division), so grading agrees with Esme's own training reward.
@@ -20,7 +20,6 @@ extractor recovers the expression before this verifier grades it.
 
 from __future__ import annotations
 
-import ast
 import json
 from collections import Counter
 from fractions import Fraction
@@ -28,21 +27,12 @@ from functools import lru_cache
 from pathlib import Path
 
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
-from llm_grpo_gains.data.countdown import parse_countdown_key
+from llm_grpo_gains.data.countdown import _evaluate_expression, parse_countdown_key
 
 #: The ``DatasetRef.name`` the emitter stamps and the verifier keys on.
 ESME_COUNTDOWN_SOURCE = "esme-countdown"
 
 _FIXTURE_PATH = Path(__file__).parent / "data" / "esme_countdown_heldout_fresh.json"
-
-# Esme Countdown-Lite admits only + - * (and unary +/-, parentheses); division is not a
-# legal operator, so an expression using it is graded wrong even if it hits the target.
-_ALLOWED_BINOPS = (ast.Add, ast.Sub, ast.Mult)
-_ALLOWED_UNARYOPS = (ast.UAdd, ast.USub)
-
-
-class _InvalidExpressionError(Exception):
-    """The expression uses a token outside the Esme Countdown-Lite grammar."""
 
 
 @lru_cache(maxsize=1)
@@ -68,44 +58,9 @@ def load_esme_countdown(split: str = "heldout_fresh") -> ProblemSet:
     return problem_set
 
 
-def _eval_node(node: ast.AST) -> tuple[Fraction, list[int]]:
-    """Evaluate an AST node exactly, returning ``(value, leaf_numbers)``.
-
-    Only integer literals, ``+ - *``, unary ±, and parentheses are admitted; anything else
-    (a name, call, division, ``**``) raises `_InvalidExpressionError`.
-    """
-    if isinstance(node, ast.BinOp) and isinstance(node.op, _ALLOWED_BINOPS):
-        left, left_leaves = _eval_node(node.left)
-        right, right_leaves = _eval_node(node.right)
-        leaves = left_leaves + right_leaves
-        if isinstance(node.op, ast.Add):
-            return left + right, leaves
-        if isinstance(node.op, ast.Sub):
-            return left - right, leaves
-        return left * right, leaves
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, _ALLOWED_UNARYOPS):
-        value, leaves = _eval_node(node.operand)
-        return (value if isinstance(node.op, ast.UAdd) else -value), leaves
-    if isinstance(node, ast.Constant) and _is_plain_int(node.value):
-        return Fraction(node.value), [node.value]
-    raise _InvalidExpressionError(f"disallowed node {type(node).__name__}")
-
-
-def _is_plain_int(value: object) -> bool:
-    """An integer literal, excluding ``bool`` (an int subclass)."""
-    return isinstance(value, int) and not isinstance(value, bool)
-
-
 def _evaluate(text: str) -> tuple[Fraction, list[int]] | None:
     """Exactly evaluate an Esme Countdown expression, or None if malformed/disallowed."""
-    try:
-        tree = ast.parse(text.strip(), mode="eval")
-    except (SyntaxError, ValueError):
-        return None
-    try:
-        return _eval_node(tree.body)
-    except _InvalidExpressionError:
-        return None
+    return _evaluate_expression(text, allow_division=False, normalize_operators=False)
 
 
 def is_valid_esme_countdown_solution(text: str, numbers: tuple[int, ...], target: int) -> bool:

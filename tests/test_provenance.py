@@ -29,9 +29,6 @@ def test_capture_records_run_identity() -> None:
     assert prov.seed == 7
     assert prov.train_size == 7217
     assert prov.validation_size == 256
-    assert prov.checkpoint_selection == "final"  # pre-registered default
-    assert prov.selected_step is None  # filled in by the held-out selection
-    assert prov.selected_checkpoint is None  # filled in by the held-out selection
     assert prov.dataset.revision == "abc123"
     assert prov.grpo.beta == 0.0
 

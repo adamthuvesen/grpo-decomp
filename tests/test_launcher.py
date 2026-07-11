@@ -43,8 +43,6 @@ def test_prepare_run_creates_dir_and_writes_provenance(tmp_path) -> None:
     assert provenance["seed"] == 3
     assert provenance["train_size"] == 1
     assert provenance["validation_size"] == 256
-    assert provenance["checkpoint_selection"] == "final"
-    assert provenance["selected_step"] is None
     assert provenance["dataset"]["revision"] == "rev"
     assert provenance["grpo"]["beta"] == 0.0
 

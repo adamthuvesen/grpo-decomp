@@ -15,7 +15,6 @@ from typing import NamedTuple
 
 from pydantic import Field
 
-from grpo_decomp.eval.code_reasoning import is_code_reasoning
 from grpo_decomp.eval.cot import chain_is_valid, has_verifiable_chain
 from grpo_decomp.eval.passk import estimate_pass_at_k
 from grpo_decomp.grading import extract_lenient, extract_strict
@@ -39,7 +38,6 @@ class BatteryResult(Record):
     strict_accuracy: float = Field(description="pass@1 under strict (boxed-only) extraction.")
     lenient_accuracy: float = Field(description="pass@1 under lenient extraction.")
     pass_at_k: tuple[PassK, ...]
-    code_reasoning_frequency: float
     chain_coverage: float = Field(description="Fraction of completions with >=1 verifiable step.")
 
 
@@ -47,7 +45,6 @@ class _BatteryScores(NamedTuple):
     n: int
     strict_correct: int
     lenient_correct: int
-    code_count: int
     chain_coverage_count: int
     lenient_counts: list[int]
     cot_counts: list[int]
@@ -78,7 +75,6 @@ def _score_completions(
     check = verifier_for(problems.source)
     strict_correct = 0
     lenient_correct = 0
-    code_count = 0
     chain_coverage_count = 0
     lenient_counts: list[int] = []
     cot_counts: list[int] = []
@@ -95,7 +91,6 @@ def _score_completions(
                 per_problem_lenient += 1
                 if chain_is_valid(completion):
                     per_problem_cot += 1
-            code_count += is_code_reasoning(completion)
             chain_coverage_count += has_verifiable_chain(completion)
         lenient_counts.append(per_problem_lenient)
         cot_counts.append(per_problem_cot)
@@ -104,7 +99,6 @@ def _score_completions(
         n=n,
         strict_correct=strict_correct,
         lenient_correct=lenient_correct,
-        code_count=code_count,
         chain_coverage_count=chain_coverage_count,
         lenient_counts=lenient_counts,
         cot_counts=cot_counts,
@@ -148,7 +142,6 @@ def run_battery(
         strict_accuracy=scores.strict_correct / total,
         lenient_accuracy=scores.lenient_correct / total,
         pass_at_k=pass_at_k,
-        code_reasoning_frequency=scores.code_count / total,
         chain_coverage=scores.chain_coverage_count / total,
     )
 
