@@ -46,7 +46,6 @@ train = [
     # TRL 1.0.0 supports vLLM 0.10.2–0.17.1; an out-of-range vLLM warns and risks
     # rollout/log-prob drift in GRPO colocate. Pin to the top of the supported window.
     "vllm==0.17.1",
-    "accelerate>=1.0",
     "wandb>=0.17",
 ]
 eval = [

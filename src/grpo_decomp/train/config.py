@@ -11,7 +11,6 @@ parameters so the settings map straight onto it.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 import yaml
 from pydantic import Field
@@ -33,9 +32,8 @@ class GRPOSettings(Record):
     num_generations: int = 8
     max_completion_length: int = 1024  # CoT headroom; 512 clipped too many rollouts.
     max_steps: int = 500
-    # Periodic checkpoints + frequent logs so the held-out accuracy curve
-    # (`grpo-decomp heldout`), entropy, and completion-length have resolution across
-    # the run; checkpoint selection reads held-out accuracy, not reward.
+    # Periodic checkpoints and frequent logs are retained so held-out accuracy,
+    # entropy, and completion length can be inspected across the run.
     logging_steps: int = 10
     save_strategy: str = "steps"
     save_steps: int = 100  # ~5 checkpoints over 500 steps.
@@ -63,8 +61,6 @@ class ArmConfig(Record):
     # `r1_zero`). Training and eval MUST use the same strategy.
     prompt_strategy: str = DEFAULT_PROMPT_STRATEGY
     base_model_revision: str | None = None
-    # Pre-registered (anti-peeking) rule for which checkpoint feeds the decomposition.
-    checkpoint_selection: Literal["final", "best_on_validation"] = "final"
     grpo: GRPOSettings = Field(default_factory=GRPOSettings)
 
 

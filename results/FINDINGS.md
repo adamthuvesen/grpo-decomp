@@ -4,8 +4,9 @@ Placebo comparison: **6 seeds per arm**; GSM8K-test (n=1319); pass@1 greedy, 102
 lenient extraction. The pass@k coverage panel is now **6 seeds** too (base n=16 / correct n=8,
 temp 0.7); the §3 controls are now **6 seeds** too (Holm-corrected). Commit-pinned artifacts:
 `seed-placebo-comparison.json` (6-seed), `pass8-multiseed.json` (6-seed pass@k),
-`mechanism.json` (per-problem migration), `decomposition-multiseed.json` (6-seed
-Holm-corrected controls), `summary.json` (seed-0 full decomposition), `decomposition.md`.
+`mechanism.json` (per-problem migration), and `decomposition-multiseed.json` (6-seed
+Holm-corrected controls). The retired seed-0 report is retained as historical
+`summary.json` and `decomposition.md` artifacts.
 
 ## Headline (controlled)
 
@@ -56,10 +57,10 @@ correct pass@8 over **6 seeds** vs the seed-independent base pass@8 anchor
 multi-seeded, on the same footing as the placebo comparison, and it *shrank*: the single-seed
 panel's +1.7 pp was the seed-0 high.
 
-| arm | pass@1 (sampled) | pass@8 | code-reasoning freq |
-| --- | --- | --- | --- |
-| base | 69.8% | **94.0%** [92.9, 95.0] | 85.4% |
-| correct (6-seed mean) | 76.2% | 94.7% [94.3, 95.1] | 83.1% |
+| arm | pass@1 (sampled) | pass@8 |
+| --- | --- | --- |
+| base | 69.8% | **94.0%** [92.9, 95.0] |
+| correct (6-seed mean) | 76.2% | 94.7% [94.3, 95.1] |
 
 - **base pass@8 (94.0%) ≫ correct pass@1 (76.2%)**: given 8 tries, the base already solves
   almost everything the RL model produces in one sampled try. The gain lives **inside the base's
@@ -71,18 +72,12 @@ panel's +1.7 pp was the seed-0 high.
   **[+35.1, +46.9]**) do not come close to overlapping. This is the *bounded-small* reading:
   pass@8 coverage does not meaningfully move. All six correct seeds cluster at 94.2-95.2%
   (near-ceiling; n=8 resolves the between-seed panel, no escalation needed).
-- **The style shift does not replicate.** The published seed-0 panel's code-reasoning drop
-  (84% → 63%) was a seed-0 idiosyncrasy: across six seeds correct code-reasoning is **83.1%**
-  (per-seed 63-91%) vs base 85.4%. There is essentially no shift, with only seed 0 at 63%. This is
-  another seed-0 result that does not hold under aggregation.
 - **Decontaminated: the envelope is not memorization.** Re-running this panel on **renumbered**
   problems (GSM-Symbolic) and **cleaned labels** (GSM8K-Platinum) leaves base pass@8 high
   (**90.8%** / **95.6%**) and far above correct pass@1, and Δ pass@8 small (**+1.8** / **+0.8**
   pp). Renumbering craters base pass@1 (memorization) but barely touches the pass@8 envelope the
   verdict rests on, so "base already solves it at pass@8" reflects capability, not leaked
   answers. Full panel in [`decontam/FINDINGS.md`](decontam/FINDINGS.md).
-- `elicitation.json` is retained as the historical seed-0 panel.
-
 ### CoT-gated pass@k: the verifiable-chain yardstick reads 0 here (coverage limit, not verdict)
 
 The pass@k critique this study cites ([CoT-Pass@K, 2506.14245](https://arxiv.org/abs/2506.14245))
@@ -90,8 +85,8 @@ argues pass@k can reward a lucky final answer, so a solve should be gated on a *
 reasoning chain. We compute CoT-gated pass@k with the standard non-neural check: a sample
 counts only with >=1 valid `<<a op b = c>>` calculator step. It is **0.0%** for base and
 correct alike, because **chain coverage is 0.0%**: not one base completion (16 per problem)
-emits a parseable `<<...>>` step. Qwen2.5-Math reasons in *code* (code-reasoning 85.4%), not
-GSM8K's calculator-annotation format, so the `<<>>` proxy never fires. CoT-gating is therefore
+emits a parseable `<<...>>` step. Qwen2.5-Math does not use GSM8K's
+calculator-annotation format, so the `<<>>` proxy never fires. CoT-gating is therefore
 **uninformative on these models**: a coverage limit of the verifiable proxy (an LLM judge is
 ruled out to keep the battery verifiable-only), not an invalid-reasoning verdict. We surface it
 (`base_chain_coverage` / `mean_correct_chain_coverage` in `pass8-multiseed.json`) rather than
@@ -132,7 +127,7 @@ The gain survives every control under family-wise correction. correct - base per
 - **Contamination is a base pass@1 effect, not an RL one.** Base drops 76% → 63% from gsm8k-test
   to renumbered gsm-symbolic (Qwen2.5-Math has known GSM8K exposure); §2's decontamination shows
   the pass@8 envelope holds regardless. format contributes +0.8 (lenient vs strict, seed 0).
-  See `summary.json` / `decomposition.md` for the seed-0 full decomposition.
+  The retired seed-0 decomposition is retained in `summary.json` and `decomposition.md`.
 
 ## Bottom line
 

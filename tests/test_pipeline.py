@@ -5,8 +5,6 @@ from __future__ import annotations
 import pytest
 
 from grpo_decomp.eval.battery import grade
-from grpo_decomp.report.decomposition import DecompositionRow, build_decomposition
-from grpo_decomp.report.render import render_table
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from grpo_decomp.stats.compare import compare
 
@@ -20,7 +18,7 @@ def _problems() -> ProblemSet:
     )
 
 
-def test_grade_compare_decompose_end_to_end() -> None:
+def test_grade_and_compare_end_to_end() -> None:
     problems = _problems()
     # base boxes the right answer for 2/6; rl for 5/6.
     base_completions = {f"p{i}": (rf"\boxed{{{i}}}" if i < 2 else r"\boxed{999}") for i in range(6)}
@@ -35,22 +33,6 @@ def test_grade_compare_decompose_end_to_end() -> None:
     assert comparison.n == 6
     assert comparison.accuracy_a == pytest.approx(2 / 6)
     assert comparison.accuracy_b == pytest.approx(5 / 6)
-
-    decomposition = build_decomposition(
-        base_model="Qwen2.5-Math-1.5B",
-        task="GSM8K",
-        seeds=1,
-        raw_gain=DecompositionRow(control="raw gain", probes="RL vs base", comparison=comparison),
-        control_rows=[],
-        format_row=DecompositionRow(
-            control="format", probes="lenient vs strict", comparison=comparison
-        ),
-        placebo=DecompositionRow(
-            control="placebo", probes="reward-signal gain", comparison=comparison
-        ),
-        elicitation_note="n/a (synthetic fixture)",
-    )
-    assert "rl beats base" in render_table(decomposition)
 
 
 def test_grade_requires_a_completion_for_every_problem() -> None:

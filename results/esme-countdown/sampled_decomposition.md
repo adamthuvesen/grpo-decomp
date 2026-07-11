@@ -1,16 +1,16 @@
 # Sampled decomposition: Esme-214M-RL on esme-countdown
 
-Companion to the greedy `decomposition.md`. The greedy report scored one deterministic
-sample per problem on exact-solve only. This report scores held-out Countdown-Lite with
-sampling (**n=16, temperature 1.0**) and separates two axes:
+The retired greedy `decomposition.md` artifact scored one deterministic sample per problem
+on exact-solve only. Held-out Countdown-Lite is scored here with sampling
+(**n=16, temperature 1.0**) across two axes:
 
 - **valid-expression rate**: a legal Countdown-Lite expression using each supplied number
   once with `+ - *`, regardless of whether it reaches the target.
 - **exact-solve pass@k**: the accepted solve metric, restored to a sampled estimate.
 
 The 2026-07-05 result aggregates six real-reward GRPO seeds against six same-budget
-random-reward placebo seeds. Produced by `scripts/esme_sampled_decomp.py`; raw numbers live
-in `sampled_multiseed_summary.json`.
+random-reward placebo seeds. The report is produced by `scripts/esme_sampled_decomp.py`,
+with raw numbers stored in `sampled_multiseed_summary.json`.
 
 ![Esme-214M-RL form vs exact solving: real reward separates from the random-reward placebo on valid-expression rate first, exact solving second](fig-sampled-form-vs-exact.svg)
 

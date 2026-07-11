@@ -1,5 +1,1 @@
-"""The decomposition report: assemble, render, and serialize the headline table.
-
-Import from the submodules (``report.decomposition``, ``report.render``,
-``report.status``) directly.
-"""
+"""Seed-aggregated placebo, pass@k, mechanism, and control reports."""

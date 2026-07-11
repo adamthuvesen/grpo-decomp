@@ -61,11 +61,11 @@ flowchart LR
         G --> CS["CompletionSet<br/>(problems + samples + provenance)"]
     end
     subgraph p3["Analyze (CPU, offline)"]
-        CS --> B["eval/battery<br/>grade, pass@k, detectors"]
+        CS --> B["eval/battery<br/>grade, pass@k, chain checks"]
         CS --> C["stats/compare<br/>delta, bootstrap CI, McNemar"]
-        B --> REP["report/<br/>decomposition + seed aggregation"]
+        B --> REP["report/<br/>seed aggregation"]
         C --> REP
-        REP --> RES["results/<br/>tables + summary.json"]
+        REP --> RES["results/<br/>multi-seed JSON + figures"]
     end
 ```
 
@@ -98,7 +98,7 @@ Harness: `src/grpo_decomp/`
 | Module           | Responsibility                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------- |
 | `schemas.py`     | The shared frozen types: `DatasetRef`, `Problem`, `ProblemSet`.                                             |
-| `registries.py`  | The plug-in surface: eval sets, train datasets, rewards, verifiers, validation reconstructors, prompt strategies, task profiles + `ARMS`. |
+| `registries.py`  | The plug-in surface: eval sets, train datasets, rewards, verifiers, validation reconstructors, prompt strategies, and task profiles. |
 | `plugins.py`     | Loads study `register()`s from the `grpo_decomp.plugins` entry-point group.                                 |
 | `prompts.py`     | Prompt strategies (`PromptStrategy`); ships the built-in `r1_zero`. Train and eval use the _same_ strategy. |
 | `grading.py`     | Answer extraction policies and math correctness checks.                                                     |
@@ -108,7 +108,7 @@ Harness: `src/grpo_decomp/`
 | `train/`         | GRPO config, the run launcher, and run provenance.                                                          |
 | `eval/`          | Generation, the completion artifact, grading, pass@k, detectors, CLI.                                       |
 | `stats/`         | Paired comparison: delta + bootstrap CI (via `eval-audit`), McNemar and Holm (local).                       |
-| `report/`        | The single-seed decomposition table plus the multi-seed aggregators (placebo, pass@k, mechanism, controls). |
+| `report/`        | Multi-seed aggregators for placebo, pass@k, mechanism, and controls. |
 
 Study: `src/llm_grpo_gains/` plus repo-root `configs/`, `results/`, `modal_app.py`
 
@@ -118,7 +118,7 @@ Study: `src/llm_grpo_gains/` plus repo-root `configs/`, `results/`, `modal_app.p
 | `rewards/`         | The verifiable graders `correct` and `countdown` (one shared signature).                  |
 | `registration.py`  | `register()`: wires the study's datasets/rewards/verifiers/task profiles into the harness. |
 | `configs/`         | One YAML per (arm, seed).                                                                  |
-| `results/`         | Committed outputs: decomposition table, `summary.json`, findings.                          |
+| `results/`         | Committed multi-seed JSON, figures, findings, and historical single-seed artifacts.       |
 | `modal_app.py`     | The cloud runner used for the published GPU jobs.                                           |
 
 The dependency direction is one-way: the study depends on the harness, never the reverse
@@ -211,9 +211,8 @@ substrate, it would be a confound.
 recipe: `beta=0` (no KL penalty, no reference model), `num_generations=8`,
 `learning_rate=1e-6`, `max_completion_length=1024`, `max_steps=500`,
 `save_steps=100`, and colocated vLLM rollouts. `ArmConfig` adds `name`,
-`base_model` (+ pinned revision), `reward`, `seed`, `dataset` (`gsm8k` or
-`countdown`), and `checkpoint_selection` (`final` or
-`best_on_validation`).
+`base_model` (+ pinned revision), `reward`, `seed`, and `dataset` (`gsm8k` or
+`countdown`). Trained-arm evaluation always uses the final checkpoint.
 
 `train/launcher.py` runs one arm end to end: load the arm's training set (GSM8K,
 or the generated Countdown set for the positive control), hold out a validation
@@ -286,23 +285,19 @@ classDiagram
   Lenient is a strict superset, so strict accuracy is always at most lenient
   accuracy, and the gap between them _is_ the format-sensitivity signal.
 - `battery.py` turns a `CompletionSet` into a `BatteryResult`: strict and lenient
-  pass@1, unbiased pass@k, a code-reasoning frequency, and chain coverage.
+  pass@1, unbiased pass@k, and chain coverage.
 - `passk.py`: the unbiased pass@k estimator.
-- `code_reasoning.py` / `cot.py` are the detectors: did the model solve by emitting
-  program-style reasoning, and does its chain contain verifiable steps.
-- `cli.py` is the `grpo-decomp` entry point. Eight subcommands: `generate`,
-  `battery`, and `report` (the single-seed table), plus the multi-seed
-  aggregators `report-seeds` (placebo), `report-passk-seeds` (pass@k coverage),
+- `cot.py` checks whether a chain contains verifiable steps.
+- `cli.py` is the `grpo-decomp` entry point. Seven subcommands: `generate`,
+  `battery`, the multi-seed aggregators `report-seeds` (placebo),
+  `report-passk-seeds` (pass@k coverage),
   `report-mechanism` (per-problem migration), `report-control-seeds` (the
   Holm-corrected §3 controls), and `heldout` (the held-out curve).
 
 The **held-out curve** (`heldout` / `heldout_arm`) scores every saved checkpoint of
-a finished run on its validation split, writes `heldout.json`, then realizes the
-pre-registered `checkpoint_selection` rule and records the chosen step back into the
-run's provenance. This is the only signal used to pick a checkpoint when the rule is
-`best_on_validation`; production arms default to `final` (end-of-training checkpoint)
-and skip held-out selection unless configured otherwise. Never use the training reward
-for checkpoint choice.
+a finished run on its validation split and writes `heldout.json`. It is a diagnostic for
+training behavior; evaluation artifacts always use the final checkpoint. Never use the
+training reward as evaluation evidence.
 
 Generation and held-out scoring share one token budget: `EVAL_MAX_NEW_TOKENS` (1024),
 matching `max_completion_length`, so checkpoint curves and the decomposition battery
@@ -312,52 +307,17 @@ use the same completion length.
 
 ## Decomposition and statistics
 
-The single-seed `report` command consumes a directory of `CompletionSet`s named
-`<arm>__<set>` (for example `correct__gsm8k-test`). It groups them by set and arm
-and builds one `Comparison` per question, each carrying a paired bootstrap CI and
-a McNemar p-value (`stats/compare.py`, with the bootstrap delegated to
-`eval-audit`). A comparison requires both arms to cover the same problem ids, so a
-misalignment is a clear error, never a silent positional mismatch. This produces
-the per-seed `summary.json` + `decomposition.md`: a diagnostic, flagged
-`[PRELIMINARY]` because one run's CI reflects evaluation sampling only.
-
-```mermaid
-flowchart TD
-    BASE["base / set"]
-    CORR["correct / set"]
-    RAND["random / set (task set only)"]
-
-    CORR -->|"vs base"| RAW["raw gain"]
-    CORR -->|"vs random"| PLACEBO["placebo comparison<br/>(confirmatory)"]
-    RAND --> PLACEBO
-    CORR -->|"strict vs lenient"| FMT["format sensitivity"]
-    BASE --> CTRL["control rows<br/>gsm-symbolic / gsm-plus / platinum"]
-    CORR --> CTRL
-
-    RAW --> TABLE["single-seed table + summary.json<br/>(diagnostic, PRELIMINARY)"]
-    PLACEBO --> TABLE
-    FMT --> TABLE
-    CTRL --> TABLE
-
-    PLACEBO -.->|"per seed, x6"| SEEDS["report-seeds -> seed-placebo-comparison.json<br/>mean over seeds + t CI (the headline)"]
-```
-
-Two things to keep straight when reading the output:
-
-- **Only the placebo comparison is confirmatory.** Every other row is descriptive, and
-  its CI is per-row (marginal), not corrected for multiple comparisons. A single
-  row crossing p<0.05 is not a confirmed finding.
-- **Seed aggregation is the headline.** A single run's CI reflects evaluation
-  sampling only. The committed headline numbers come from four multi-seed
-  aggregators that recompute their metric per seed and aggregate at the seed level
-  (mean with a t-interval over seeds), so the interval also reflects run-to-run
-  variance. Below three seeds the result stays preliminary.
+The committed claims come from four multi-seed aggregators. Each recomputes its metric per
+training seed and aggregates at the seed level with a t-interval, so uncertainty includes
+run-to-run variance. Compared artifacts must carry identical dataset metadata, problem
+records, and prompt strategies; misalignment is a clear error. Below three seeds a result
+stays preliminary. The placebo comparison is confirmatory; the other panels explain the
+gain and test its controls.
 
 ### The committed multi-seed artifacts
 
 Each FINDINGS number traces to one aggregator and one JSON file in `results/` (the
-`scripts/make_figures.py` figures and the docs↔JSON consistency test read these, never the
-single-seed table):
+`scripts/make_figures.py` figures and the docs↔JSON consistency test read these):
 
 | Aggregator (`grpo-decomp …`) | Module                    | Artifact                       | What it backs                                                                                                                   |
 | ---------------------------- | ------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -423,17 +383,15 @@ grpo-decomp/
 │   ├── provenance.py            # git + dependency fingerprint
 │   ├── rewards/                 # get_reward + the random placebo control
 │   ├── train/                   # config, launcher, run provenance
-│   ├── eval/                    # generate, completions, battery, passk,
-│   │                            #   cot, code_reasoning, cli
+│   ├── eval/                    # generate, completions, battery, passk, cot, cli
 │   ├── stats/                   # compare, bootstrap, significance (McNemar + Holm)
-│   └── report/                  # decomposition, render, seeds, passk_seeds,
-│                                #   mechanism, control_seeds
+│   └── report/                  # render, seeds, passk_seeds, mechanism, control_seeds
 ├── src/llm_grpo_gains/          # the reference study (depends on grpo_decomp)
 │   ├── data/                    # GSM8K + control-set loaders (pinned) + generated Countdown
 │   ├── rewards/                 # correct, countdown (verifiable graders)
 │   └── registration.py          # wires the study into the harness registries
 ├── configs/                     # one YAML per (arm, seed)
-├── results/                     # committed tables, summary.json, findings
+├── results/                     # committed multi-seed JSON, figures, and findings
 ├── modal_app.py                 # cloud runner used for the published GPU jobs
 └── docs/                        # this document
 ```
@@ -442,11 +400,11 @@ grpo-decomp/
 
 1. `grpo_decomp/schemas.py` and `llm_grpo_gains/data/gsm8k.py`: what a problem is and where it comes from.
 2. `grpo_decomp/registries.py` and `llm_grpo_gains/registration.py`: the plug-in seam and how the study fills it.
-3. `grpo_decomp/grading.py`, `llm_grpo_gains/rewards/correct.py`, and
+3. `grpo_decomp/grading.py`, `llm_grpo_gains/rewards/__init__.py`, and
    `grpo_decomp/rewards/placebo.py`: extraction, the real reward, and the placebo.
 4. `grpo_decomp/train/config.py` and `grpo_decomp/train/launcher.py`: how an arm is configured and run.
 5. `grpo_decomp/eval/completions.py`: the artifact that separates generation from analysis.
-6. `grpo_decomp/eval/cli.py`: how generation, grading, and the report are driven.
-7. `grpo_decomp/stats/compare.py` and `grpo_decomp/report/decomposition.py`: how a gain becomes a claim.
+6. `grpo_decomp/eval/cli.py`: how generation, grading, and reports are driven.
+7. `grpo_decomp/stats/compare.py`: paired comparisons with uncertainty and significance.
 8. `grpo_decomp/report/seeds.py` and its siblings (`passk_seeds`, `mechanism`,
    `control_seeds`): how claims survive run-to-run variance.

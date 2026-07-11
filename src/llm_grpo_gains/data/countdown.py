@@ -28,7 +28,7 @@ from collections.abc import Iterator, Sequence
 from fractions import Fraction
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field
 
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet, Record
 
@@ -50,60 +50,29 @@ class CountdownKeyError(ValueError):
     """A `gold_answer` is not a parseable Countdown key."""
 
 
-class CountdownKey(Record):
-    """Typed representation of the Countdown answer key stored in `Problem.gold_answer`."""
-
-    numbers: tuple[int, ...] = Field(description="Sorted source-number multiset.")
-    target: int
-
-    @field_validator("numbers", mode="before")
-    @classmethod
-    def _sorted_numbers(cls, value: Sequence[int]) -> tuple[int, ...]:
-        """Canonicalize the source-number multiset for stable artifact strings."""
-        return tuple(sorted(int(n) for n in value))
-
-    @classmethod
-    def from_values(cls, numbers: Sequence[int], target: int) -> CountdownKey:
-        """Build a canonical Countdown key from raw numbers and target."""
-        return cls(numbers=tuple(numbers), target=target)
-
-    @classmethod
-    def decode(cls, key: str) -> CountdownKey:
-        """Parse the string stored in `Problem.gold_answer`."""
-        try:
-            target_part, numbers_part = key.split(";")
-            target_label, target_raw = target_part.split("=", 1)
-            numbers_label, numbers_raw = numbers_part.split("=", 1)
-            if target_label != "target" or numbers_label != "numbers" or not numbers_raw:
-                raise ValueError
-            numbers = tuple(int(n) for n in numbers_raw.split(","))
-            target = int(target_raw)
-        except ValueError as exc:
-            raise CountdownKeyError(f"not a Countdown key: {key!r}") from exc
-        return cls(numbers=numbers, target=target)
-
-    def encode(self) -> str:
-        """Encode to the stable wire format used in `Problem.gold_answer`."""
-        sorted_numbers = ",".join(str(n) for n in self.numbers)
-        return f"target={self.target};numbers={sorted_numbers}"
-
-    def as_tuple(self) -> tuple[tuple[int, ...], int]:
-        """Tuple form consumed by reward and eval code."""
-        return self.numbers, self.target
-
-
 def format_countdown_key(numbers: Sequence[int], target: int) -> str:
     """Encode the answer key as ``target=<t>;numbers=<n1,n2,...>`` (numbers sorted).
 
     Kept in `Problem.gold_answer` (a plain string), so the frozen canonical schema is
     unchanged and one parser serves both the reward and the eval grader.
     """
-    return CountdownKey.from_values(numbers, target).encode()
+    encoded_numbers = ",".join(str(number) for number in sorted(int(n) for n in numbers))
+    return f"target={int(target)};numbers={encoded_numbers}"
 
 
 def parse_countdown_key(key: str) -> tuple[tuple[int, ...], int]:
     """Decode a Countdown key into ``(numbers, target)``; explicit error if malformed."""
-    return CountdownKey.decode(key).as_tuple()
+    try:
+        target_part, numbers_part = key.split(";")
+        target_label, target_raw = target_part.split("=", 1)
+        numbers_label, numbers_raw = numbers_part.split("=", 1)
+        if target_label != "target" or numbers_label != "numbers" or not numbers_raw:
+            raise ValueError
+        numbers = tuple(sorted(int(number) for number in numbers_raw.split(",")))
+        target = int(target_raw)
+    except ValueError as exc:
+        raise CountdownKeyError(f"not a Countdown key: {key!r}") from exc
+    return numbers, target
 
 
 # --- The restricted verifier (used on untrusted model output) ---------------------------
@@ -123,15 +92,17 @@ def _normalize_expression(text: str) -> str:
     return text
 
 
-def _eval_node(node: ast.AST) -> tuple[Fraction, list[int]]:
+def _eval_node(
+    node: ast.AST, allowed_binops: tuple[type[ast.operator], ...]
+) -> tuple[Fraction, list[int]]:
     """Evaluate an AST node exactly, returning ``(value, leaf_numbers)``.
 
     Only numeric literals, ``+ - * /``, unary ±, and parentheses are admitted; anything
     else (a name, call, attribute, ``**``) raises `_InvalidExpressionError`.
     """
-    if isinstance(node, ast.BinOp) and isinstance(node.op, _ALLOWED_BINOPS):
-        left, left_leaves = _eval_node(node.left)
-        right, right_leaves = _eval_node(node.right)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, allowed_binops):
+        left, left_leaves = _eval_node(node.left, allowed_binops)
+        right, right_leaves = _eval_node(node.right, allowed_binops)
         leaves = left_leaves + right_leaves
         if isinstance(node.op, ast.Add):
             return left + right, leaves
@@ -143,7 +114,7 @@ def _eval_node(node: ast.AST) -> tuple[Fraction, list[int]]:
             raise _InvalidExpressionError("division by zero")
         return left / right, leaves
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, _ALLOWED_UNARYOPS):
-        value, leaves = _eval_node(node.operand)
+        value, leaves = _eval_node(node.operand, allowed_binops)
         return (value if isinstance(node.op, ast.UAdd) else -value), leaves
     if isinstance(node, ast.Constant) and _is_plain_int(node.value):
         return Fraction(node.value), [node.value]
@@ -155,20 +126,30 @@ def _is_plain_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def evaluate_expression(text: str) -> tuple[Fraction, list[int]] | None:
+def _evaluate_expression(
+    text: str, *, allow_division: bool = True, normalize_operators: bool = True
+) -> tuple[Fraction, list[int]] | None:
     """Exactly evaluate a Countdown expression, or None if it is malformed/disallowed.
 
     Returns ``(value, leaf_numbers)`` — the rational value and the integer literals used —
     so a caller can check both the target and the number budget. Never executes the string.
     """
     try:
-        tree = ast.parse(_normalize_expression(text).strip(), mode="eval")
+        if normalize_operators:
+            text = _normalize_expression(text)
+        tree = ast.parse(text.strip(), mode="eval")
     except (SyntaxError, ValueError):
         return None
     try:
-        return _eval_node(tree.body)
+        allowed_binops = _ALLOWED_BINOPS if allow_division else (ast.Add, ast.Sub, ast.Mult)
+        return _eval_node(tree.body, allowed_binops)
     except _InvalidExpressionError:
         return None
+
+
+def evaluate_expression(text: str) -> tuple[Fraction, list[int]] | None:
+    """Exactly evaluate a general Countdown expression, or None when invalid."""
+    return _evaluate_expression(text)
 
 
 def is_valid_countdown_solution(text: str, numbers: Sequence[int], target: int) -> bool:

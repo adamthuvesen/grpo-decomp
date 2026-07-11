@@ -66,7 +66,6 @@ def test_cot_counts_are_a_subset_of_lenient() -> None:
 
 def test_diagnostics() -> None:
     result = _battery()
-    assert result.code_reasoning_frequency == pytest.approx(0.25)  # one print( completion
     assert result.chain_coverage == pytest.approx(0.25)  # one <<...>> completion
 
 

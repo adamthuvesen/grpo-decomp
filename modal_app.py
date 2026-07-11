@@ -25,10 +25,6 @@ from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.provenance import git_commit, git_is_dirty
 from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, EVAL_SETS, get_task_profile
 from grpo_decomp.schemas import ProblemSet, record_json
-from grpo_decomp.train.checkpoints import (
-    final_or_selected_checkpoint_path,
-    require_selected_checkpoint_path,
-)
 
 # Populate the harness registries with the study's eval sets and task profiles, both
 # locally (entrypoint arg handling) and inside each Modal container (module import).
@@ -206,7 +202,7 @@ def heldout_arm(arm_yaml: str) -> str:
     """Held-out accuracy curve over a finished arm's checkpoints (check this, not reward)."""
     from pathlib import Path
 
-    from grpo_decomp.eval.heldout import run_heldout_curve, write_selected_provenance
+    from grpo_decomp.eval.heldout import run_heldout_curve
     from grpo_decomp.train.config import load_arm_config
 
     arm = load_arm_config(Path(arm_yaml))
@@ -215,7 +211,6 @@ def heldout_arm(arm_yaml: str) -> str:
     curve = run_heldout_curve(run_dir, config, backend="vllm")
     out = run_dir / "heldout.json"
     out.write_text(record_json(curve), encoding="utf-8")
-    write_selected_provenance(run_dir, curve)
     runs.commit()
     return str(out)
 
@@ -236,11 +231,11 @@ def eval_matrix(
     """Generate decomposition completions for one seed; pass@1 greedy.
 
     ``scope="full"`` (seed 0): base/correct/random over the task set + 3 control sets —
-    the layout `grpo-decomp report` (CPU, offline) consumes. ``scope="placebo"`` (replicate
-    seeds): correct + random on the task set only, the pre-registered confirmatory metric
+    the inputs for the seed-aggregated reports. ``scope="placebo"`` (replicate seeds):
+    correct + random on the task set only, the pre-registered confirmatory metric
     a replicate needs (base is seed-independent, reused from seed 0). Output goes to
     ``<RUNS_DIR>/battery`` for seed 0, else ``<RUNS_DIR>/battery-seed<seed>``. Arm
-    checkpoints are the ones the pre-registered rule selected (read from provenance).
+    trained arms use their final checkpoints.
     `commit`/`dirty` come from the local entrypoint (no .git in the image) so each
     artifact is traceable to its code.
     """
@@ -251,19 +246,15 @@ def eval_matrix(
     profile = get_task_profile(task)
     base = load_arm_config(Path(profile.base_config))
 
-    def selected_checkpoint(role: str) -> tuple[str, str]:
-        """Return (checkpoint path, the prompt strategy that run trained on)."""
+    def trained_checkpoint(role: str) -> tuple[str, str]:
         run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}{role}-seed{seed}"
         prov = _load_run_provenance(run_dir)
-        checkpoint = final_or_selected_checkpoint_path(
-            run_dir, prov.selected_checkpoint, prov.checkpoint_selection
-        )
-        return checkpoint, prov.prompt_strategy
+        return str(run_dir / "checkpoints" / "final"), prov.prompt_strategy
 
     base_row = ("base", base.base_model, base.base_model_revision, base.prompt_strategy)
 
     def trained_row(role: str) -> tuple[str, str, None, str]:
-        checkpoint, strategy = selected_checkpoint(role)
+        checkpoint, strategy = trained_checkpoint(role)
         return role, checkpoint, None, strategy
 
     if scope == "full":
@@ -306,51 +297,6 @@ def eval_matrix(
     volumes={RUNS_DIR: runs},
     timeout=6 * 60 * 60,
 )
-def elicitation(task: str = "gsm8k", commit: str | None = None, dirty: bool | None = None) -> str:
-    """Pass@k coverage panel: base + correct (seed 0) on the task set, n=8 sampled.
-
-    Checks whether the RL gain is *new* capability or base capability surfaced, by
-    comparing base pass@8 to correct pass@1/pass@8. Writes `CompletionSet`s to
-    ``<RUNS_DIR>/elicitation/<arm>__gsm8k-test``; score with `grpo-decomp battery --k 1 8`.
-    Sampled (temperature>0) because pass@k needs diverse draws, unlike the greedy battery.
-    """
-    from pathlib import Path
-
-    from grpo_decomp.train.config import load_arm_config
-
-    profile = get_task_profile(task)
-    base = load_arm_config(Path(profile.base_config))
-
-    def selected_checkpoint(role: str) -> tuple[str, str]:
-        run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}{role}-seed0"
-        prov = _load_run_provenance(run_dir)
-        checkpoint = require_selected_checkpoint_path(run_dir, prov.selected_checkpoint)
-        return checkpoint, prov.prompt_strategy
-
-    config = SamplingConfig(
-        temperature=0.7, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=8, seed=0
-    )
-    correct_checkpoint, correct_strategy = selected_checkpoint("correct")
-    matrix = [
-        ("base", base.base_model, base.base_model_revision, base.prompt_strategy),
-        ("correct", correct_checkpoint, None, correct_strategy),
-    ]
-    out_root = Path(RUNS_DIR) / profile.elicitation_root
-
-    jobs = [
-        _CompletionJob(arm, model_ref, revision, profile.task_set, config, prompt_strategy=strategy)
-        for arm, model_ref, revision, strategy in matrix
-    ]
-    _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
-    return str(out_root)
-
-
-@app.function(
-    image=image,
-    gpu="A100-80GB",
-    volumes={RUNS_DIR: runs},
-    timeout=6 * 60 * 60,
-)
 def elicitation_multiseed(
     task: str = "gsm8k",
     n_base: int = 16,
@@ -363,8 +309,8 @@ def elicitation_multiseed(
 ) -> str:
     """Multi-seed pass@k coverage panel: base anchor once + each correct training seed.
 
-    Extends `elicitation` beyond seed 0. The base anchor is seed-independent and sampled
-    once at `n_base`; every correct training seed is sampled at `n_correct`. Decoding uses
+    The base anchor is seed-independent and sampled once at `n_base`; every correct
+    training seed is sampled at `n_correct`. Decoding uses
     the published panel settings: `temperature=0.7, top_p=1.0, max_new_tokens=1024`.
     Writes `CompletionSet`s to
     ``<RUNS_DIR>/passk-multiseed[-<task>]/<arm>__<set>`` (``base`` + ``correct-seed<N>``);
@@ -392,13 +338,10 @@ def elicitation_multiseed(
         raise ValueError(f"no correct seeds parsed from {correct_seeds!r}")
     base = load_arm_config(Path(profile.base_config))
 
-    def selected_checkpoint(seed: int) -> tuple[str, str]:
+    def trained_checkpoint(seed: int) -> tuple[str, str]:
         run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}correct-seed{seed}"
         prov = _load_run_provenance(run_dir)
-        checkpoint = final_or_selected_checkpoint_path(
-            run_dir, prov.selected_checkpoint, prov.checkpoint_selection
-        )
-        return checkpoint, prov.prompt_strategy
+        return str(run_dir / "checkpoints" / "final"), prov.prompt_strategy
 
     out_root = Path(RUNS_DIR) / profile.passk_multiseed_root
     problems = EVAL_SETS[eval_set]()
@@ -411,7 +354,7 @@ def elicitation_multiseed(
         )
 
     def correct_job(seed: int) -> _CompletionJob:
-        checkpoint, strategy = selected_checkpoint(seed)
+        checkpoint, strategy = trained_checkpoint(seed)
         return _CompletionJob(
             f"correct-seed{seed}",
             checkpoint,
@@ -466,16 +409,14 @@ def main(
     battery:     modal run --detach modal_app.py --command battery               # seed 0, full
     placebo:     modal run --detach modal_app.py --command battery --seed 1 --scope placebo
     controls:    modal run --detach modal_app.py --command battery --scope controls --seed 1
-    elicitation: modal run --detach modal_app.py --command elicitation
     passk-seeds: modal run --detach modal_app.py --command elicitation-multiseed
     escalated:   ...same, plus --n-base 32 --n-correct 16 (or --task countdown)
     decontam:    ...same, plus --set-name gsm-symbolic --limit 1319 (or --set-name gsm8k-platinum)
     countdown:   modal run --detach modal_app.py --command battery --task countdown \\
                    --scope placebo --seed 1
 
-    `--task` (gsm8k default, or countdown) selects the eval wiring for the battery /
-    elicitation commands: the base arm config, the task set, the control sets (none for
-    Countdown), and the `correct`/`random` run-dir prefix.
+    `--task` (gsm8k default, or countdown) selects the eval wiring for generation:
+    the base arm config, task set, control sets (none for Countdown), and run-dir prefix.
 
     A synchronous `.remote()` in a detached app can be canceled when the local client
     disconnects, so long runs use `spawn`. Monitor them via `modal app logs grpo-decomp`
@@ -516,8 +457,6 @@ def main(
                 "dirty": dirty,
             },
         )
-    elif command == "elicitation":
-        fn, kwargs = elicitation, {"task": task, "commit": commit, "dirty": dirty}
     elif command == "elicitation-multiseed":
         fn, kwargs = (
             elicitation_multiseed,
@@ -534,7 +473,7 @@ def main(
         )
     else:
         raise ValueError(
-            "command must be 'train', 'heldout', 'battery', 'elicitation', or "
+            "command must be 'train', 'heldout', 'battery', or "
             f"'elicitation-multiseed', got {command!r}"
         )
 

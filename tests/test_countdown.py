@@ -11,19 +11,11 @@ from fractions import Fraction
 import pytest
 
 from grpo_decomp.eval.battery import grade, verifier_for
-from grpo_decomp.eval.completions import (
-    CompletionSet,
-    ProblemCompletions,
-    SamplingConfig,
-    capture_generation_provenance,
-)
 from grpo_decomp.grading import is_correct
-from grpo_decomp.report.decomposition import elicitation_note
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from llm_grpo_gains.data.countdown import (
     DEFAULT_COUNTDOWN_CONFIG,
     CountdownConfig,
-    CountdownKey,
     CountdownKeyError,
     countdown_is_correct,
     evaluate_expression,
@@ -37,10 +29,6 @@ from llm_grpo_gains.data.countdown import (
 
 #: Tiny config so generator tests stay fast.
 _SMALL = CountdownConfig(sizes={"train": 8, "validation": 4, "test": 6, "dev": 3})
-_RIGHT = r"reasoning... \boxed{4 * 5 + 6}"  # = 26 over {4,5,6,7}
-_WRONG = r"\boxed{1 + 1}"
-
-
 # --- the answer-key codec ---------------------------------------------------------------
 
 
@@ -48,14 +36,6 @@ def test_key_round_trips_with_sorted_numbers() -> None:
     key = format_countdown_key([7, 4, 6, 5], 30)
     assert key == "target=30;numbers=4,5,6,7"
     assert parse_countdown_key(key) == ((4, 5, 6, 7), 30)
-
-
-def test_countdown_key_object_preserves_wire_format() -> None:
-    key = CountdownKey.from_values([7, 4, 6, 5], 30)
-    assert key.numbers == (4, 5, 6, 7)
-    assert key.target == 30
-    assert key.encode() == "target=30;numbers=4,5,6,7"
-    assert CountdownKey.decode(key.encode()) == key
 
 
 def test_parse_rejects_a_malformed_key() -> None:
@@ -118,7 +98,7 @@ def test_foreign_number_is_invalid() -> None:
 
 
 def test_countdown_is_correct_grades_against_a_key() -> None:
-    key = CountdownKey.from_values([4, 5, 6, 7], 26).encode()
+    key = format_countdown_key([4, 5, 6, 7], 26)
     assert countdown_is_correct("4 * 5 + 6", key)
     assert not countdown_is_correct("4 * 5 + 7", key)
     assert not countdown_is_correct(None, key)
@@ -223,7 +203,7 @@ def test_grade_uses_the_countdown_checker_for_countdown_sets() -> None:
 
 
 def test_reward_and_eval_share_countdown_key_parsing() -> None:
-    key = CountdownKey.from_values([4, 5, 6, 7], 26).encode()
+    key = format_countdown_key([4, 5, 6, 7], 26)
     assert countdown_is_correct("4 * 5 + 6", key)
     assert grade(
         ProblemSet(
@@ -232,57 +212,3 @@ def test_reward_and_eval_share_countdown_key_parsing() -> None:
         ),
         {"c0": r"\boxed{4 * 5 + 6}"},
     ) == {"c0": True}
-
-
-# --- the capability-expansion panel -----------------------------------------------------
-
-
-def _completion_set(
-    ref: DatasetRef, items: list[tuple[Problem, list[str]]], n: int
-) -> CompletionSet:
-    provenance = capture_generation_provenance(
-        model="m",
-        dataset=ref,
-        sampling=SamplingConfig(n=n, temperature=0.7),
-        backend="transformers",
-        n_problems=len(items),
-        commit="c",
-        dirty=False,
-        packages=[],
-    )
-    completions = tuple(ProblemCompletions(problem=p, samples=tuple(s)) for p, s in items)
-    return CompletionSet(provenance=provenance, items=completions)
-
-
-def test_expansion_panel_reports_passk_curve_when_both_arms_high_n() -> None:
-    ref = DatasetRef(name="countdown", config="x", split="test", revision="r")
-    problems = [
-        Problem(id=f"c{i}", question="q", gold_answer=format_countdown_key([4, 5, 6, 7], 26))
-        for i in range(2)
-    ]
-    # base never solves it (even with 2 tries); correct solves each problem within 2 tries.
-    base = _completion_set(
-        ref, [(problems[0], [_WRONG, _WRONG]), (problems[1], [_WRONG, _WRONG])], n=2
-    )
-    correct = _completion_set(
-        ref, [(problems[0], [_RIGHT, _WRONG]), (problems[1], [_WRONG, _RIGHT])], n=2
-    )
-    note = elicitation_note(base, correct)
-    assert "pass@k curve:" in note
-    assert "pass@2" in note
-
-
-def test_expansion_panel_falls_back_to_pass1_when_correct_is_greedy() -> None:
-    ref = DatasetRef(name="openai/gsm8k", config="main", split="test", revision="r")
-    problems = [Problem(id=f"p{i}", question="q", gold_answer=str(i)) for i in range(2)]
-    base = _completion_set(
-        ref,
-        [(problems[0], [r"\boxed{0}", r"\boxed{9}"]), (problems[1], [r"\boxed{9}", r"\boxed{1}"])],
-        n=2,
-    )
-    correct = _completion_set(
-        ref, [(problems[0], [r"\boxed{0}"]), (problems[1], [r"\boxed{1}"])], n=1
-    )
-    note = elicitation_note(base, correct)
-    assert "base pass@2" in note
-    assert "pass@k curve:" not in note

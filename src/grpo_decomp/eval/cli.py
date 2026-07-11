@@ -5,11 +5,9 @@ Commands follow the artifact contract:
 - ``generate`` — the only model-loading command (a generation backend required). One
   model (base or checkpoint) over one problem set -> a `CompletionSet` artifact.
 - ``battery``  — a `CompletionSet` -> a `BatteryResult`. CPU-only.
-- ``report``   — `CompletionSet`s across arms (base/correct/random) and sets ->
-  the deterministic decomposition table + ``summary.json``. CPU-only, offline.
 - ``report-seeds`` / ``report-passk-seeds`` / ``report-mechanism`` /
   ``report-control-seeds`` — seed-level aggregate reports.
-- ``heldout`` — checkpoint selection from a run's validation split.
+- ``heldout`` — accuracy curves over a run's validation split.
 """
 
 from __future__ import annotations
@@ -27,30 +25,21 @@ from grpo_decomp.eval.completions import (
     load_completion_set,
     write_completion_set,
 )
-from grpo_decomp.eval.heldout import (
-    run_heldout_curve,
-    write_selected_provenance,
-)
+from grpo_decomp.eval.heldout import run_heldout_curve
 from grpo_decomp.plugins import load_plugins
 from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.registries import (
-    ARMS,
-    CONTROL_SETS,
     DEFAULT_PROMPT_STRATEGY,
     EVAL_SETS,
     PROBES,
     PROMPT_STRATEGIES,
 )
 from grpo_decomp.report.control_seeds import aggregate_control_rows
-from grpo_decomp.report.decomposition import build_single_seed_decomposition
 from grpo_decomp.report.inputs import (
     base_and_correct_seeds,
-    discover_completion_sets,
     greedy_pass1,
     seed_label,
-    validate_completion_set,
-    validate_report_artifacts,
-    validate_same_prompt_strategy,
+    validate_aligned_artifacts,
 )
 from grpo_decomp.report.mechanism import build_mechanism
 from grpo_decomp.report.passk_seeds import aggregate_passk_seeds
@@ -59,8 +48,6 @@ from grpo_decomp.report.render import (
     render_mechanism,
     render_passk_multiseed,
     render_seed_placebo,
-    render_table,
-    write_summary,
 )
 from grpo_decomp.report.seeds import aggregate_placebo_comparison
 from grpo_decomp.schemas import Record, record_json
@@ -92,7 +79,6 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     _add_generate_parser(sub)
     _add_battery_parser(sub)
-    _add_report_parser(sub)
     _add_report_seeds_parser(sub)
     _add_report_passk_seeds_parser(sub)
     _add_report_mechanism_parser(sub)
@@ -114,7 +100,13 @@ def _add_generate_parser(sub: argparse._SubParsersAction) -> None:
         dest="prompt_strategy",
         help="prompt strategy (must match the arm's training strategy)",
     )
-    _add_sampling_args(gen, include_top_p=True)
+    gen.add_argument("--n", type=int, default=1, help="completions per problem")
+    gen.add_argument("--temperature", type=float, default=0.0)
+    gen.add_argument("--top-p", type=float, default=1.0, dest="top_p")
+    gen.add_argument(
+        "--max-new-tokens", type=int, default=EVAL_MAX_NEW_TOKENS, dest="max_new_tokens"
+    )
+    gen.add_argument("--seed", type=int, default=0)
     gen.add_argument("--limit", type=int, default=None, help="subset to N problems")
     gen.add_argument("--out", required=True, type=Path, help="output dir for the CompletionSet")
     gen.set_defaults(func=_cmd_generate)
@@ -126,15 +118,6 @@ def _add_battery_parser(sub: argparse._SubParsersAction) -> None:
     bat.add_argument("--k", type=int, nargs="+", default=[1], help="pass@k values")
     bat.add_argument("--out", type=Path, default=None, help="write JSON here (else stdout)")
     bat.set_defaults(func=_cmd_battery)
-
-
-def _add_report_parser(sub: argparse._SubParsersAction) -> None:
-    rep = sub.add_parser("report", help="decompose the gain across arms and sets")
-    rep.add_argument("--completions-dir", required=True, type=Path, dest="completions_dir")
-    rep.add_argument("--task-set", default="gsm8k-test", dest="task_set")
-    rep.add_argument("--base-model", default=None, dest="base_model", help="override table label")
-    rep.add_argument("--out", required=True, type=Path, help="output dir for summary.json + table")
-    rep.set_defaults(func=_cmd_report)
 
 
 def _add_report_seeds_parser(sub: argparse._SubParsersAction) -> None:
@@ -213,7 +196,7 @@ def _add_report_control_seeds_parser(sub: argparse._SubParsersAction) -> None:
     rcs.add_argument(
         "--control-sets",
         nargs="+",
-        default=list(CONTROL_SETS),
+        default=list(PROBES),
         dest="control_sets",
     )
     rcs.add_argument(
@@ -228,26 +211,17 @@ def _add_heldout_parser(sub: argparse._SubParsersAction) -> None:
         "--run", required=True, type=Path, help="a training run dir (provenance + checkpoints)"
     )
     hld.add_argument("--backend", default="auto", choices=_BACKEND_CHOICES)
-    _add_sampling_args(hld, include_top_p=False)
+    hld.add_argument(
+        "--max-new-tokens", type=int, default=EVAL_MAX_NEW_TOKENS, dest="max_new_tokens"
+    )
     hld.add_argument(
         "--out", type=Path, default=None, help="write JSON here (else <run>/heldout.json)"
     )
     hld.set_defaults(func=_cmd_heldout)
 
 
-def _add_sampling_args(parser: argparse.ArgumentParser, *, include_top_p: bool) -> None:
-    parser.add_argument("--n", type=int, default=1, help="completions per problem")
-    parser.add_argument("--temperature", type=float, default=0.0)
-    if include_top_p:
-        parser.add_argument("--top-p", type=float, default=1.0, dest="top_p")
-    parser.add_argument(
-        "--max-new-tokens", type=int, default=EVAL_MAX_NEW_TOKENS, dest="max_new_tokens"
-    )
-    parser.add_argument("--seed", type=int, default=0)
-
-
 def _cmd_generate(args: argparse.Namespace) -> int:
-    # Lazy import: only `generate` needs a backend, so `battery`/`report` stay CPU-only.
+    # Lazy import: only `generate` needs a backend, so CPU analysis stays lightweight.
     from grpo_decomp.eval.generate import generate_completion_set
 
     config = SamplingConfig(
@@ -291,25 +265,6 @@ def _cmd_battery(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_report(args: argparse.Namespace) -> int:
-    grouped = discover_completion_sets(args.completions_dir)
-    task = args.task_set
-    if task not in grouped or not all(arm in grouped[task] for arm in ARMS):
-        present = {s: sorted(a) for s, a in grouped.items()}
-        raise ValueError(f"report needs base/correct/random for task set {task!r}; found {present}")
-    validate_report_artifacts(grouped)
-
-    decomposition = build_single_seed_decomposition(grouped, task, base_model=args.base_model)
-
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    write_summary(decomposition, out / "summary.json")
-    table = render_table(decomposition)
-    (out / "decomposition.md").write_text(table, encoding="utf-8")
-    sys.stdout.write(table)
-    return 0
-
-
 def _cmd_report_seeds(args: argparse.Namespace) -> int:
     comparisons = []
     seeds = []
@@ -317,16 +272,13 @@ def _cmd_report_seeds(args: argparse.Namespace) -> int:
         raise ValueError(
             f"unknown report set {args.task_set!r}; known sets are {tuple(sorted(EVAL_SETS))}"
         )
-    expected = EVAL_SETS[args.task_set]()
-    prompt_sets: dict[str, CompletionSet] = {}
+    artifacts: dict[str, CompletionSet] = {}
     for battery_dir in args.battery_dirs:
         battery_dir = Path(battery_dir)
         correct = load_completion_set(battery_dir / f"correct__{args.task_set}")
         random_arm = load_completion_set(battery_dir / f"random__{args.task_set}")
-        validate_completion_set(args.task_set, "correct", correct, expected)
-        validate_completion_set(args.task_set, "random", random_arm, expected)
-        prompt_sets[f"{battery_dir.name}:correct"] = correct
-        prompt_sets[f"{battery_dir.name}:random"] = random_arm
+        artifacts[f"{battery_dir.name}:correct"] = correct
+        artifacts[f"{battery_dir.name}:random"] = random_arm
         comparisons.append(
             compare(
                 "random",
@@ -336,7 +288,7 @@ def _cmd_report_seeds(args: argparse.Namespace) -> int:
             )
         )
         seeds.append(seed_label(battery_dir))
-    validate_same_prompt_strategy(args.task_set, prompt_sets)
+    validate_aligned_artifacts(args.task_set, artifacts)
 
     placebo_comparison = aggregate_placebo_comparison(comparisons, seeds, task=args.task_set)
     _write_json(placebo_comparison, args.out, "seed-level placebo comparison")
@@ -373,20 +325,17 @@ def _cmd_report_control_seeds(args: argparse.Namespace) -> int:
             raise ValueError(
                 f"unknown control set {control!r}; known sets are {tuple(sorted(EVAL_SETS))}"
             )
-        expected = EVAL_SETS[control]()
         base = load_completion_set(seed0 / f"base__{control}")
-        validate_completion_set(control, "base", base, expected)
-        prompt_sets = {"base": base}
+        artifacts = {"base": base}
         base_grade = greedy_pass1(base, "lenient")
         comparisons = []
         for battery_dir in battery_dirs:
             correct = load_completion_set(battery_dir / f"correct__{control}")
-            validate_completion_set(control, "correct", correct, expected)
-            prompt_sets[f"{battery_dir.name}:correct"] = correct
+            artifacts[f"{battery_dir.name}:correct"] = correct
             comparisons.append(
                 compare("base", base_grade, "correct", greedy_pass1(correct, "lenient"))
             )
-        validate_same_prompt_strategy(control, prompt_sets)
+        validate_aligned_artifacts(control, artifacts)
         rows.append((control, PROBES.get(control, control), comparisons))
 
     decomp = aggregate_control_rows(rows, seeds, task=args.task_set)
@@ -407,9 +356,7 @@ def _write_json(record: Record, out: Path | None, label: str) -> None:
 
 def _cmd_heldout(args: argparse.Namespace) -> int:
     run_dir = Path(args.run)
-    config = SamplingConfig(
-        temperature=args.temperature, n=args.n, max_new_tokens=args.max_new_tokens, seed=args.seed
-    )
+    config = SamplingConfig(temperature=0.0, n=1, max_new_tokens=args.max_new_tokens, seed=0)
     curve = run_heldout_curve(run_dir, config, backend=args.backend)
     for point in curve.points:
         print(
@@ -421,10 +368,6 @@ def _cmd_heldout(args: argparse.Namespace) -> int:
     out.write_text(record_json(curve), encoding="utf-8")
     print(f"wrote held-out curve ({len(curve.points)} checkpoints) to {out}")
 
-    write_selected_provenance(run_dir, curve)
-    print(
-        f"selected {curve.selected_checkpoint} (step {curve.selected_step}) per rule '{curve.rule}'"
-    )
     return 0
 
 

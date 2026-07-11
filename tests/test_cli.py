@@ -18,7 +18,7 @@ from completion_set_fixtures import (
 )
 
 from grpo_decomp.eval.cli import main
-from grpo_decomp.eval.heldout import discover_checkpoints, select_checkpoint
+from grpo_decomp.eval.heldout import discover_checkpoints
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from grpo_decomp.train.config import ArmConfig
 from grpo_decomp.train.provenance import capture_provenance
@@ -55,81 +55,6 @@ def test_battery_k_above_n_is_clean_error(tmp_path, capsys) -> None:
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err.startswith("grpo-decomp:")
-
-
-def test_report_writes_summary_and_table(tmp_path, capsys, monkeypatch) -> None:
-    _patch_report_sets(
-        monkeypatch,
-        **{"gsm8k-test": _problem_set(), "gsm-symbolic": _problem_set(ref=_ref(revision="sym"))},
-    )
-    root = tmp_path / "completions"
-    _write_cs(root / "base__gsm8k-test", model="base-model", boxed="0")
-    _write_cs(root / "correct__gsm8k-test", model="correct-model", boxed="4")
-    _write_cs(root / "random__gsm8k-test", model="random-model", boxed="4")
-    _write_cs(root / "base__gsm-symbolic", model="base-model", boxed="0", ref=_ref(revision="sym"))
-    _write_cs(
-        root / "correct__gsm-symbolic", model="correct-model", boxed="4", ref=_ref(revision="sym")
-    )
-    out = tmp_path / "out"
-
-    assert main(["report", "--completions-dir", str(root), "--out", str(out)]) == 0
-
-    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
-    assert summary["task"] == "gsm8k-test"
-    assert summary["seeds"] == 1 and summary["preliminary"] is True
-    assert summary["confirmatory_comparison"]["control"].startswith("placebo")
-    assert summary["confirmatory_comparison"]["comparison"]["delta"] == 0.0
-    assert summary["rows"][0]["comparison"]["delta"] == 1.0  # raw gain: all wrong -> all right
-    assert any("control (gsm-symbolic)" in row["control"] for row in summary["rows"])
-    assert (out / "decomposition.md").exists()
-    assert "Decomposition" in capsys.readouterr().out
-
-
-def test_report_missing_arm_is_clean_error(tmp_path, capsys) -> None:
-    root = tmp_path / "completions"
-    _write_cs(root / "base__gsm8k-test", model="base", boxed="0")
-    _write_cs(root / "correct__gsm8k-test", model="correct", boxed="4")
-    assert main(["report", "--completions-dir", str(root), "--out", str(tmp_path / "o")]) == 1
-    assert "base/correct/random" in capsys.readouterr().err
-
-
-def test_report_rejects_provenance_dataset_mismatch(tmp_path, capsys, monkeypatch) -> None:
-    _patch_report_sets(monkeypatch, **{"gsm8k-test": _problem_set()})
-    root = tmp_path / "completions"
-    _write_cs(root / "base__gsm8k-test", model="base", boxed="0", ref=_ref(revision="wrong"))
-    _write_cs(root / "correct__gsm8k-test", model="correct", boxed="4")
-    _write_cs(root / "random__gsm8k-test", model="random", boxed="4")
-
-    assert main(["report", "--completions-dir", str(root), "--out", str(tmp_path / "o")]) == 1
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "dataset metadata" in captured.err
-
-
-def test_report_rejects_item_id_mismatch(tmp_path, capsys, monkeypatch) -> None:
-    _patch_report_sets(monkeypatch, **{"gsm8k-test": _problem_set()})
-    root = tmp_path / "completions"
-    _write_cs(root / "base__gsm8k-test", model="base", boxed="0", ids=("p1", "p2"))
-    _write_cs(root / "correct__gsm8k-test", model="correct", boxed="4")
-    _write_cs(root / "random__gsm8k-test", model="random", boxed="4")
-
-    assert main(["report", "--completions-dir", str(root), "--out", str(tmp_path / "o")]) == 1
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "problem records" in captured.err
-
-
-def test_report_rejects_non_greedy_artifact(tmp_path, capsys, monkeypatch) -> None:
-    _patch_report_sets(monkeypatch, **{"gsm8k-test": _problem_set()})
-    root = tmp_path / "completions"
-    _write_cs(root / "base__gsm8k-test", model="base", boxed="0")
-    _write_cs(root / "correct__gsm8k-test", model="correct", boxed="4", n=2, temperature=0.7)
-    _write_cs(root / "random__gsm8k-test", model="random", boxed="4")
-
-    assert main(["report", "--completions-dir", str(root), "--out", str(tmp_path / "o")]) == 1
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "greedy pass@1" in captured.err
 
 
 def test_report_seeds_rejects_non_greedy_artifact(tmp_path, capsys, monkeypatch) -> None:
@@ -319,10 +244,16 @@ def test_discover_checkpoints_errors_when_empty(tmp_path) -> None:
         discover_checkpoints(tmp_path)
 
 
-def _write_run_provenance(run_dir: Path, *, rule: str = "final") -> None:
-    arm = ArmConfig(
-        name="correct", base_model="m", reward="correct", seed=0, checkpoint_selection=rule
-    )
+@pytest.mark.parametrize(
+    ("flag", "value"), [("--n", "2"), ("--temperature", "0.7"), ("--seed", "1")]
+)
+def test_heldout_rejects_sampling_flags(tmp_path, flag: str, value: str) -> None:
+    with pytest.raises(SystemExit):
+        main(["heldout", "--run", str(tmp_path), flag, value])
+
+
+def _write_run_provenance(run_dir: Path) -> None:
+    arm = ArmConfig(name="correct", base_model="m", reward="correct", seed=0)
     ref = DatasetRef(name="openai/gsm8k", config="main", split="train", revision="r")
     provenance = capture_provenance(arm, ref, train_size=100, validation_size=2)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -353,9 +284,9 @@ def _val_problems() -> ProblemSet:
     )
 
 
-def test_heldout_writes_curve_and_records_final_selection(tmp_path, monkeypatch, capsys) -> None:
+def test_heldout_writes_curve_for_all_checkpoints(tmp_path, monkeypatch, capsys) -> None:
     run = tmp_path / "correct-seed0"
-    _write_run_provenance(run)  # default rule: final
+    _write_run_provenance(run)
     for name in ("checkpoint-50", "checkpoint-100", "final"):
         (run / "checkpoints" / name).mkdir(parents=True)
     monkeypatch.setattr(
@@ -367,69 +298,13 @@ def test_heldout_writes_curve_and_records_final_selection(tmp_path, monkeypatch,
 
     payload = json.loads((run / "heldout.json").read_text(encoding="utf-8"))
     assert payload["validation_size"] == 2
-    assert payload["selected_checkpoint"] == "final"
     curve = [(pt["checkpoint"], pt["step"], pt["accuracy"]) for pt in payload["points"]]
     assert curve == [
         ("checkpoint-50", 50, 0.0),
         ("checkpoint-100", 100, 0.0),
         ("final", None, 1.0),
     ]
-    # The 'final' rule is realized in provenance (step = the default max_steps of 500).
-    prov = json.loads((run / "provenance.json").read_text(encoding="utf-8"))
-    assert prov["selected_checkpoint"] == "final"
-    assert prov["selected_step"] == 500
     assert "held-out acc" in capsys.readouterr().out
-
-
-def test_heldout_best_on_validation_records_winner(tmp_path, monkeypatch) -> None:
-    run = tmp_path / "correct-seed0"
-    _write_run_provenance(run, rule="best_on_validation")
-    for name in ("checkpoint-50", "checkpoint-100", "final"):
-        (run / "checkpoints" / name).mkdir(parents=True)
-    monkeypatch.setattr(
-        "grpo_decomp.eval.heldout.validation_for_run", lambda provenance: _val_problems()
-    )
-    monkeypatch.setattr(_GENERATE_MODULE, "generate", _fake_generate_correct_on("checkpoint-100"))
-
-    assert main(["heldout", "--run", str(run), "--backend", "transformers"]) == 0
-
-    prov = json.loads((run / "provenance.json").read_text(encoding="utf-8"))
-    assert prov["selected_checkpoint"] == "checkpoint-100"
-    assert prov["selected_step"] == 100
-
-
-def test_select_checkpoint_final_takes_end_of_training() -> None:
-    from grpo_decomp.eval.heldout import HeldoutPoint
-
-    points = [
-        HeldoutPoint(checkpoint="checkpoint-50", step=50, accuracy=0.9, n_correct=9, n=10),
-        HeldoutPoint(checkpoint="final", step=None, accuracy=0.1, n_correct=1, n=10),
-    ]
-    assert select_checkpoint(points, "final", 500) == ("final", 500)
-
-
-def test_select_checkpoint_final_requires_final_checkpoint() -> None:
-    from grpo_decomp.eval.heldout import HeldoutPoint
-
-    points = [HeldoutPoint(checkpoint="checkpoint-100", step=100, accuracy=0.9, n_correct=9, n=10)]
-    with pytest.raises(ValueError, match="final checkpoint"):
-        select_checkpoint(points, "final", 500)
-
-
-def test_select_checkpoint_best_on_validation_picks_max() -> None:
-    from grpo_decomp.eval.heldout import HeldoutPoint
-
-    points = [
-        HeldoutPoint(checkpoint="checkpoint-50", step=50, accuracy=0.4, n_correct=4, n=10),
-        HeldoutPoint(checkpoint="checkpoint-100", step=100, accuracy=0.9, n_correct=9, n=10),
-        HeldoutPoint(checkpoint="final", step=None, accuracy=0.5, n_correct=5, n=10),
-    ]
-    assert select_checkpoint(points, "best_on_validation", 500) == ("checkpoint-100", 100)
-
-
-def test_select_checkpoint_rejects_unknown_rule() -> None:
-    with pytest.raises(ValueError, match="unknown checkpoint_selection"):
-        select_checkpoint([], "sometimes", 500)
 
 
 def test_generate_rejects_nonpositive_limit(tmp_path, capsys) -> None:

@@ -39,9 +39,8 @@ def validation_split(
 ) -> tuple[ProblemSet, ProblemSet]:
     """Partition a training `ProblemSet` into ``(train_remainder, validation)``.
 
-    The validation set is held out for in-training held-out accuracy and
-    checkpoint selection; the remainder is what GRPO trains on. The two are
-    disjoint by construction, and — being drawn from the train split — share no
+    The validation set is held out for checkpoint diagnostics; the remainder is
+    used for GRPO training. The two are disjoint by construction and share no
     ids with the test split. `n` defaults to a 256-problem held-out eval set.
     """
     if not 0 < n < len(train):

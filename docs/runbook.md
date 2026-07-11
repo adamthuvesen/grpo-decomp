@@ -82,7 +82,6 @@ make aggregate
 uv run grpo-decomp report-seeds --task-set gsm8k-test \
   --battery-dirs runs/battery runs/battery-seed{1,2,3,4,5} \
   --out results/seed-placebo-comparison.json
-uv run grpo-decomp report --completions-dir runs/battery --task-set gsm8k-test --out results/
 make results
 ```
 

@@ -1,6 +1,6 @@
 """Sampled (n>1) decomposition of the Esme-214M-RL gain on held-out Countdown.
 
-The committed `report --task-set esme-countdown` result is greedy pass@1: one deterministic
+The committed historical Esme result is greedy pass@1: one deterministic
 sample per problem, graded on exact-solve only. For a 214M model on Countdown that is the
 sparsest, lowest-power slice there is — the whole dynamic range is 1-2 solved problems, so real
 reward and a random-reward placebo look identical (the accepted table: +3.3pp, p=1.0).
@@ -15,8 +15,9 @@ signal actually lives:
 - **exact-solve pass@k** — the accepted acceptance-eval metric, restored to a sampled estimate
   so the easy-band solves the model *can* reach are not thrown away by a single greedy decode.
 
-Both axes are paired per problem across arms. Offline, CPU-only; reads the CompletionSets the
-`esme-posttrain` emitter wrote. Prints a markdown table and (with ``--out``) writes summary.json.
+Both axes are paired per problem across arms. CompletionSets written by the
+`esme-posttrain` emitter are read offline on CPU. A markdown table is printed, and
+summary.json is written when ``--out`` is provided.
 """
 
 from __future__ import annotations

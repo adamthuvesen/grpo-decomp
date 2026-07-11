@@ -23,12 +23,6 @@ from grpo_decomp.schemas import DatasetRef, ProblemSet
 if TYPE_CHECKING:
     from grpo_decomp.train.provenance import RunProvenance
 
-#: The arms a decomposition compares. `correct` is the treatment arm (the real reward),
-#: `random` the placebo control; both are compared against `base`. These are *arm labels*
-#: (the ``<arm>__<set>`` run-dir prefix), independent of which reward function backs the
-#: treatment — a new task keeps ``name: correct`` while setting ``reward: <its reward>``.
-ARMS: tuple[str, ...] = ("base", "correct", "random")
-
 #: The placebo reward, provided by the harness (it is the control the method leans on).
 PLACEBO_REWARD = "random"
 
@@ -70,7 +64,7 @@ class TrainDataset:
     """The training data for one task, selected by ``ArmConfig.dataset``.
 
     ``load(seed)`` returns ``(train, validation)``: the GRPO training split and the
-    held-out split for checkpoint selection. Held out together because some tasks (GSM8K)
+    held-out split for training diagnostics. Held out together because some tasks (GSM8K)
     carve the validation set out of train per seed, while others (Countdown) ship a fixed,
     seed-independent one.
     """
@@ -88,7 +82,6 @@ class EvalTaskProfile:
     control_sets: tuple[str, ...]
     run_prefix: str
     battery_root: str
-    elicitation_root: str
     passk_multiseed_root: str
 
 
@@ -101,8 +94,6 @@ VERIFIERS: dict[str, Verifier] = {}
 VALIDATION_RECONSTRUCTORS: dict[str, ValidationReconstructor] = {}
 PROMPT_STRATEGIES: dict[str, PromptStrategy] = {}
 TASKS: dict[str, EvalTaskProfile] = {}
-#: Control eval-set names (perturbation / clean-label probes), filled by the study.
-CONTROL_SETS: list[str] = []
 #: ``eval-set slug -> human label`` for the controlled report rows.
 PROBES: dict[str, str] = {}
 
@@ -151,8 +142,6 @@ def register_task(name: str, profile: EvalTaskProfile) -> None:
 
 def register_control_set(slug: str, probe: str) -> None:
     """Register a control eval set and its human-readable probe label."""
-    if slug not in CONTROL_SETS:
-        CONTROL_SETS.append(slug)
     PROBES[slug] = probe
 
 

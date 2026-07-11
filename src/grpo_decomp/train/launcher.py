@@ -112,7 +112,7 @@ def launch(
 ) -> Path:
     """Run one GRPO arm end-to-end on a GPU box; return the run directory.
 
-    The validation split is held out of training (for later checkpoint selection);
+    The validation split is held out for post-training checkpoint diagnostics;
     `smoke_problems`, if set, trains on a small deterministic subset, and `max_steps`
     caps the step count. `commit`/`dirty`
     override git provenance (the Modal container has no `.git`).

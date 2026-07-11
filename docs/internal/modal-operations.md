@@ -96,5 +96,5 @@ correct/random arms for placebo and control aggregation.
 - `vllm_gpu_memory_utilization=0.3` is the colocated default. Raise it if
   rollouts are slow; lower it before changing model weights if the job is OOMing.
 - `max_steps=500` and `save_steps=100` are the committed production values.
-- Changing reward parsing, sampling settings, or checkpoint selection breaks
-  comparability with the committed study.
+- Comparability with the committed study is broken by changes to reward parsing or
+  sampling settings.

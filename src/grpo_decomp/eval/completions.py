@@ -1,8 +1,8 @@
 """The completion artifact: the boundary between generation (GPU) and analysis (CPU).
 
-`generate` (on whatever box holds the model) writes a `CompletionSet`; `report`
-(on a cheap CPU box, no generation backend) reads it and feeds the battery and
-stats. The artifact is self-contained — it carries each `Problem` (so gold is
+`generate` (on whatever box holds the model) writes a `CompletionSet`; CPU-only
+report commands read it and feed the battery and stats. The artifact is
+self-contained — it carries each `Problem` (so gold is
 present for grading) plus its sampled completions and a provenance record — so the
 analysis side needs no network and no dataset re-pinning.
 """

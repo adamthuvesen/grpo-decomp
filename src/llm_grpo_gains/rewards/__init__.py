@@ -1,14 +1,42 @@
-"""The study's verifiable rewards (the real signals the placebo is compared against).
+"""The study's verifiable rewards (the real signals the placebo is compared against)."""
 
-- ``correct``   — verifiable exact-match correctness on math (the GSM8K signal).
-- ``countdown`` — verifiable search correctness for the Countdown positive control.
+from __future__ import annotations
 
-Both are registered into the harness reward registry by
-:func:`llm_grpo_gains.registration.register`. The correctness-blind ``random`` placebo is
-provided by the harness (:mod:`grpo_decomp.rewards`), not here.
-"""
+import logging
+from collections.abc import Sequence
 
-from llm_grpo_gains.rewards.correct import correct
-from llm_grpo_gains.rewards.countdown import countdown
+from grpo_decomp.grading import is_correct
+from grpo_decomp.rewards import score_strict_boxed
+from llm_grpo_gains.data.countdown import countdown_is_correct
+
+_CORRECT_LOGGER = logging.getLogger(f"{__name__}.correct")
+_COUNTDOWN_LOGGER = logging.getLogger(f"{__name__}.countdown")
+
+
+def correct(
+    completions: Sequence[str], gold_answer: Sequence[str], **kwargs: object
+) -> list[float]:
+    """Score strict-boxed math answers as correct or wrong."""
+    return score_strict_boxed(
+        completions,
+        gold_answer,
+        logger=_CORRECT_LOGGER,
+        reward_name="correct",
+        is_correct=is_correct,
+    )
+
+
+def countdown(
+    completions: Sequence[str], gold_answer: Sequence[str], **kwargs: object
+) -> list[float]:
+    """Score strict-boxed expressions against the Countdown rules."""
+    return score_strict_boxed(
+        completions,
+        gold_answer,
+        logger=_COUNTDOWN_LOGGER,
+        reward_name="countdown",
+        is_correct=countdown_is_correct,
+    )
+
 
 __all__ = ["correct", "countdown"]

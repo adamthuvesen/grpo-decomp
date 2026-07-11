@@ -1443,6 +1443,65 @@ wheels = [
 ]
 
 [[package]]
+name = "grpo-decomp"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "datasets" },
+    { name = "math-verify" },
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "scipy" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "modal" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+eval = [
+    { name = "eval-audit" },
+    { name = "polars" },
+]
+generate = [
+    { name = "torch" },
+    { name = "transformers" },
+]
+train = [
+    { name = "torch" },
+    { name = "transformers" },
+    { name = "trl" },
+    { name = "vllm" },
+    { name = "wandb" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "datasets", specifier = ">=3.0" },
+    { name = "eval-audit", marker = "extra == 'eval'", git = "https://github.com/adamthuvesen/eval-audit?rev=6690f493033094a6ced9a749d57a714c383f8a87" },
+    { name = "grpo-decomp", extras = ["generate"], marker = "extra == 'train'" },
+    { name = "math-verify", specifier = "==0.9.0" },
+    { name = "modal", marker = "extra == 'dev'", specifier = "==1.5.0" },
+    { name = "numpy", specifier = ">=1.26,<3" },
+    { name = "polars", marker = "extra == 'eval'", specifier = ">=1.0,<2" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.8" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+    { name = "scipy", specifier = ">=1.13,<2" },
+    { name = "torch", marker = "extra == 'generate'", specifier = ">=2.4" },
+    { name = "transformers", marker = "extra == 'generate'", specifier = ">=4.48" },
+    { name = "trl", marker = "extra == 'train'", specifier = "==1.0.0" },
+    { name = "vllm", marker = "extra == 'train'", specifier = "==0.17.1" },
+    { name = "wandb", marker = "extra == 'train'", specifier = ">=0.17" },
+]
+provides-extras = ["generate", "train", "eval", "dev"]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1932,67 +1991,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/83/a8/1ff2bedb8f9acb46a2d2d603415d272bb622c142ea86f5b95445cc6e366c/llguidance-1.3.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bc17e9dd602c3879bf91664a64bf72f54c74dbfbeb24ccfab6a5fe435b12f7aa", size = 3033133, upload-time = "2025-10-20T19:58:38.721Z" },
     { url = "https://files.pythonhosted.org/packages/5a/7e/809349638231f469b9056c0e1bfd924d5ef5558b3b3ec72d093b6fad33b1/llguidance-1.3.0-cp39-abi3-win_amd64.whl", hash = "sha256:1d1cd1c8618d1a13605d3e057c978651e551c8c469b481ee4041f1d6c436002d", size = 2789946, upload-time = "2025-10-20T19:58:45.958Z" },
 ]
-
-[[package]]
-name = "grpo-decomp"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "datasets" },
-    { name = "math-verify" },
-    { name = "numpy" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "scipy" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "modal" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-eval = [
-    { name = "eval-audit" },
-    { name = "polars" },
-]
-generate = [
-    { name = "torch" },
-    { name = "transformers" },
-]
-train = [
-    { name = "accelerate" },
-    { name = "torch" },
-    { name = "transformers" },
-    { name = "trl" },
-    { name = "vllm" },
-    { name = "wandb" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "accelerate", marker = "extra == 'train'", specifier = ">=1.0" },
-    { name = "datasets", specifier = ">=3.0" },
-    { name = "eval-audit", marker = "extra == 'eval'", git = "https://github.com/adamthuvesen/eval-audit?rev=6690f493033094a6ced9a749d57a714c383f8a87" },
-    { name = "grpo-decomp", extras = ["generate"], marker = "extra == 'train'" },
-    { name = "math-verify", specifier = "==0.9.0" },
-    { name = "modal", marker = "extra == 'dev'", specifier = "==1.5.0" },
-    { name = "numpy", specifier = ">=1.26,<3" },
-    { name = "polars", marker = "extra == 'eval'", specifier = ">=1.0,<2" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.8" },
-    { name = "pydantic", specifier = ">=2.7,<3" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
-    { name = "pyyaml", specifier = ">=6" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
-    { name = "scipy", specifier = ">=1.13,<2" },
-    { name = "torch", marker = "extra == 'generate'", specifier = ">=2.4" },
-    { name = "transformers", marker = "extra == 'generate'", specifier = ">=4.48" },
-    { name = "trl", marker = "extra == 'train'", specifier = "==1.0.0" },
-    { name = "vllm", marker = "extra == 'train'", specifier = "==0.17.1" },
-    { name = "wandb", marker = "extra == 'train'", specifier = ">=0.17" },
-]
-provides-extras = ["generate", "train", "eval", "dev"]
 
 [[package]]
 name = "llvmlite"
