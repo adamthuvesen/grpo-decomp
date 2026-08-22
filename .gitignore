@@ -46,8 +46,6 @@ provenance.json
 /raw/
 /raw-data/
 
-# OpenSpec — local only, not tracked in git
-/openspec/
 
 # Local operator notes stay out of public release branches unless curated.
 /notes/
