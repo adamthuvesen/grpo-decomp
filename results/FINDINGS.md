@@ -49,9 +49,10 @@ of 76.4%.
   the base held fixed. Adding the base model's own sampling noise, unpaired, gives
   [-0.4, +1.9]. Both bound the move far below Countdown's +41.0 pp
   ([Countdown findings](countdown/FINDINGS.md)).
-- **The reach is not memorization.** On renumbered problems (GSM-Symbolic) base pass@8 is
-  90.8%. On cleaned labels (GSM8K-Platinum) it is 95.6%
-  ([decontamination findings](decontam/FINDINGS.md)).
+- **The reach is not memorization.** On renumbered problems (GSM-Symbolic), which the base
+  model cannot have memorized, base pass@8 is 90.8%. On cleaned labels (GSM8K-Platinum), a
+  label-noise check, it is 95.6%
+  ([contamination and label-noise findings](decontam/FINDINGS.md)).
 
 ## Per-problem mechanism
 

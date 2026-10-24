@@ -1,11 +1,14 @@
-# Decontamination findings
+# Contamination and label-noise findings
 
 _The GSM8K pass@8 panel (same checkpoints and decoding: base n=16, 6 correct seeds at n=8,
-temperature 0.7), re-run on two distributions the base model cannot have memorized._
+temperature 0.7), re-run on renumbered problems (a memorization check) and on cleaned labels
+(a label-noise check)._
 
-**Result.** The elicitation verdict is not a contamination artifact. Off the memorizable
-distribution, base pass@8 stays high and far above correct pass@1, and RL still moves
+**Result.** The elicitation verdict is neither a contamination artifact nor a label-noise
+artifact. On renumbered problems, which the base model cannot have memorized, base pass@8
+stays high and far above correct pass@1. On cleaned labels the same holds. In both, RL moves
 coverage by under 2 pp. Contamination inflates the base model's first try, not its reach.
+GSM8K-Platinum keeps the original questions, so only GSM-Symbolic tests memorization.
 
 | Distribution | Change | Size |
 | --- | --- | --- |
