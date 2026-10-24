@@ -1,5 +1,5 @@
 {
-  "source": "Modal app logs of the three offpolicy-random training runs (2026-10-24). Only six logging intervals per run were retained, all early in training (epoch 0.06-0.07). Values are TRL's clip_ratio/region_mean: the share of tokens whose ratio was clipped.",
+  "source": "Modal app logs of the three offpolicy-random training runs (2026-10-24). Only the last six logging intervals per run were retained: steps 450-500 of 500 (epoch 0.06-0.07; one epoch is 7,217 steps). Values are TRL's clip_ratio/region_mean: the share of tokens whose ratio was clipped.",
   "per_seed": {
     "0": {
       "modal_app_id": "ap-qgUdJXkVFHkR5O9R9cvT3T",

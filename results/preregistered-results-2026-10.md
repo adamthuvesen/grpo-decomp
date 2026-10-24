@@ -21,11 +21,11 @@ The CI contains 0, so the verdict is **no detectable effect**.
 
 **How strong is this test?** It is weak. Off-policy training lets the PPO clip bind, but in
 the retained training logs it bound on at most 0.015% of tokens
-([`offpolicy-clip-ratios.json`](offpolicy-clip-ratios.json)). Those logs cover only six
-logging intervals per seed, all early in training (epoch 0.06–0.07), so the clip fraction
-later in training is not known. At learning rate 1e-6, the policy moves little within the 4
-optimizer steps that share one rollout batch. So the clipping mechanism was hardly
-exercised, at least early on. The result shows that the flat placebo
+([`offpolicy-clip-ratios.json`](offpolicy-clip-ratios.json)). Those logs cover only the
+last six logging intervals per seed: steps 450–500 of 500 (epoch 0.06–0.07, since one epoch
+is 7,217 steps). The clip fraction over the first 450 steps is not known. At learning rate
+1e-6, the policy moves little within the 4 optimizer steps that share one rollout batch. So
+the clipping mechanism was hardly exercised, at least at the end of training. The result shows that the flat placebo
 survives the switch to off-policy training at this budget. It does not confirm or refute
 the Spurious Rewards mechanism at 1.5B. A real test needs the clip to bind often, through a
 higher learning rate or more optimizer steps per rollout batch.

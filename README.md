@@ -76,7 +76,7 @@ Full writeups, figures, and the decontamination, mechanism, and CoT-gated checks
   rollout batch, so the policy ratio stays at 1 and the clip never binds. Their mechanism
   predicts no gain in this regime. A pre-registered off-policy placebo
   (`steps_per_generation: 4`) also stays flat: **+0.4 pp, 95% CI [-0.8, +1.6]** over base.
-  But in the retained (early) training logs the clip bound on under 0.02% of tokens at
+  But in the retained training logs (log points at steps 450–500 of 500) the clip bound on under 0.02% of tokens at
   learning rate 1e-6, so this test barely exercises the mechanism. It shows the flat placebo is robust to off-policy updates. It
   does not settle the clipping question at 1.5B.
 - **Liu et al. 2025**, _ProRL: Prolonged Reinforcement Learning Expands Reasoning
@@ -105,7 +105,7 @@ flat in on-policy GRPO.
 - **Small and narrow.** One model family (Qwen), 1.5B parameters, 500 steps, one prompt per
   optimizer step. The placebo is a within-Qwen lower bound, not a cross-family result.
 - **Weak clipping test.** The off-policy placebo barely made the clip bind (under 0.02% of
-  tokens in the retained early logs). It also mixes 4 prompts per optimizer step, a second
+  tokens in the retained logs, which cover only steps 450–500 of 500). It also mixes 4 prompts per optimizer step, a second
   change TRL makes alongside off-policy updates. The clipping-driven random-reward effect is
   still untested at 1.5B.
 - **Problem noise in the intervals.** The GSM8K and Countdown placebo and control intervals
