@@ -21,6 +21,20 @@ Optional extra for local generation:
 uv sync --extra generate  # local transformers generation
 ```
 
+## GPU Runs On Modal
+
+Training and generation run on Modal (one A100-80GB per arm) and log curves to W&B.
+`modal_app.py` imports the project, so run the Modal CLI from the project environment:
+
+```bash
+uv run modal setup
+uv run modal secret create wandb WANDB_API_KEY="$WANDB_API_KEY"
+uv run modal run --detach modal_app.py --arm configs/correct.yaml
+```
+
+Runs write checkpoints and completions to the `assay-runs` Volume. Launch several arms
+about 40 seconds apart, since Modal rate-limits app creation.
+
 ## Local Checks
 
 ```bash
