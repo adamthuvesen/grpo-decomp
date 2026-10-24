@@ -30,7 +30,7 @@ without pass@8 is answers the model already had showing up more often, not new c
 _Qwen2.5-Math-1.5B · 6 seeds_
 
 GRPO beats a random-reward placebo by **+3.9 pp, 95% CI [2.3, 5.6]**, real but modest.
-Coverage barely moves: Δ +0.7 pp [-0.4, +1.9]. The answers were already latent, since
+Coverage barely moves: Δ +0.7 pp, bounded by a conservative [-0.4, +1.9]. The answers were already latent, since
 base pass@8 (94.0%) already exceeds correct pass@1 (76.2%), so **0.0% of the GSM8K gain
 is new capability**. RL makes latent answers show up more reliably. Controls hold:
 base pass@8 holds at 90.8% on renumbered GSM-Symbolic, with 0.0% verifiable-chain coverage
@@ -53,8 +53,9 @@ _trained from scratch · 6 seeds_
 A different axis: not coverage or reliability, but whether outputs are even well-formed.
 Seed-aggregated valid-expression rate is 85.4% for real reward vs 0.8% for the
 random-reward placebo. Real reward separates from placebo on held-out Countdown validity:
-**+84.7 pp, 95% CI [+54.6, +114.7]** across six training seeds. Exact-any also clears
-across seeds: **+8.9 pp, 95% CI [+6.0, +11.7]**.
+**+84.7 pp, 95% CI [+60.1, +97.5]** (seed × problem bootstrap, six training seeds × 30
+problems). Exact solving barely clears zero: **+8.9 pp, 95% CI [+0.6, +19.4]**, carried by
+about three of the 30 problems.
 
 Full writeups, figures, and the decontamination / mechanism / CoT-gated checks:
 [GSM8K](results/FINDINGS.md) · [Countdown](results/countdown/FINDINGS.md) ·

@@ -46,8 +46,8 @@ correct pass@8 over **3 seeds** vs the seed-independent base pass@8 anchor (`pas
   propagated 95% CI **[+35.1, +46.9]** (base anchor folded in; seed-level [38.3, 43.7]). The
   trained model solves at pass@8 problems the base fails even with 8 attempts: *new capability*,
   by definition outside the base's pass@k envelope.
-- Contrast GSM8K, where Δ pass@8 = **+0.7 pp** (propagated **[−0.4, +1.9]**, consistent with
-  zero): coverage barely moves, so the gain is elicitation. **Same decomposition, same protocol,
+- Contrast GSM8K, where Δ pass@8 = **+0.7 pp** (propagated **[−0.4, +1.9]**, bounded under
+  2 pp): coverage barely moves, so the gain is elicitation. **Same decomposition, same protocol,
   opposite verdicts**. The propagated intervals (**[−0.4, +1.9]** vs **[+35.1, +46.9]**) do not
   come close to overlapping.
 

@@ -47,38 +47,42 @@ Aggregate arm means:
 | correct (Esme-214M-RL, real reward) | 85.4% | 9.0% | 10.3% | 10.6% | 3.17/30 |
 | random (placebo, random reward) | 0.8% | 0.1% | 0.8% | 1.7% | 0.50/30 |
 
-Seed-level tests (unit = training seed, n=6):
+Tests (paired per problem against each seed's own placebo; seeds and problems resampled
+together, 6 seeds × 30 problems):
 
 | Axis | Comparison | Δ | 95% CI | test |
 | --- | --- | ---: | --- | --- |
-| valid-expr rate | correct vs random | **+84.7 pp** | **[+54.6, +114.7]** pp | seed-level t, df=5 |
-| any-exact solve | correct vs random | **+8.9 pp** | **[+6.0, +11.7]** pp | seed-level t, df=5 |
+| valid-expr rate | correct vs random | **+84.7 pp** | **[+60.1, +97.5]** pp | seed × problem bootstrap |
+| any-exact solve | correct vs random | **+8.9 pp** | **[+0.6, +19.4]** pp | seed × problem bootstrap |
 
 Traceable headline strings: valid-expression rates are **85.4% vs 0.8%** for real reward
-vs placebo; valid-expression separation is **+84.7 pp, 95% CI [+54.6, +114.7]**; any-exact
-separation is **+8.9 pp, 95% CI [+6.0, +11.7]**.
+vs placebo; valid-expression separation is **+84.7 pp, 95% CI [+60.1, +97.5]**; any-exact
+separation is **+8.9 pp, 95% CI [+0.6, +19.4]**.
 
-Conclusion: **supported**. Real verifier reward separates from the random-reward placebo on
-sampled held-out Countdown validity. Exact-any moves the same way and also clears zero
-across seeds, but validity remains the honest headline because it is the reward rung with
-the strongest signal and the most direct mechanism.
+Conclusion: **supported** for validity. Real verifier reward separates from the
+random-reward placebo on sampled held-out Countdown validity. Exact-any moves the same way
+but only just clears zero, so validity is the headline: it is the reward rung with the
+strongest signal and the most direct mechanism.
 
 ## Reading
 
 The six-seed result is consistent: real reward lands near 97% valid-expression rate in five
-of six seeds, while placebo stays near base in all six. The seed-level validity interval
-clears zero with room to spare despite the low-validity seed 214.
+of six seeds, while placebo stays near base in all six. The validity interval clears zero
+with room to spare despite the low-validity seed 214.
 
-The exact-solve axis is smaller but also positive across seeds: real reward averages 3.17
-held-out problems with at least one exact sample, while placebo averages 0.50. This supports
-the "RL sharpened form first, exact solving second" reading rather than a broad new reasoning
-claim for a 214M model.
+The exact-solve axis is small and fragile. Real reward averages 3.17 held-out problems with
+at least one exact sample, while placebo averages 0.50. Every real-reward seed solves the
+same three problems (`easy_0000`, `easy_0002`, `medium_0004`; seed 214 adds `medium_0003`).
+The effect is consistent across seeds but rests on three problems, which is why its interval
+is wide once problems are resampled. This supports the "RL sharpened form first, exact
+solving second" reading rather than a broad new reasoning claim for a 214M model.
 
 ## Caveats
 
-- **Six seeds, not a population law.** The seed-level CI is conservative and can
-  extend above the physical probability ceiling because it is a small-n t interval on seed
-  deltas. The important part is that its lower bound is positive.
+- **Six seeds, 30 problems.** The interval resamples both, so it covers run-to-run and
+  problem-sampling noise and stays inside the possible range. An earlier seed-level t
+  interval ignored problem noise and reached +114.7 pp, past the 100 pp ceiling. With six
+  seeds the seed resample is coarse, so read the bounds as approximate.
 - **Validity is form, not target solving.** A valid expression may still hit the wrong value.
   That is not a bug: validity is the rung the reward shaped most strongly, and exact-solving is
   reported separately.

@@ -249,17 +249,15 @@
   ],
   "valid_rate_seed_aggregate": {
     "mean_delta": 0.8465277777777778,
-    "sem": 0.11682735296682269,
-    "ci_low": 0.5462135063357911,
-    "ci_high": 1.1468420492197644,
-    "ci_kind": "seed-level t, df=5"
+    "ci_low": 0.6010416666666667,
+    "ci_high": 0.975,
+    "ci_kind": "seed x problem bootstrap (6 seeds x 30 problems)"
   },
   "exact_any_seed_aggregate": {
     "mean_delta": 0.08888888888888889,
-    "sem": 0.01111111111111111,
-    "ci_low": 0.06032686849292984,
-    "ci_high": 0.11745090928484794,
-    "ci_kind": "seed-level t, df=5"
+    "ci_low": 0.005555555555555556,
+    "ci_high": 0.19444444444444445,
+    "ci_kind": "seed x problem bootstrap (6 seeds x 30 problems)"
   },
   "conclusion": "supported: real verifier reward separates from the random-reward placebo on sampled held-out Countdown validity"
 }

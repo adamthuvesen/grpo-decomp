@@ -16,7 +16,9 @@ reasoning, contamination, and formatting. Two corrections to the single-seed rea
 number (+6.1pp, McNemar p=3e-9) **overstated the magnitude** (six seeds settle it at
 **+3.9pp [2.3, 5.6]**), and the **6-seed** pass@k panel shows pass@8 coverage barely moves
 (Δ **+0.7pp**, propagated CI **[−0.4, +1.9]**, consistent with zero): the gain is the model
-getting more **reliable at problems it could already solve**, not new coverage. GSM8K is
+getting more **reliable at problems it could already solve**, not new coverage. (This interval is
+unpaired and so conservative; the seed-level one, [+0.4, +1.1], excludes zero. Read it as a
+small coverage move under 2 pp, not as exactly zero.) GSM8K is
 near-saturated for this base (base pass@8 = 94%).
 
 ![Placebo comparison over 6 seeds: +3.9 pp [2.3, 5.6]](fig-placebo-comparison.png)
@@ -52,8 +54,8 @@ correct − random, 6 seeds → mean **+3.9 pp**, 95% CI **[2.3, 5.6]** (seed-le
 
 correct pass@8 over **6 seeds** vs the seed-independent base pass@8 anchor
 (`pass8-multiseed.json`). pass@8 coverage **barely moves**: Δ **+0.7 pp**, propagated 95% CI
-**[−0.4, +1.9]** (the base anchor's sampling CI folded into the between-seed interval, below),
-**consistent with zero**. This was the study's one load-bearing single-seed claim; it is now
+**[−0.4, +1.9]** (the base anchor's sampling CI folded into the between-seed interval, below):
+a **small move, bounded under 2 pp**. This was the study's one load-bearing single-seed claim; it is now
 multi-seeded, on the same footing as the placebo comparison, and it *shrank*: the single-seed
 panel's +1.7 pp was the seed-0 high.
 
@@ -66,9 +68,12 @@ panel's +1.7 pp was the seed-0 high.
   almost everything the RL model produces in one sampled try. The gain lives **inside the base's
   pass@k coverage**. RL improved pass@1 reliability; it did not expand capability.
 - **correct pass@8 ≈ base pass@8**: the between-seed interval is [+0.4, +1.1], but it holds the
-  base *fixed*; the base anchor's own problem-sampling CI (94.0% [92.9, 95.0]) is the **dominant**
-  term, so the propagated interval **[−0.4, +1.9] is consistent with zero**. The verdict
-  does not hinge on the sign: the GSM8K and Countdown propagated intervals (**[−0.4, +1.9]** vs
+  base *fixed*. The propagated interval **[−0.4, +1.9]** adds the base anchor's own
+  problem-sampling CI (94.0% [92.9, 95.0]) without pairing. Base and correct share every
+  problem, so a paired interval would be tighter and would likely exclude zero. The harness now
+  computes that paired seed × problem interval (`delta_paired_ci_*`), but this artifact predates
+  it and its per-problem completions are no longer retained, so it cannot be recomputed. The
+  verdict does not hinge on the sign: the GSM8K and Countdown propagated intervals (**[−0.4, +1.9]** vs
   **[+35.1, +46.9]**) do not come close to overlapping. This is the *bounded-small* reading:
   pass@8 coverage does not meaningfully move. All six correct seeds cluster at 94.2-95.2%
   (near-ceiling; n=8 resolves the between-seed panel, no escalation needed).

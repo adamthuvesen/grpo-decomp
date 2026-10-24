@@ -107,7 +107,7 @@ Harness: `src/grpo_decomp/`
 | `rewards/`       | `get_reward` (registry-resolved) + the harness-provided `random` placebo control.                          |
 | `train/`         | GRPO config, the run launcher, and run provenance.                                                          |
 | `eval/`          | Generation, the completion artifact, grading, pass@k, detectors, CLI.                                       |
-| `stats/`         | Paired comparison: delta + bootstrap CI (via `eval-audit`), McNemar and Holm (local).                       |
+| `stats/`         | Paired comparison: delta + bootstrap CI (via `eval-audit`); McNemar, Holm, seed × problem bootstrap (local). |
 | `report/`        | Multi-seed aggregators for placebo, pass@k, mechanism, and controls. |
 
 Study: `src/llm_grpo_gains/` plus repo-root `configs/`, `results/`, `modal_app.py`
@@ -322,7 +322,7 @@ Each FINDINGS number traces to one aggregator and one JSON file in `results/` (t
 | Aggregator (`grpo-decomp …`) | Module                    | Artifact                       | What it backs                                                                                                                   |
 | ---------------------------- | ------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
 | `report-seeds`               | `report/seeds.py`         | `seed-placebo-comparison.json` | The confirmatory placebo delta (correct − random), seed-level t CI.                                                             |
-| `report-passk-seeds`         | `report/passk_seeds.py`   | `pass8-multiseed.json`         | pass@k coverage: base anchor (problem-bootstrap CI) vs per-seed correct, with the propagated Δ interval and the CoT-gated twin. |
+| `report-passk-seeds`         | `report/passk_seeds.py`   | `pass8-multiseed.json`         | pass@k coverage: base anchor (problem-bootstrap CI) vs per-seed correct, with the paired seed × problem Δ interval, the legacy propagated one, and the CoT-gated twin. |
 | `report-mechanism`           | `report/mechanism.py`     | `mechanism.json`               | Per-problem migration vs new capability + the completion-length shift.                                                          |
 | `report-control-seeds`       | `report/control_seeds.py` | `decomposition-multiseed.json` | The §3 controls (gsm-symbolic / gsm-plus / gsm8k-platinum), Holm-corrected across the family.                                   |
 
