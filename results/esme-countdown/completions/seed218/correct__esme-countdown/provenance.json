@@ -1,0 +1,27 @@
+{
+  "backend": "transformers",
+  "commit": "esme-posttrain",
+  "dataset": {
+    "config": "heldout_fresh",
+    "name": "esme-countdown",
+    "revision": "heldout_fresh+e6e671c24ca56d27",
+    "split": "heldout_fresh"
+  },
+  "dirty": false,
+  "model": "Esme-214M-RL-seed218",
+  "model_revision": null,
+  "n_problems": 30,
+  "package_versions": {
+    "tokenizers": "0.23.1",
+    "torch": "2.12.1"
+  },
+  "prompt_strategy": "esme_countdown_chat",
+  "python_version": "3.12.13",
+  "sampling": {
+    "max_new_tokens": 12,
+    "n": 16,
+    "seed": 0,
+    "temperature": 1.0,
+    "top_p": 1.0
+  }
+}

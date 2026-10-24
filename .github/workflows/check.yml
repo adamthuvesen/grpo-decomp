@@ -20,3 +20,6 @@ jobs:
 
       - name: Lint, type check, and unit tests
         run: make check
+
+      - name: Reproduce the Esme result from committed completions
+        run: make reproduce-esme

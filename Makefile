@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := check
-.PHONY: install fmt lint typecheck test test-integration check demo results aggregate test-docs
+.PHONY: install fmt lint typecheck test test-integration check demo results aggregate test-docs reproduce-esme
 
 install:  ## Sync the dev environment (incl. the CPU eval/stats layer)
 	uv sync --extra dev --extra eval
@@ -44,3 +44,15 @@ aggregate:  ## Re-derive the committed JSON from local completions (needs runs/ 
 	uv run grpo-decomp report-mechanism    --completions-dir runs/passk-multiseed           --task-set gsm8k-test     --out results/mechanism.json
 	uv run grpo-decomp report-mechanism    --completions-dir runs/passk-multiseed-countdown --task-set countdown-test  --out results/countdown/mechanism.json
 	uv run grpo-decomp report-control-seeds --battery-dirs runs/battery runs/battery-seed1 runs/battery-seed2 runs/battery-seed3 runs/battery-seed4 runs/battery-seed5 --out results/decomposition-multiseed.json
+
+ESME_COMPLETIONS := results/esme-countdown/completions
+ESME_SEEDS := 214 215 216 217 218 219
+
+reproduce-esme:  ## Recompute the Esme result from committed completions; fail if it differs from the committed JSON
+	@out=$$(mktemp -d) && \
+	uv run python scripts/esme_sampled_decomp.py \
+		$(foreach s,$(ESME_SEEDS),--seed $(s)=$(ESME_COMPLETIONS)/seed$(s)) \
+		--base-completions-dir $(ESME_COMPLETIONS)/base__esme-countdown \
+		--out $$out > /dev/null && \
+	diff -u results/esme-countdown/sampled_multiseed_summary.json $$out/sampled_multiseed_summary.json && \
+	echo "reproduce-esme: recomputed summary matches results/esme-countdown/sampled_multiseed_summary.json"

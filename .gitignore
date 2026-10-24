@@ -34,6 +34,9 @@ __pycache__/
 completions.jsonl
 heldout.json
 provenance.json
+# The Esme study's raw completions are small and back `make reproduce-esme`.
+!/results/esme-countdown/completions/**/completions.jsonl
+!/results/esme-countdown/completions/**/provenance.json
 
 # Cached/generated datasets and hub downloads.
 /.cache/

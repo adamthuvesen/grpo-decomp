@@ -10,7 +10,8 @@ on exact-solve only. Held-out Countdown-Lite is scored here with sampling
 
 The 2026-07-05 result aggregates six real-reward GRPO seeds against six same-budget
 random-reward placebo seeds. The report is produced by `scripts/esme_sampled_decomp.py`,
-with raw numbers stored in `sampled_multiseed_summary.json`.
+with raw numbers stored in `sampled_multiseed_summary.json`. The raw completions are in
+`completions/`, and `make reproduce-esme` recomputes the summary from them.
 
 ![Esme-214M-RL form vs exact solving: real reward separates from the random-reward placebo on valid-expression rate first, exact solving second](fig-sampled-form-vs-exact.svg)
 

@@ -98,8 +98,10 @@ placebo is flat in on-policy GRPO.
   retained, so these intervals cannot be recomputed. Countdown has 3 seeds (df=2).
 - **No reasoning-validity check.** Correct answers are not proof of correct reasoning, and
   the verifiable-chain check does not apply to these models.
-- **Aggregates only.** The repo ships result JSON and figures. An outsider can rebuild every
-  figure and doc number, but cannot recompute them from completions.
+- **Aggregates only for GSM8K and Countdown.** For these two studies the repo ships result
+  JSON and figures. An outsider can rebuild every figure and doc number, but cannot recompute
+  them from completions. The Esme study ships its raw completions: `make reproduce-esme`
+  recomputes its result from them.
 
 ## What I Would Do Next
 
@@ -161,6 +163,7 @@ make install   # CPU env: data, rewards, eval, stats, reports, tests
 make check     # Ruff + mypy + unit tests + docs consistency
 make results   # rebuild committed figures from JSON, then docs <-> JSON check
 make demo      # score two tiny committed CompletionSets; no model load
+make reproduce-esme  # recompute the Esme result from its raw completions; diff vs committed JSON
 ```
 
 Generation and training need a model backend; everything else runs on CPU:
