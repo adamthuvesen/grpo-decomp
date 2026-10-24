@@ -30,9 +30,8 @@ from grpo_decomp.eval.battery import run_battery
 from grpo_decomp.eval.completions import CompletionSet, load_completion_set
 from grpo_decomp.grading import extract_lenient
 from grpo_decomp.report.status import MIN_HEADLINE_SEEDS
-from grpo_decomp.stats.bootstrap import bootstrap_mean_ci
+from grpo_decomp.stats.bootstrap import bootstrap_mean_ci, seed_problem_bootstrap_ci
 from grpo_decomp.stats.compare import compare
-from grpo_decomp.stats.seed_aggregate import seed_level_mean_ci
 from llm_grpo_gains.data.countdown import parse_countdown_key
 from llm_grpo_gains.esme_countdown import (
     esme_countdown_is_correct,
@@ -151,14 +150,13 @@ def _single_seed_payload(*, completions_dir: Path, task_set: str, k_values: list
     }
 
 
-def _seed_level_ci(values: list[float]) -> dict:
-    mean, sem, ci_low, ci_high, ci_kind = seed_level_mean_ci(values)
+def _seed_problem_ci(deltas: list[list[float]]) -> dict:
+    mean, ci_low, ci_high = seed_problem_bootstrap_ci(deltas)
     return {
         "mean_delta": mean,
-        "sem": sem,
         "ci_low": ci_low,
         "ci_high": ci_high,
-        "ci_kind": ci_kind,
+        "ci_kind": f"seed x problem bootstrap ({len(deltas)} seeds x {len(deltas[0])} problems)",
     }
 
 
@@ -179,6 +177,9 @@ def _multiseed_payload(
         raise ValueError("at least one --seed is required for multiseed mode")
 
     per_seed = []
+    valid_delta_rows: list[list[float]] = []
+    exact_delta_rows: list[list[float]] = []
+    problem_ids: list[str] | None = None
     base: dict | None = None
     n_problems: int | None = None
     n_samples: int | None = None
@@ -206,8 +207,14 @@ def _multiseed_payload(
         ids = sorted(correct_valid)
         if ids != sorted(random_valid):
             raise ValueError(f"seed {seed_label} has mismatched correct/random problem ids")
+        if problem_ids is None:
+            problem_ids = ids
+        elif ids != problem_ids:
+            raise ValueError(f"seed {seed_label} scores a different problem set")
 
-        valid_delta = _mean([correct_valid[i] - random_valid[i] for i in ids])
+        valid_delta_rows.append([correct_valid[i] - random_valid[i] for i in ids])
+        exact_delta_rows.append([float(correct_exact[i]) - float(random_exact[i]) for i in ids])
+        valid_delta = _mean(valid_delta_rows[-1])
         exact_cmp = compare("random", random_exact, "correct", correct_exact)
         entry = {
             "seed": seed_label,
@@ -242,17 +249,15 @@ def _multiseed_payload(
         ):
             raise ValueError(f"seed {seed_label} uses a different problem/sample axis")
 
-    valid_deltas = [float(row["valid_rate_delta"]) for row in per_seed]
-    exact_deltas = [float(row["exact_any_delta"]) for row in per_seed]
     n = len(per_seed)
-    valid_aggregate = _seed_level_ci(valid_deltas)
-    exact_aggregate = _seed_level_ci(exact_deltas)
+    valid_aggregate = _seed_problem_ci(valid_delta_rows)
+    exact_aggregate = _seed_problem_ci(exact_delta_rows)
     preliminary = n < MIN_HEADLINE_SEEDS
     conclusion = (
         "supported: real verifier reward separates from the random-reward placebo "
         "on sampled held-out Countdown validity"
         if not preliminary and valid_aggregate["ci_low"] > 0.0
-        else "blocked: seed-level validity interval does not clear zero"
+        else "blocked: seed x problem validity interval does not clear zero"
     )
 
     return {
@@ -356,12 +361,12 @@ def _print_multiseed(payload: dict) -> None:
         )
     print()
     print(
-        f"Valid-expression seed-level mean Δ: {valid['mean_delta'] * 100:+.1f}pp, "
+        f"Valid-expression mean Δ: {valid['mean_delta'] * 100:+.1f}pp, "
         f"95% CI [{valid['ci_low'] * 100:+.1f}, {valid['ci_high'] * 100:+.1f}]pp "
         f"({valid['ci_kind']})."
     )
     print(
-        f"Any-exact seed-level mean Δ: {exact['mean_delta'] * 100:+.1f}pp, "
+        f"Any-exact mean Δ: {exact['mean_delta'] * 100:+.1f}pp, "
         f"95% CI [{exact['ci_low'] * 100:+.1f}, {exact['ci_high'] * 100:+.1f}]pp "
         f"({exact['ci_kind']})."
     )

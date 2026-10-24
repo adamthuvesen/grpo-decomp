@@ -23,10 +23,10 @@ from grpo_decomp.eval.cot import has_verifiable_chain
 from grpo_decomp.eval.passk import estimate_pass_at_k, pass_at_k
 from grpo_decomp.report.status import MIN_HEADLINE_SEEDS
 from grpo_decomp.schemas import Record
-from grpo_decomp.stats.bootstrap import bootstrap_mean_ci
+from grpo_decomp.stats.bootstrap import bootstrap_mean_ci, seed_problem_bootstrap_ci
 from grpo_decomp.stats.seed_aggregate import seed_level_t_half_width
 
-#: Propagated pass@k Δ above this (pp) with CI excluding zero reads as expansion, not elicitation.
+#: pass@k Δ above this (pp) with its headline CI excluding zero reads as expansion, not elicitation.
 EXPANSION_DELTA_THRESHOLD = 0.10
 
 
@@ -68,6 +68,13 @@ class PassKMultiSeed(Record):
         "(base and correct share the problem set, so pairing would only tighten it)."
     )
     delta_propagated_ci_high: float
+    delta_paired_ci_low: float | None = Field(
+        default=None,
+        description="Seed x problem bootstrap CI on Δ, paired per problem against the base "
+        "anchor. Carries seed and problem uncertainty without the unpaired anchor term. None on "
+        "artifacts built before this field existed.",
+    )
+    delta_paired_ci_high: float | None = None
 
     # CoT-gated (valid-chain) twins: pass@k counting a sample only when its answer is correct
     # AND its <<a op b=c>> chain verifies. The CoT-Pass@K critique asks whether RL moves
@@ -104,18 +111,24 @@ class PassKMultiSeed(Record):
     def headline(self) -> str:
         """The atomic verdict line: bounded-small (elicitation) vs expansion.
 
-        The verdict keys off the *propagated* interval (the base anchor's sampling SE folded
-        in), so a movement that only clears zero with the base held fixed does not read as
-        expansion.
+        The verdict keys off the paired seed x problem interval when present, else the
+        *propagated* one, so a movement that only clears zero with the base held fixed does not
+        read as expansion.
         """
-        expanded = self.delta_propagated_ci_low > 0.0 and self.delta >= EXPANSION_DELTA_THRESHOLD
+        if self.delta_paired_ci_low is not None and self.delta_paired_ci_high is not None:
+            ci_low, ci_high = self.delta_paired_ci_low, self.delta_paired_ci_high
+            ci_label = "paired"
+        else:
+            ci_low, ci_high = self.delta_propagated_ci_low, self.delta_propagated_ci_high
+            ci_label = "with anchor"
+        expanded = ci_low > 0.0 and self.delta >= EXPANSION_DELTA_THRESHOLD
         verdict = "expansion" if expanded else "bounded-small (elicitation)"
         tag = f"  [PRELIMINARY <{MIN_HEADLINE_SEEDS} seeds]" if self.preliminary else ""
         return (
             f"over {self.n_seeds} seed(s) on {self.task}, correct pass@{self.k} "
             f"{self.mean_correct_passk * 100:.1f}% vs base {self.base_passk * 100:.1f}%: "
-            f"Δ {self.delta * 100:+.1f} pp (with anchor [{self.delta_propagated_ci_low * 100:.1f}, "
-            f"{self.delta_propagated_ci_high * 100:.1f}]; seed-level "
+            f"Δ {self.delta * 100:+.1f} pp ({ci_label} [{ci_low * 100:.1f}, "
+            f"{ci_high * 100:.1f}]; seed-level "
             f"[{self.delta_ci_low * 100:.1f}, {self.delta_ci_high * 100:.1f}]) → {verdict}{tag}"
         )
 
@@ -153,6 +166,7 @@ class _CorrectMetrics(NamedTuple):
     n: int
     pass1s: tuple[float, ...]
     passks: tuple[float, ...]
+    counts: tuple[tuple[int, ...], ...]
     cot_pass1s: tuple[float, ...]
     cot_passks: tuple[float, ...]
     chain_coverages: tuple[float, ...]
@@ -210,6 +224,24 @@ def _delta_intervals(
     return delta, _interval(delta, seed_half_width), _interval(delta, propagated_half_width)
 
 
+def _paired_delta_ci(
+    correct_counts: Sequence[Sequence[int]],
+    base_counts: Sequence[int],
+    *,
+    n_correct: int,
+    n_base: int,
+    k: int,
+) -> tuple[float, float]:
+    """Seed x problem bootstrap CI on Δ pass@k, each cell paired to the base on its problem."""
+    base_passk = [pass_at_k(n_base, count, k) for count in base_counts]
+    deltas = [
+        [pass_at_k(n_correct, count, k) - base for count, base in zip(row, base_passk, strict=True)]
+        for row in correct_counts
+    ]
+    _, ci_low, ci_high = seed_problem_bootstrap_ci(deltas)
+    return ci_low, ci_high
+
+
 def _coverage_stats(
     values: Sequence[float], *, anchor: float, anchor_ci: tuple[float, float]
 ) -> _CoverageStats:
@@ -255,6 +287,7 @@ def _collect_correct_metrics(
     seeds: list[str] = []
     pass1s: list[float] = []
     passks: list[float] = []
+    counts: list[tuple[int, ...]] = []
     cot_pass1s: list[float] = []
     cot_passks: list[float] = []
     chain_coverages: list[float] = []
@@ -264,6 +297,7 @@ def _collect_correct_metrics(
         seeds.append(str(label))
         pass1s.append(metrics.pass1)
         passks.append(metrics.passk)
+        counts.append(tuple(metrics.counts))
         cot_pass1s.append(metrics.cot_pass1)
         cot_passks.append(metrics.cot_passk)
         chain_coverages.append(metrics.chain_coverage)
@@ -275,6 +309,7 @@ def _collect_correct_metrics(
         n=n_corrects.pop(),
         pass1s=tuple(pass1s),
         passks=tuple(passks),
+        counts=tuple(counts),
         cot_pass1s=tuple(cot_pass1s),
         cot_passks=tuple(cot_passks),
         chain_coverages=tuple(chain_coverages),
@@ -308,6 +343,9 @@ def aggregate_passk_seeds(
     correct = _collect_correct_metrics(correct_by_seed, k)
     vanilla = _coverage_stats(correct.passks, anchor=base_m.passk, anchor_ci=base_ci)
     cot = _coverage_stats(correct.cot_passks, anchor=base_m.cot_passk, anchor_ci=base_cot_ci)
+    paired_ci = _paired_delta_ci(
+        correct.counts, base_m.counts, n_correct=correct.n, n_base=n_base, k=k
+    )
     return PassKMultiSeed(
         task=task,
         k=k,
@@ -330,6 +368,8 @@ def aggregate_passk_seeds(
         delta_ci_high=vanilla.delta_ci[1],
         delta_propagated_ci_low=vanilla.delta_propagated_ci[0],
         delta_propagated_ci_high=vanilla.delta_propagated_ci[1],
+        delta_paired_ci_low=paired_ci[0],
+        delta_paired_ci_high=paired_ci[1],
         base_cot_pass1=base_m.cot_pass1,
         base_cot_passk=base_m.cot_passk,
         base_cot_passk_ci_low=base_cot_ci[0],

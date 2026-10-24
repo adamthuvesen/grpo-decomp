@@ -154,3 +154,15 @@ def test_schema_rejects_unknown_fields() -> None:
     panel = aggregate_passk_seeds(_BASE, [(0, _SEED_A), (1, _SEED_B)], task="gsm8k-test", k=1)
     with pytest.raises(ValidationError):
         PassKMultiSeed(**{**panel.model_dump(), "bogus": 1})
+
+
+def test_paired_delta_ci_drops_the_unpaired_anchor_noise() -> None:
+    # Every seed reproduces the base problem by problem: Δ is exactly zero on every problem,
+    # so the paired interval is a point, while the unpaired propagated one still adds the
+    # anchor's problem-sampling width.
+    panel = aggregate_passk_seeds(
+        _BASE, [(0, _BASE), (1, _BASE), (2, _BASE)], task="gsm8k-test", k=1
+    )
+    assert (panel.delta_paired_ci_low, panel.delta_paired_ci_high) == (0.0, 0.0)
+    assert panel.delta_propagated_ci_high - panel.delta_propagated_ci_low > 0.0
+    assert "(paired [0.0, 0.0]" in panel.headline()

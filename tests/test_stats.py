@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from grpo_decomp.stats.bootstrap import bootstrap_mean_ci
+from grpo_decomp.stats.bootstrap import bootstrap_mean_ci, seed_problem_bootstrap_ci
 from grpo_decomp.stats.compare import compare
+from grpo_decomp.stats.seed_aggregate import seed_level_mean_ci
 from grpo_decomp.stats.significance import holm_correction, mcnemar
 
 
@@ -101,6 +102,32 @@ def test_bootstrap_mean_ci_is_deterministic_and_brackets_the_mean() -> None:
 def test_bootstrap_mean_ci_rejects_empty() -> None:
     with pytest.raises(ValueError, match="empty"):
         bootstrap_mean_ci([])
+
+
+def test_seed_problem_bootstrap_stays_inside_the_rate_range_where_a_t_interval_does_not() -> None:
+    # One bad seed among near-ceiling seeds: the Esme validity shape that pushed a df=5
+    # t interval past +100 pp.
+    deltas = [[0.25] * 30] + [[0.97] * 30] * 5
+    _mean, _sem, _t_low, t_high, _kind = seed_level_mean_ci([row[0] for row in deltas])
+    mean, ci_low, ci_high = seed_problem_bootstrap_ci(deltas)
+    assert t_high > 1.0
+    assert 0.25 <= ci_low <= mean <= ci_high <= 0.97 + 1e-9
+
+
+def test_seed_problem_bootstrap_keeps_problem_variance_that_seed_level_t_drops() -> None:
+    # Identical seeds, so a seed-level t interval has zero width, but the gain sits on
+    # 3 of 30 problems and must carry that problem-sampling uncertainty.
+    row = [1.0, 1.0, 1.0] + [0.0] * 27
+    deltas = [row] * 6
+    _mean, _sem, t_low, t_high, _kind = seed_level_mean_ci([sum(row) / len(row)] * 6)
+    _mean, ci_low, ci_high = seed_problem_bootstrap_ci(deltas)
+    assert t_low == pytest.approx(t_high)
+    assert ci_low < 0.05 < 0.15 < ci_high
+
+
+def test_seed_problem_bootstrap_rejects_a_flat_vector() -> None:
+    with pytest.raises(ValueError, match="matrix"):
+        seed_problem_bootstrap_ci([0.1, 0.2])  # type: ignore[list-item]
 
 
 def test_holm_correction_hand_example_and_order() -> None:
