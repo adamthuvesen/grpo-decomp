@@ -93,6 +93,9 @@ pass@8 panels seed-level, not seed-0 draws.
 
 - **3 seeds**: both the placebo comparison and the pass@8 panel clear their thresholds
   decisively, but the CIs are df=2; the point estimates are less precise than GSM8K's 6 seeds.
+- **Different base from GSM8K**: Countdown uses general Qwen2.5-1.5B, GSM8K uses
+  Qwen2.5-Math-1.5B. The two-sided contrast mixes task and base model; running
+  Qwen2.5-Math-1.5B on Countdown would separate them.
 - **Within-Qwen, single base**: the placebo is a within-model lower bound on
   non-correctness-driven gain, not a cross-family verdict (a Llama arm is the follow-up).
 - **Narrow task**: Countdown certifies that the *instrument* detects expansion; it does not
