@@ -41,6 +41,10 @@ class GRPOSettings(Record):
     vllm_mode: str = "colocate"
     vllm_gpu_memory_utilization: float = 0.3
     mask_truncated_completions: bool = True  # guards length-hacking under beta=0.0
+    # None keeps TRL's default (= gradient_accumulation_steps = 1): one optimizer step per
+    # rollout batch, so the policy ratio stays 1 and the PPO clip never binds. Values > 1
+    # reuse each batch for that many steps, which makes later steps off-policy.
+    steps_per_generation: int | None = None
 
 
 class ArmConfig(Record):

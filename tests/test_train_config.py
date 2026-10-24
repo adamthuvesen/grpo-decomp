@@ -69,3 +69,31 @@ def test_prompt_strategy_defaults_to_r1_zero() -> None:
 def test_arm_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError):
         ArmConfig(name="x", base_model="m", reward="correct", seed=0, surprise=1)
+
+
+def test_on_policy_arms_keep_trl_default_steps_per_generation() -> None:
+    assert GRPOSettings().steps_per_generation is None
+    assert load_arm_config(_CONFIGS / "random.yaml").grpo.steps_per_generation is None
+
+
+@pytest.mark.parametrize(
+    ("new", "reference", "changed"),
+    [
+        ("offpolicy-random.yaml", "random.yaml", {"name", "grpo.steps_per_generation"}),
+        (
+            "countdown-math-correct.yaml",
+            "countdown-correct.yaml",
+            {"name", "base_model", "base_model_revision"},
+        ),
+    ],
+)
+def test_new_arms_change_one_variable_from_their_reference(
+    new: str, reference: str, changed: set[str]
+) -> None:
+    def flat(file: str) -> dict[str, object]:
+        dumped = load_arm_config(_CONFIGS / file).model_dump()
+        grpo = dumped.pop("grpo")
+        return dumped | {f"grpo.{key}": value for key, value in grpo.items()}
+
+    a, b = flat(new), flat(reference)
+    assert {key for key in a if a[key] != b[key]} == changed
