@@ -26,8 +26,8 @@ class GRPOSettings(Record):
     scale_rewards: str = "group"
     beta: float = 0.0  # no KL / reference model (R1-Zero)
     learning_rate: float = 1e-6
-    # With batch == num_generations == 8 and no grad accumulation, each optimizer
-    # step sees one unique prompt. Raise the effective batch if gradients are noisy.
+    # With batch == num_generations == 8, no grad accumulation, and the default
+    # steps_per_generation, each optimizer step sees one unique prompt's group.
     per_device_train_batch_size: int = 8
     num_generations: int = 8
     max_completion_length: int = 1024  # CoT headroom; 512 clipped too many rollouts.
@@ -41,6 +41,11 @@ class GRPOSettings(Record):
     vllm_mode: str = "colocate"
     vllm_gpu_memory_utilization: float = 0.3
     mask_truncated_completions: bool = True  # guards length-hacking under beta=0.0
+    # None keeps TRL's default (= gradient_accumulation_steps = 1): one optimizer step per
+    # rollout batch, so the policy ratio stays 1 and the PPO clip never binds. With N > 1,
+    # TRL generates N batches at once, shuffles them, and spends one slice per step: later
+    # steps are off-policy, and each step mixes completions from N prompts.
+    steps_per_generation: int | None = None
 
 
 class ArmConfig(Record):

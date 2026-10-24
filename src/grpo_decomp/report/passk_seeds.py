@@ -75,6 +75,17 @@ class PassKMultiSeed(Record):
         "artifacts built before this field existed.",
     )
     delta_paired_ci_high: float | None = None
+    problem_ids: tuple[str, ...] | None = Field(
+        default=None, description="The shared problem axis the per-problem counts follow."
+    )
+    base_counts: tuple[int, ...] | None = Field(
+        default=None, description="Correct base samples (of n_base) per problem."
+    )
+    per_seed_correct_counts: tuple[tuple[int, ...], ...] | None = Field(
+        default=None,
+        description="Correct samples (of n_correct) per problem, one row per seed. With "
+        "base_counts, every pass@k statistic here can be recomputed without the completions.",
+    )
 
     # CoT-gated (valid-chain) twins: pass@k counting a sample only when its answer is correct
     # AND its <<a op b=c>> chain verifies. The CoT-Pass@K critique asks whether RL moves
@@ -370,6 +381,9 @@ def aggregate_passk_seeds(
         delta_propagated_ci_high=vanilla.delta_propagated_ci[1],
         delta_paired_ci_low=paired_ci[0],
         delta_paired_ci_high=paired_ci[1],
+        problem_ids=tuple(item.problem.id for item in base.items),
+        base_counts=tuple(base_m.counts),
+        per_seed_correct_counts=correct.counts,
         base_cot_pass1=base_m.cot_pass1,
         base_cot_passk=base_m.cot_passk,
         base_cot_passk_ci_low=base_cot_ci[0],

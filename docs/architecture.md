@@ -325,9 +325,10 @@ Each FINDINGS number traces to one aggregator and one JSON file in `results/` (t
 | `report-passk-seeds`         | `report/passk_seeds.py`   | `pass8-multiseed.json`         | pass@k coverage: base anchor (problem-bootstrap CI) vs per-seed correct, with the paired seed × problem Δ interval, the legacy propagated one, and the CoT-gated twin. |
 | `report-mechanism`           | `report/mechanism.py`     | `mechanism.json`               | Per-problem migration vs new capability + the completion-length shift.                                                          |
 | `report-control-seeds`       | `report/control_seeds.py` | `decomposition-multiseed.json` | The §3 controls (gsm-symbolic / gsm-plus / gsm8k-platinum), Holm-corrected across the family.                                   |
+| `report-arm-vs-base`         | `report/arm_vs_base.py`   | `offpolicy-placebo.json`       | One trained arm vs the base, greedy pass@1 paired per problem, seed × problem bootstrap CI, with the per-problem grades stored. |
 
-The Countdown positive control and the decontamination panels reuse the same
-aggregators over `countdown/` and `decontam/` `CompletionSet`s.
+The Countdown positive control, the same-base control (`countdown-math/`), and the
+decontamination panels reuse the same aggregators over their own `CompletionSet`s.
 
 ---
 

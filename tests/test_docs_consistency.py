@@ -24,6 +24,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 # Glyphs the prose uses in number phrases; named so expected strings read clearly.
 _DELTA = "Δ"
 _ARROW = "→"
+_TIMES = "\u00d7"  # multiplication sign
 
 
 def _load(rel: str) -> dict:
@@ -60,6 +61,9 @@ _SYM = _load("results/decontam/pass8-symbolic.json")  # renumbered (GSM-Symbolic
 _PLAT = _load("results/decontam/pass8-platinum.json")  # cleaned labels (GSM8K-Platinum)
 _DECOMP = _load("results/decomposition-multiseed.json")  # 6-seed Holm-corrected controls
 _ESME = _load("results/esme-countdown/sampled_multiseed_summary.json")
+_OFFP = _load("results/offpolicy-placebo.json")  # off-policy placebo vs base (3 seeds)
+_CDM = _load("results/countdown-math/pass8-multiseed.json")  # same-base Countdown (3 seeds)
+_MECH_CDM = _load("results/countdown-math/mechanism.json")
 
 
 def _summary_control_comparison(needle: str) -> dict:
@@ -87,6 +91,7 @@ _FIND_C = "results/countdown/FINDINGS.md"
 _FIND_D = "results/decontam/FINDINGS.md"
 _FIND_E = "results/esme-countdown/sampled_decomposition.md"
 _README = "README.md"
+_PREREG = "results/preregistered-results-2026-10.md"
 
 _ESME_VALID = _ESME["valid_rate_seed_aggregate"]
 _ESME_EXACT = _ESME["exact_any_seed_aggregate"]
@@ -348,7 +353,59 @@ _CLAIMS: list[tuple[str, str, str]] = [
         f"[{_pct(_ESME_EXACT['ci_low'], sign=True)}, "
         f"{_pct(_ESME_EXACT['ci_high'], sign=True)}]",
     ),
-    # -- GSM8K controls: 6-seed Holm-corrected table (decomposition-multiseed.json) --
+    # -- Pre-registered follow-ups (offpolicy-placebo.json, countdown-math/) --
+    *(
+        (
+            f"{claim}.offpolicy-delta",
+            doc,
+            f"{_pct(_OFFP['mean_delta'], sign=True)} pp, 95% CI "
+            f"[{_pct(_OFFP['ci_low'], sign=True)}, {_pct(_OFFP['ci_high'], sign=True)}]",
+        )
+        for claim, doc in (("readme", _README), ("prereg", _PREREG))
+    ),
+    (
+        "readme.cdm-delta",
+        _README,
+        f"{_DELTA} {_pct(_CDM['delta'], sign=True)} pp, paired 95% CI "
+        f"[{_pct(_CDM['delta_paired_ci_low'])}, {_pct(_CDM['delta_paired_ci_high'])}]",
+    ),
+    (
+        "prereg.cdm-delta",
+        _PREREG,
+        f"{_pct(_CDM['delta'], sign=True)} pp, paired 95% CI "
+        f"[{_pct(_CDM['delta_paired_ci_low'])}, {_pct(_CDM['delta_paired_ci_high'])}]",
+    ),
+    ("prereg.cdm-base-pass8", _PREREG, f"| base pass@8 | 53.6% | {_pct(_CDM['base_passk'])}% |"),
+    ("prereg.cdm-new", _PREREG, f"{_pct(_MECH_CDM['frac_new_capability'])}% of problems"),
+    ("readme.cdm-base-pass8", _README, f"base pass@8 is already {_pct(_CDM['base_passk'])}%"),
+    (
+        "countdown.cdm-delta",
+        _FIND_C,
+        f"{_pct(_CDM['delta'], sign=True)} pp (paired CI "
+        f"[{_pct(_CDM['delta_paired_ci_low'])}, {_pct(_CDM['delta_paired_ci_high'])}])",
+    ),
+    ("countdown.cdm-new", _FIND_C, f"{_pct(_MECH_CDM['frac_new_capability'])}% new capability"),
+    (
+        "prereg.cdm-migration",
+        _PREREG,
+        f"{_pct(_MECH_CDM['migration_share_of_gain'], dp=0)}% of the added",
+    ),
+    ("prereg.cdm-ratio", _PREREG, f"about {_CP8['delta'] / _CDM['delta']:.1f}{_TIMES} smaller"),
+    ("prereg.offpolicy-base", _PREREG, f"base model at {_pct(_OFFP['base_acc'])}%"),
+    (
+        "prereg.offpolicy-seeds",
+        _PREREG,
+        "Per seed: " + ", ".join(_pct(d, sign=True) for d in _OFFP["per_seed_delta"]) + " pp",
+    ),
+    *(
+        (
+            f"prereg.headroom-{name}",
+            _PREREG,
+            f"| {_pct(panel['base_passk'])}% | {_pct(panel['delta'], sign=True)} pp | "
+            f"{panel['delta'] / (1 - panel['base_passk']) * 100:.0f}% |",
+        )
+        for name, panel in (("gsm8k", _GP), ("cdm", _CDM), ("countdown", _CP8))
+    ),
     (
         "ctrl6.symbolic",
         _FIND_G,

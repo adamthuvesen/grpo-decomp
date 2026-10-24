@@ -125,3 +125,29 @@ def register() -> None:
             passk_multiseed_root="passk-multiseed-countdown",
         ),
     )
+    # Same-base positive control: Qwen2.5-Math-1.5B (the GSM8K base) trained on Countdown,
+    # so the GSM8K/Countdown contrast no longer changes the base model too.
+    register_task(
+        "countdown-math",
+        EvalTaskProfile(
+            base_config="configs/countdown-math-correct.yaml",
+            task_set="countdown-test",
+            control_sets=(),
+            run_prefix="countdown-math-",
+            battery_root="battery-countdown-math",
+            passk_multiseed_root="passk-multiseed-countdown-math",
+        ),
+    )
+    # Off-policy placebo: the GSM8K random arm with steps_per_generation > 1, so the PPO
+    # clip can bind (the Spurious Rewards mechanism). Evaluated against the GSM8K base.
+    register_task(
+        "gsm8k-offpolicy",
+        EvalTaskProfile(
+            base_config="configs/correct.yaml",
+            task_set="gsm8k-test",
+            control_sets=(),
+            run_prefix="offpolicy-",
+            battery_root="battery-offpolicy",
+            passk_multiseed_root="passk-multiseed-offpolicy",
+        ),
+    )

@@ -1,0 +1,10 @@
+# Same-base positive control: the GSM8K base (Qwen2.5-Math-1.5B) on Countdown, seed 0.
+# Matches countdown-correct.yaml except the base model.
+name: countdown-math-correct
+base_model: Qwen/Qwen2.5-Math-1.5B
+base_model_revision: 4a83ca6e4526a4f2da3aa259ec36c259f66b2ab2  # same pin as configs/correct.yaml
+dataset: countdown
+reward: countdown
+seed: 0
+grpo:
+  max_completion_length: 1024

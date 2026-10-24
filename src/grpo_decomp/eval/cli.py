@@ -6,7 +6,7 @@ Commands follow the artifact contract:
   model (base or checkpoint) over one problem set -> a `CompletionSet` artifact.
 - ``battery``  — a `CompletionSet` -> a `BatteryResult`. CPU-only.
 - ``report-seeds`` / ``report-passk-seeds`` / ``report-mechanism`` /
-  ``report-control-seeds`` — seed-level aggregate reports.
+  ``report-control-seeds`` / ``report-arm-vs-base`` — seed-level aggregate reports.
 - ``heldout`` — accuracy curves over a run's validation split.
 """
 
@@ -34,6 +34,7 @@ from grpo_decomp.registries import (
     PROBES,
     PROMPT_STRATEGIES,
 )
+from grpo_decomp.report.arm_vs_base import aggregate_arm_vs_base
 from grpo_decomp.report.control_seeds import aggregate_control_rows
 from grpo_decomp.report.inputs import (
     base_and_correct_seeds,
@@ -83,6 +84,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_report_passk_seeds_parser(sub)
     _add_report_mechanism_parser(sub)
     _add_report_control_seeds_parser(sub)
+    _add_report_arm_vs_base_parser(sub)
     _add_heldout_parser(sub)
     return parser
 
@@ -203,6 +205,25 @@ def _add_report_control_seeds_parser(sub: argparse._SubParsersAction) -> None:
         "--out", type=Path, default=None, help="ControlDecomposition JSON path (else stdout)"
     )
     rcs.set_defaults(func=_cmd_report_control_seeds)
+
+
+def _add_report_arm_vs_base_parser(sub: argparse._SubParsersAction) -> None:
+    rab = sub.add_parser(
+        "report-arm-vs-base",
+        help="one trained arm vs the base, greedy pass@1 paired per problem across seeds",
+    )
+    rab.add_argument(
+        "--battery-dirs",
+        required=True,
+        nargs="+",
+        type=Path,
+        dest="battery_dirs",
+        help="one battery dir per seed, each with <arm>__<set>; the first also holds base__<set>",
+    )
+    rab.add_argument("--arm", required=True, help="the trained arm name, e.g. 'random'")
+    rab.add_argument("--task-set", default="gsm8k-test", dest="task_set")
+    rab.add_argument("--out", type=Path, default=None, help="ArmVsBase JSON path (else stdout)")
+    rab.set_defaults(func=_cmd_report_arm_vs_base)
 
 
 def _add_heldout_parser(sub: argparse._SubParsersAction) -> None:
@@ -341,6 +362,29 @@ def _cmd_report_control_seeds(args: argparse.Namespace) -> int:
     decomp = aggregate_control_rows(rows, seeds, task=args.task_set)
     _write_json(decomp, args.out, "multi-seed control decomposition")
     sys.stdout.write(render_control_decomposition(decomp))
+    return 0
+
+
+def _cmd_report_arm_vs_base(args: argparse.Namespace) -> int:
+    if args.task_set not in EVAL_SETS:
+        raise ValueError(
+            f"unknown report set {args.task_set!r}; known sets are {tuple(sorted(EVAL_SETS))}"
+        )
+    battery_dirs = [Path(d) for d in args.battery_dirs]
+    base = load_completion_set(battery_dirs[0] / f"base__{args.task_set}")
+    artifacts: dict[str, CompletionSet] = {"base": base}
+    arm_grades = []
+    for battery_dir in battery_dirs:
+        arm_set = load_completion_set(battery_dir / f"{args.arm}__{args.task_set}")
+        artifacts[f"{battery_dir.name}:{args.arm}"] = arm_set
+        arm_grades.append((seed_label(battery_dir), greedy_pass1(arm_set, "lenient")))
+    validate_aligned_artifacts(args.task_set, artifacts)
+
+    result = aggregate_arm_vs_base(
+        greedy_pass1(base, "lenient"), arm_grades, task=args.task_set, arm=args.arm
+    )
+    _write_json(result, args.out, f"{args.arm}-vs-base comparison")
+    sys.stdout.write(result.headline() + "\n")
     return 0
 
 

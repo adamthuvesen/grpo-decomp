@@ -225,7 +225,9 @@ def eval_matrix(
     ``scope="full"`` (seed 0): base/correct/random over the task set + 3 control sets —
     the inputs for the seed-aggregated reports. ``scope="placebo"`` (replicate seeds):
     correct + random on the task set only, the pre-registered confirmatory metric
-    a replicate needs (base is seed-independent, reused from seed 0). Output goes to
+    a replicate needs (base is seed-independent, reused from seed 0).
+    ``scope="random-vs-base"``: the random arm on the task set, plus the base at seed 0 —
+    the inputs for ``report-arm-vs-base`` when an arm has no correct twin. Output goes to
     ``<RUNS_DIR>/battery`` for seed 0, else ``<RUNS_DIR>/battery-seed<seed>``. Arm
     trained arms use their final checkpoints.
     `commit`/`dirty` come from the local entrypoint (no .git in the image) so each
@@ -260,12 +262,18 @@ def eval_matrix(
             (*trained_row("correct"), [profile.task_set]),
             (*trained_row("random"), [profile.task_set]),
         ]
+    elif scope == "random-vs-base":
+        matrix = [(*trained_row("random"), [profile.task_set])]
+        if seed == 0:
+            matrix.insert(0, (*base_row, [profile.task_set]))
     elif scope == "controls":
         if not profile.control_sets:
             raise ValueError(f"scope 'controls' needs control sets; task {task!r} has none")
         matrix = [(*trained_row("correct"), list(profile.control_sets))]
     else:
-        raise ValueError(f"scope must be 'full', 'placebo', or 'controls', got {scope!r}")
+        raise ValueError(
+            f"scope must be 'full', 'placebo', 'random-vs-base', or 'controls', got {scope!r}"
+        )
 
     config = SamplingConfig(
         temperature=0.0, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=1, seed=0

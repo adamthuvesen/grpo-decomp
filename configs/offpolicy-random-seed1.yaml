@@ -1,0 +1,11 @@
+# Off-policy placebo, seed 1. Matches random.yaml except steps_per_generation: each rollout
+# batch (4 prompts x 8 completions) feeds 4 optimizer steps, so steps 2-4 are off-policy and
+# the PPO clip can bind. Same 500 optimizer steps and 500 training prompts as the on-policy arm.
+name: offpolicy-random
+base_model: Qwen/Qwen2.5-Math-1.5B
+base_model_revision: 4a83ca6e4526a4f2da3aa259ec36c259f66b2ab2  # same pin as configs/random.yaml
+reward: random
+seed: 1
+grpo:
+  max_completion_length: 1024
+  steps_per_generation: 4

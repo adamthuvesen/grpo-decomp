@@ -166,3 +166,15 @@ def test_paired_delta_ci_drops_the_unpaired_anchor_noise() -> None:
     assert (panel.delta_paired_ci_low, panel.delta_paired_ci_high) == (0.0, 0.0)
     assert panel.delta_propagated_ci_high - panel.delta_propagated_ci_low > 0.0
     assert "(paired [0.0, 0.0]" in panel.headline()
+
+
+def test_panel_stores_per_problem_counts_that_rebuild_the_point_estimates() -> None:
+    panel = aggregate_passk_seeds(
+        _BASE, [(0, _SEED_A), (1, _SEED_B), (2, _SEED_C)], task="gsm8k-test", k=1
+    )
+    assert panel.problem_ids == ("p0", "p1")
+    assert panel.base_counts == (1, 0)
+    assert panel.per_seed_correct_counts == ((2, 0), (2, 1), (2, 2))
+    assert panel.per_seed_correct_counts is not None
+    rebuilt = [sum(row) / (2 * 2) for row in panel.per_seed_correct_counts]
+    assert rebuilt == pytest.approx(panel.per_seed_correct_passk)

@@ -10,8 +10,10 @@ that split with controls, and finds both outcomes, depending on the base model a
 
 On a benchmark the base model has already saturated, the GRPO gain is **elicitation**:
 pass@1 rises, but pass@k coverage stays where it was. On a task the base model cannot do,
-the same protocol reports **expansion**: coverage rises too. A pass@1 gain alone cannot tell
-the two apart. A random-reward placebo, seed aggregation, and per-problem accounting can.
+the same protocol reports **expansion**: coverage rises too. On a stronger base model the
+same task still expands, but by less, because the base already covers more of it. A pass@1
+gain alone cannot tell these cases apart. A random-reward placebo, seed aggregation,
+and per-problem accounting can.
 
 ![pass@8 coverage: GSM8K barely moves (+0.7 pp, elicitation) while Countdown rises from 53.6% to 94.6% (+41.0 pp, expansion)](results/fig-passk-contrast.png)
 
@@ -46,8 +48,16 @@ This time coverage rises with it: **Δ +41.0 pp, 95% CI [35.1, 46.9]** (base 53.
 solves reliably that the base model never solves in 8 tries. The protocol does not always
 report elicitation. When RL adds coverage, the protocol shows it.
 
+**Same base model (pre-registered follow-up).** The comparison above changes two things at
+once: the task and the base model. Training the GSM8K base, Qwen2.5-Math-1.5B, on Countdown
+separates them. Its base pass@8 is already 84.8%, and RL adds **Δ +11.8 pp, paired 95% CI
+[8.3, 15.5]**: still expansion under the pre-registered rule, and far above GSM8K's +0.7 pp.
+But only 0.5% of problems are genuinely new. So the task effect is real, and the base model
+sets how much room RL has.
+
 Full writeups, figures, and the decontamination, mechanism, and CoT-gated checks:
-[GSM8K](results/FINDINGS.md) · [Countdown](results/countdown/FINDINGS.md).
+[GSM8K](results/FINDINGS.md) · [Countdown](results/countdown/FINDINGS.md) ·
+[pre-registered follow-ups](results/preregistered-results-2026-10.md).
 
 ## Relation To Prior Work
 
@@ -61,12 +71,14 @@ Full writeups, figures, and the decontamination, mechanism, and CoT-gated checks
   rewards raise Qwen2.5-Math-7B on MATH-500 by 21.4 pp (29.1 pp for the true reward).
   Qwen2.5-Math-1.5B gains more slowly, only after about 100 steps (the runs here last 500). The authors trace the effect
   to GRPO's clipping term: without clipping, the random-reward gain disappears. Here, the
-  random-reward placebo on Qwen2.5-Math-1.5B stays flat (75.8% vs base 76.4%). The training
-  here is fully on-policy: TRL 1.0.0 with `num_iterations=1` and one optimizer step per
-  rollout batch. The policy ratio therefore stays at 1, so the clip never binds. Their
-  mechanism predicts no gain in this regime, so the flat placebo agrees with it. It also
-  means this placebo cannot see the clipping effect. An off-policy placebo arm would test
-  that directly.
+  random-reward placebo on Qwen2.5-Math-1.5B stays flat (75.8% vs base 76.4%). That
+  training is fully on-policy: TRL 1.0.0 with `num_iterations=1` and one optimizer step per
+  rollout batch, so the policy ratio stays at 1 and the clip never binds. Their mechanism
+  predicts no gain in this regime. A pre-registered off-policy placebo
+  (`steps_per_generation: 4`) also stays flat: **+0.4 pp, 95% CI [-0.8, +1.6]** over base.
+  But in the retained training logs (log points at steps 450–500 of 500) the clip bound on under 0.02% of tokens at
+  learning rate 1e-6, so this test barely exercises the mechanism. It shows the flat placebo is robust to off-policy updates. It
+  does not settle the clipping question at 1.5B.
 - **Liu et al. 2025**, _ProRL: Prolonged Reinforcement Learning Expands Reasoning
   Boundaries in Large Language Models_. Long RL training on diverse tasks expands pass@k
   beyond the base model. The runs here are short (500 steps, one prompt per step), so the
@@ -78,20 +90,24 @@ Full writeups, figures, and the decontamination, mechanism, and CoT-gated checks
 
 **Contribution:** a controls-first protocol (placebo, seed aggregation, paired per-problem
 accounting, and a positive control), packaged as a task-agnostic harness. With it: a
-small-scale replication of the elicitation result, and a mechanism-level reason why the
-placebo is flat in on-policy GRPO.
+small-scale replication of the elicitation result, a pre-registered same-base control that
+confirms the task effect on one base model, and a mechanism-level reason why the placebo is
+flat in on-policy GRPO.
 
 ## Limitations
 
 - **Coverage only at k=8.** "New capability" means outside the base model's pass@8 (base
   n=16, correct n=8). Yue et al. see the base and RL curves cross at k in the tens to
   hundreds. Countdown's 10.9% new-capability share may shrink at larger k.
-- **The positive control changes the base model.** GSM8K uses Qwen2.5-Math-1.5B, and
-  Countdown uses general Qwen2.5-1.5B. The contrast mixes the task with the model.
+- **The headline Countdown contrast changes the base model.** The published +41.0 pp uses
+  general Qwen2.5-1.5B. The same-base follow-up (+11.8 pp on Qwen2.5-Math-1.5B) has 3 seeds
+  and no random-reward placebo; it compares against the base model only.
 - **Small and narrow.** One model family (Qwen), 1.5B parameters, 500 steps, one prompt per
   optimizer step. The placebo is a within-Qwen lower bound, not a cross-family result.
-- **On-policy placebo.** The placebo controls for on-policy GRPO only. It does not measure
-  the clipping-driven random-reward effect (see Relation To Prior Work).
+- **Weak clipping test.** The off-policy placebo barely made the clip bind (under 0.02% of
+  tokens in the retained logs, which cover only steps 450–500 of 500). It also mixes 4 prompts per optimizer step, a second
+  change TRL makes alongside off-policy updates. The clipping-driven random-reward effect is
+  still untested at 1.5B.
 - **Problem noise in the intervals.** The GSM8K and Countdown placebo and control intervals
   are seed-level t intervals, which leave out problem-sampling noise. The harness now has a
   paired seed × problem bootstrap. The per-problem completions for these runs are no longer
@@ -109,11 +125,11 @@ In order of information per GPU dollar:
 
 1. **pass@k curves to k=256** on a problem subset, for both tasks. This tests the k=8
    limitation directly.
-2. **An off-policy placebo** (`steps_per_generation` > 1) on Qwen2.5-Math-1.5B. If the
-   random-reward gain appears once the clip can bind, the Spurious Rewards mechanism holds
-   at 1.5B.
-3. **One base model for both tasks** (Qwen2.5-Math-1.5B on Countdown), to remove the
-   model-task confound.
+2. **An off-policy placebo where the clip actually binds**: a higher learning rate or more
+   optimizer steps per rollout batch, with the clip fraction logged. The first off-policy
+   placebo barely engaged the clip.
+3. **A random-reward placebo for the same-base Countdown pair**, to put that +11.8 pp on the
+   same footing as the other headline gains.
 4. **A non-Qwen family** (Llama), to make the placebo a cross-family result.
 
 ## Appendix: Esme-214M (Form, Not Reasoning)

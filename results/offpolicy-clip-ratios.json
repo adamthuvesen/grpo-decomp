@@ -1,0 +1,63 @@
+{
+  "source": "Modal app logs of the three offpolicy-random training runs (2026-10-24). Only the last six logging intervals per run were retained: steps 450-500 of 500 (epoch 0.06-0.07; one epoch is 7,217 steps). Values are TRL's clip_ratio/region_mean: the share of tokens whose ratio was clipped.",
+  "per_seed": {
+    "0": {
+      "modal_app_id": "ap-qgUdJXkVFHkR5O9R9cvT3T",
+      "epoch": [
+        0.06,
+        0.06,
+        0.07,
+        0.07,
+        0.07,
+        0.07
+      ],
+      "clip_ratio_region_mean": [
+        0.0,
+        6.353034405037761e-05,
+        2.785515389405191e-05,
+        3.400204004719853e-05,
+        0.0,
+        0.0
+      ]
+    },
+    "1": {
+      "modal_app_id": "ap-X1csxNgiwwMmwG42ovqG7s",
+      "epoch": [
+        0.06,
+        0.06,
+        0.07,
+        0.07,
+        0.07,
+        0.07
+      ],
+      "clip_ratio_region_mean": [
+        5.685048527084291e-05,
+        3.7965070805512366e-05,
+        0.0,
+        0.00012451524380594493,
+        3.8255547406151893e-05,
+        6.623471563216299e-05
+      ]
+    },
+    "2": {
+      "modal_app_id": "ap-nWDPsNNGjV4IuqUbYmyh2E",
+      "epoch": [
+        0.06,
+        0.06,
+        0.07,
+        0.07,
+        0.07,
+        0.07
+      ],
+      "clip_ratio_region_mean": [
+        9.78812895482406e-05,
+        5.189413786865771e-05,
+        0.0001512384507805109,
+        0.00010398478480055928,
+        0.00011039252276532353,
+        4.952946910634637e-05
+      ]
+    }
+  },
+  "max_clip_ratio_region_mean": 0.0001512384507805109
+}
