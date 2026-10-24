@@ -17,16 +17,16 @@ generation for the aggregate reports.
 ## Setup
 
 `modal_app.py` imports `grpo_decomp` at load time, so run the Modal CLI from the project
-environment. A standalone `uv tool install modal` cannot import the project, and every
-`modal run` then fails with "No such option" before it reaches Modal. Every `modal run` in
-this file assumes this form:
+environment, where the dev group pins `modal`. A standalone `uv tool install modal` cannot
+import the project, and every `modal run` then fails with "No such option" before it reaches
+Modal. Every `modal run` in this file assumes this form:
 
 ```bash
-uv run --with modal modal run modal_app.py ...
+uv run modal run modal_app.py ...
 ```
 
 ```bash
-uv run --with modal modal setup
+uv run modal setup
 export WANDB_API_KEY="..."
 modal secret create wandb WANDB_API_KEY="$WANDB_API_KEY"
 ```

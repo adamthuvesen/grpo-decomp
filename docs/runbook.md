@@ -97,10 +97,51 @@ uv run grpo-decomp report-seeds --task-set gsm8k-test \
 make results
 ```
 
-`make aggregate` rebuilds the pass@k, mechanism, control, Countdown, and
-decontamination aggregate files from local `runs/` inputs. The committed repo
-includes the derived JSON and figures, not the private run storage or full
-training outputs.
+`make aggregate` rebuilds the pass@k, mechanism, control, Countdown, same-base
+Countdown, off-policy placebo, and decontamination aggregate files from local `runs/`
+inputs. The committed repo includes the derived JSON and figures, not the private run
+storage or full training outputs.
+
+## Reproduce The Pre-Registered Follow-Ups
+
+The two follow-ups in `results/preregistration-2026-10.md` train six arms and generate two
+eval sets. Launch the training runs about 40 seconds apart (Modal rate-limits app creation):
+
+```bash
+uv run modal run --detach modal_app.py --arm configs/offpolicy-random.yaml
+uv run modal run --detach modal_app.py --arm configs/offpolicy-random-seed1.yaml
+uv run modal run --detach modal_app.py --arm configs/offpolicy-random-seed2.yaml
+uv run modal run --detach modal_app.py --arm configs/countdown-math-correct.yaml
+uv run modal run --detach modal_app.py --arm configs/countdown-math-correct-seed1.yaml
+uv run modal run --detach modal_app.py --arm configs/countdown-math-correct-seed2.yaml
+```
+
+When every run has `checkpoints/final`, generate the eval sets. Seed 0 of the off-policy
+battery also generates the base model:
+
+```bash
+uv run modal run --detach modal_app.py --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 0
+uv run modal run --detach modal_app.py --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 1
+uv run modal run --detach modal_app.py --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 2
+uv run modal run --detach modal_app.py --command passk-multiseed --task countdown-math --correct-seeds 0,1,2
+```
+
+Pull them into the layout `make aggregate` reads. Seed labels come from the directory
+names (`battery` is seed 0, `battery-seedN` is seed N), so rename the off-policy dirs:
+
+```bash
+mkdir -p runs/offpolicy
+uv run modal volume get assay-runs battery-offpolicy runs/offpolicy/
+uv run modal volume get assay-runs battery-offpolicy-seed1 runs/offpolicy/
+uv run modal volume get assay-runs battery-offpolicy-seed2 runs/offpolicy/
+mv runs/offpolicy/battery-offpolicy runs/offpolicy/battery
+mv runs/offpolicy/battery-offpolicy-seed1 runs/offpolicy/battery-seed1
+mv runs/offpolicy/battery-offpolicy-seed2 runs/offpolicy/battery-seed2
+uv run modal volume get assay-runs passk-multiseed-countdown-math runs/
+```
+
+Both result files store per-problem data, so their intervals can also be recomputed from the
+committed JSON alone.
 
 ## Operational Constraints
 

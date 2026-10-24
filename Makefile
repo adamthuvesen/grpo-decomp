@@ -44,6 +44,9 @@ aggregate:  ## Re-derive the committed JSON from local completions (needs runs/ 
 	uv run grpo-decomp report-mechanism    --completions-dir runs/passk-multiseed           --task-set gsm8k-test     --out results/mechanism.json
 	uv run grpo-decomp report-mechanism    --completions-dir runs/passk-multiseed-countdown --task-set countdown-test  --out results/countdown/mechanism.json
 	uv run grpo-decomp report-control-seeds --battery-dirs runs/battery runs/battery-seed1 runs/battery-seed2 runs/battery-seed3 runs/battery-seed4 runs/battery-seed5 --out results/decomposition-multiseed.json
+	uv run grpo-decomp report-passk-seeds  --completions-dir runs/passk-multiseed-countdown-math --task-set countdown-test --out results/countdown-math/pass8-multiseed.json
+	uv run grpo-decomp report-mechanism    --completions-dir runs/passk-multiseed-countdown-math --task-set countdown-test --out results/countdown-math/mechanism.json
+	uv run grpo-decomp report-arm-vs-base  --battery-dirs runs/offpolicy/battery runs/offpolicy/battery-seed1 runs/offpolicy/battery-seed2 --arm random --task-set gsm8k-test --out results/offpolicy-placebo.json
 
 ESME_COMPLETIONS := results/esme-countdown/completions
 ESME_SEEDS := 214 215 216 217 218 219
