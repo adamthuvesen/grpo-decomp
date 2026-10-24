@@ -7,7 +7,7 @@ name = "grpo-decomp"
 version = "0.1.0"
 description = "Controls-first tool for analyzing what drives GRPO gains."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [
     { name = "Adam Thuvesen", email = "adam.thuvesen@mentimeter.com" },
@@ -17,7 +17,7 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "pydantic>=2.7,<3",
@@ -78,7 +78,7 @@ gsm8k = "llm_grpo_gains.registration:register"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
@@ -87,7 +87,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
 known-first-party = ["grpo_decomp", "llm_grpo_gains"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 files = ["src/grpo_decomp", "src/llm_grpo_gains"]
 check_untyped_defs = true
 disallow_untyped_defs = true

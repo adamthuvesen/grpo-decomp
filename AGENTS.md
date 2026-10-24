@@ -46,7 +46,7 @@ Only `generate` (and training) needs a model/GPU; grading and reports run on CPU
 - Determinism: fixed seeds, pinned dataset revisions, recorded model/commit/config/dependency hashes on every artifact.
 - **Pin TRL.** Its GRPO defaults move between versions; re-check config at build time. Same for vLLM (`==0.17.1`, TRL 1.0.0's supported max).
 - No new runtime deps without asking. Stack is TRL + transformers + vLLM + datasets (train) and `eval-audit` (stats); no broad RL/agent frameworks.
-- Python 3.11+, `uv`, ruff (line length 100), strict Pydantic for result schemas. `CLAUDE.md` is a symlink to this file.
+- Python 3.13+, `uv`, ruff (line length 100), strict Pydantic for result schemas. `CLAUDE.md` is a symlink to this file.
 - **Respect the boundary.** Harness code imports only `grpo_decomp.*`; study code may import both. A new GSM8K/Countdown-shaped knob is a registry entry in `llm_grpo_gains/registration.py`, not an `if task == ...` in the harness.
 
 The rationale behind these rules (why the reward curve lies, why seeds, why strict schemas)

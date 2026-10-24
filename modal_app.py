@@ -60,7 +60,7 @@ _IGNORE = [
 # train extra's pinned deps without the project itself; the project is linked
 # separately with --no-deps once the full source is present.
 image = (
-    modal.Image.from_registry(CUDA_IMAGE, add_python="3.11")
+    modal.Image.from_registry(CUDA_IMAGE, add_python="3.13")
     .apt_install("git")
     .pip_install("uv")
     .add_local_file(
