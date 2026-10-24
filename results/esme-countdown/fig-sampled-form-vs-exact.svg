@@ -99,5 +99,5 @@
     <rect x="176" y="-10" width="12" height="12" fill="#ef553b" rx="2"/>
     <text class="legend" x="194" y="1">real reward</text>
   </g>
-  <text class="small" x="56" y="560">6 training seeds; seed-level CI includes run variance.</text>
+  <text class="small" x="56" y="560">6 training seeds; the CI resamples seeds and problems.</text>
 </svg>

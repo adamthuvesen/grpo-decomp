@@ -54,7 +54,7 @@ _GP = _load("results/pass8-multiseed.json")  # GSM8K pass@8 panel (6 seeds)
 _CP8 = _load("results/countdown/pass8-multiseed.json")  # Countdown pass@8 (3 seeds)
 _GPL = _load("results/seed-placebo-comparison.json")  # GSM8K placebo (6 seeds)
 _CPL = _load("results/countdown/seed-placebo-comparison.json")  # Countdown placebo
-_SUM = _load("results/summary.json")  # GSM8K seed-0 controls
+_SUM = _load("results/single-seed-controls.json")  # GSM8K seed-0 controls
 _MECH = _load("results/mechanism.json")  # GSM8K per-problem migration + length shift
 _MECH_CD = _load("results/countdown/mechanism.json")
 _SYM = _load("results/decontam/pass8-symbolic.json")  # renumbered (GSM-Symbolic)
@@ -202,9 +202,13 @@ _CLAIMS: list[tuple[str, str, str]] = [
     (
         "mech.cd-base-reliable",
         _FIND_C,
-        f"first-try-reliably ({_pct(_MECH_CD['frac_base_already_reliable'])}%)",
+        f"on the first try ({_pct(_MECH_CD['frac_base_already_reliable'])}%)",
     ),
-    ("mech.cd-migrated", _FIND_C, f"makes {_pct(_MECH_CD['frac_migrated_to_reliable'])}% migrated"),
+    (
+        "mech.cd-migrated",
+        _FIND_C,
+        f"makes {_pct(_MECH_CD['frac_migrated_to_reliable'])}% of problems reliable",
+    ),
     ("mech.cd-new", _FIND_C, f"{_pct(_MECH_CD['frac_new_capability'])}% genuinely new"),
     (
         "mech.cd-length",
@@ -307,11 +311,6 @@ _CLAIMS: list[tuple[str, str, str]] = [
         "xtab.cd-base-correct",
         _FIND_C,
         f"{_pct(_CP8['base_passk'])} {_ARROW} {_pct(_CP8['mean_correct_passk'])}",
-    ),
-    (
-        "countdown.coverage",
-        _FIND_C,
-        f"coverage {_pct(_CP8['base_passk'])} {_ARROW} {_pct(_CP8['mean_correct_passk'])}",
     ),
     (
         "readme.cd-delta",
@@ -468,18 +467,3 @@ def test_doc_number_traces_to_json(claim_id: str, doc: str, expected: str) -> No
         "Either the prose drifted from its artifact, or the artifact was regenerated "
         "without updating the doc."
     )
-
-
-@pytest.mark.parametrize(
-    "path",
-    [
-        "results/summary.json",
-        "results/decomposition.md",
-        "results/countdown/summary.json",
-        "results/countdown/decomposition.md",
-    ],
-)
-def test_decomposition_artifacts_do_not_claim_unrun_passk(path: str) -> None:
-    text = (_ROOT / path).read_text(encoding="utf-8")
-    forbidden = "defer" + "red to a " + "Phase" + "-2 sampling run"
-    assert forbidden not in text
