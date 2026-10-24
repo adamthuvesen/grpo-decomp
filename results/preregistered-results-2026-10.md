@@ -1,50 +1,42 @@
-# Results: off-policy placebo and same-base control
+# Pre-registered results: off-policy placebo and same-base control
 
-These two experiments were pre-registered in
-[`preregistration-2026-10.md`](preregistration-2026-10.md). That file is unchanged. All
-runs and completions come from its commit (`56848d4`, `dirty=false` in every
-`provenance.json`). Spend: $11.09 of Modal GPU time (`modal billing report`), against a $20
-budget.
+Both experiments follow the plan in [`preregistration-2026-10.md`](preregistration-2026-10.md),
+committed as `56848d4` before any run. Every run and completion records that commit.
 
-| Experiment | Pre-registered verdict | Prediction | Held? |
-| --- | --- | --- | --- |
-| Off-policy placebo | No detectable effect | Small, CI likely contains 0 | Yes |
-| Same-base control | Expansion (narrowly) | Expansion | Yes, at a much smaller size |
+| Experiment | Verdict (pre-registered rule) | Prediction held? |
+| --- | --- | --- |
+| Off-policy placebo | no detectable effect | yes |
+| Same-base control | expansion, narrowly | yes, at a much smaller size |
 
-## 1. Off-policy placebo
+## Off-policy placebo
 
 _Qwen2.5-Math-1.5B · random reward · `steps_per_generation: 4` · 3 seeds · GSM8K test, n=1319_
 
-Random − base = **+0.4 pp, 95% CI [-0.8, +1.6]** (seed × problem bootstrap, paired per
-problem against a freshly generated base model at 76.1%). Per seed: +0.2, +0.8, +0.1 pp.
-The CI contains 0, so the verdict is **no detectable effect**.
+Random − base = **+0.4 pp, 95% CI [-0.8, +1.6]** (seed × problem bootstrap, paired against
+the base model at 76.1%). Per seed: +0.2, +0.8, +0.1 pp. The CI contains 0: no detectable
+effect.
 
-**How strong is this test?** It is weak. Off-policy training lets the PPO clip bind, but in
-the retained training logs it bound on at most 0.015% of tokens
-([`offpolicy-clip-ratios.json`](offpolicy-clip-ratios.json)). Those logs cover only the
-last six logging intervals per seed: steps 450–500 of 500 (epoch 0.06–0.07, since one epoch
-is 7,217 steps). The clip fraction over the first 450 steps is not known. At learning rate
-1e-6, the policy moves little within the 4 optimizer steps that share one rollout batch. So
-the clipping mechanism was hardly exercised, at least at the end of training. The result shows that the flat placebo
-survives the switch to off-policy training at this budget. It does not confirm or refute
-the Spurious Rewards mechanism at 1.5B. A real test needs the clip to bind often, through a
-higher learning rate or more optimizer steps per rollout batch.
+**This is a weak test of the clipping mechanism.**
 
-**Two differences, not one.** The config changes one field, but in TRL 1.0.0 that field
-changes two things. With `steps_per_generation: 4`, TRL generates 4 prompts × 8
-completions, shuffles them, and splits them into 4 optimizer steps
-(`GRPOTrainer._prepare_inputs`). So each step is off-policy, and each step also mixes
-completions from 4 prompts, where the on-policy arm's step holds one prompt's group. Both
-arms see the same 500 training prompts.
+- **The clip rarely bound.** In the retained training logs (steps 450–500 of 500) the PPO
+  clip bound on at most 0.015% of tokens
+  ([`offpolicy-clip-ratios.json`](offpolicy-clip-ratios.json)). At learning rate 1e-6 the
+  policy moves little within the 4 steps that share a rollout batch.
+- **The arm differs from the on-policy placebo in two ways, not one.** In TRL 1.0.0,
+  `steps_per_generation: 4` generates 4 prompts × 8 completions, shuffles them, and splits
+  them across 4 optimizer steps (`GRPOTrainer._prepare_inputs`). Each step is off-policy and
+  also mixes 4 prompts. Both arms train on the same 500 prompts.
 
-Artifact: [`offpolicy-placebo.json`](offpolicy-placebo.json), with the per-problem grades
-for the base and every seed.
+So the flat placebo survives off-policy updates at this budget. The result does not settle
+the Spurious Rewards mechanism at 1.5B. That needs a setting where the clip binds often.
 
-## 2. Same-base positive control
+Artifact: [`offpolicy-placebo.json`](offpolicy-placebo.json), with per-problem grades.
+
+## Same-base control
 
 _Qwen2.5-Math-1.5B · correct reward · 3 seeds · Countdown test, n=192 · base n=16, correct n=8_
 
-| | General Qwen2.5-1.5B (published) | Qwen2.5-Math-1.5B (this run) |
+| | General Qwen2.5-1.5B | Qwen2.5-Math-1.5B |
 | --- | --- | --- |
 | base pass@1 | 11.0% | 32.2% |
 | base pass@8 | 53.6% | 84.8% |
@@ -52,20 +44,18 @@ _Qwen2.5-Math-1.5B · correct reward · 3 seeds · Countdown test, n=192 · base
 | Δ pass@8 | +41.0 pp | **+11.8 pp** (paired CI [8.3, 15.5]) |
 | new-capability share | 10.9% | **0.5%** |
 
-Δ pass@8 = **+11.8 pp, paired 95% CI [8.3, 15.5]**. It clears the pre-registered rule
-(Δ ≥ 10 pp and CI lower bound > 0), so the verdict is **expansion**. Base pass@8 is below
-the 90% "uninformative" line.
+Δ pass@8 = **+11.8 pp, paired 95% CI [8.3, 15.5]**: Δ ≥ 10 pp with a lower bound above 0,
+so the verdict is expansion. Base pass@8 is below the 90% line where the test would be
+uninformative.
 
-**Reading.** This matches the pre-registered interpretation of an expansion verdict: on
-one base model, the task drives the contrast. On Qwen2.5-Math-1.5B, Countdown coverage rises
-by +11.8 pp, against +0.7 pp on GSM8K. But the gain is about 3.5× smaller than the published
-+41.0 pp, because the Math model already covers 84.8% of Countdown in 8 tries. Per problem,
-98% of the added reliability is migration within the base model's reach, and only 0.5% of
-problems are genuinely new. The published +41.0 pp measured the task and the base model
-together.
+**Reading.** On one base model, the task drives the contrast: Countdown coverage rises by
++11.8 pp, GSM8K by +0.7 pp. But the gain is about 3.5× smaller than on the general base
+model, because the Math model already covers 84.8% of Countdown in 8 tries. 98% of the added
+reliability is migration within the base model's reach, and only 0.5% of problems are
+genuinely new.
 
-**Post-hoc reading (not pre-registered).** A useful way to compare the three panels is the
-share of the base model's remaining headroom (100% − base pass@8) that RL closes:
+**Post-hoc, not pre-registered:** the share of remaining headroom (100% − base pass@8)
+that RL closes.
 
 | Panel | base pass@8 | Δ pass@8 | Headroom closed |
 | --- | --- | --- | --- |
@@ -73,13 +63,12 @@ share of the base model's remaining headroom (100% − base pass@8) that RL clos
 | Countdown, Math base | 84.8% | +11.8 pp | 77% |
 | Countdown, general base | 53.6% | +41.0 pp | 88% |
 
-On both bases, Countdown RL closes most of the headroom that is left, and GSM8K RL closes
-little of it. Most of the 3.5× gap in Δ comes from the smaller headroom on the Math base
-(46.4 vs 15.2 pp). This rests on one base-model swap, so headroom and model identity are
-still confounded. It is a hypothesis for the next experiment, not a finding.
+Countdown RL closes most of the remaining headroom on both bases; GSM8K RL closes little.
+Most of the 3.5× gap in Δ comes from the smaller headroom (46.4 vs 15.2 pp). One base-model
+swap cannot separate headroom from model identity, so this is a hypothesis.
 
-**Not run.** There is no random-reward placebo for this base × task pair. The verdict
-compares against the base model, not a placebo.
+**Not run:** a random-reward placebo for this pair. The verdict compares against the base
+model.
 
 Artifacts: [`countdown-math/pass8-multiseed.json`](countdown-math/pass8-multiseed.json)
 (with per-problem counts) and [`countdown-math/mechanism.json`](countdown-math/mechanism.json).

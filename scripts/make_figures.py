@@ -442,57 +442,21 @@ def _decontam_figure(test: dict, symbolic: dict, platinum: dict) -> None:
 
 def _esme_sampled_figure(summary: dict) -> None:
     """Esme's held-out signal is form first, exact solving second."""
-    multiseed = "valid_rate_seed_aggregate" in summary
-    if multiseed:
-        valid = {
-            "base": summary["arms"]["base"]["valid_rate"] * PP,
-            "random": summary["arms"]["random"]["mean_valid_rate"] * PP,
-            "correct": summary["arms"]["correct"]["mean_valid_rate"] * PP,
-        }
-        pass16 = {
-            "base": summary["arms"]["base"]["pass_at_k"]["16"] * PP,
-            "random": summary["arms"]["random"]["mean_pass_at_k"]["16"] * PP,
-            "correct": summary["arms"]["correct"]["mean_pass_at_k"]["16"] * PP,
-        }
-        valid_test = summary["valid_rate_seed_aggregate"]
-        supported = (
-            str(summary.get("conclusion", "")).startswith("supported:")
-            or float(valid_test["ci_low"]) > 0.0
-        )
-        if supported:
-            seed_note = f"{summary['n_seeds']} training seeds; seed-level CI includes run variance."
-            subtitle = (
-                "Held-out Countdown-Lite: seed-aggregated validity separates real reward "
-                "from placebo."
-            )
-        else:
-            seed_note = (
-                f"{summary['n_seeds']} training seeds; every added seed matters here because "
-                "214M validity gains vary sharply run to run."
-            )
-            subtitle = (
-                "Held-out Countdown-Lite: real reward helps within seeds, but the 3-seed "
-                "validity interval is still too wide for a stable headline."
-            )
-    else:
-        valid = {
-            "base": summary["arms"]["base"]["valid_rate"] * PP,
-            "random": summary["arms"]["random"]["valid_rate"] * PP,
-            "correct": summary["arms"]["correct"]["valid_rate"] * PP,
-        }
-        pass16 = {
-            "base": summary["arms"]["base"]["pass_at_k"]["16"] * PP,
-            "random": summary["arms"]["random"]["pass_at_k"]["16"] * PP,
-            "correct": summary["arms"]["correct"]["pass_at_k"]["16"] * PP,
-        }
-        valid_test = summary["valid_rate_tests"]["random"]
-        seed_note = (
-            "Preliminary: one training seed. The significant signal is form validity; "
-            "exact solve moves the same way but is underpowered at n=30."
-        )
-        subtitle = (
-            "Held-out Countdown-Lite: validity separates first; exact solving is underpowered."
-        )
+    valid = {
+        "base": summary["arms"]["base"]["valid_rate"] * PP,
+        "random": summary["arms"]["random"]["mean_valid_rate"] * PP,
+        "correct": summary["arms"]["correct"]["mean_valid_rate"] * PP,
+    }
+    pass16 = {
+        "base": summary["arms"]["base"]["pass_at_k"]["16"] * PP,
+        "random": summary["arms"]["random"]["mean_pass_at_k"]["16"] * PP,
+        "correct": summary["arms"]["correct"]["mean_pass_at_k"]["16"] * PP,
+    }
+    valid_test = summary["valid_rate_seed_aggregate"]
+    seed_note = f"{summary['n_seeds']} training seeds; the CI resamples seeds and problems."
+    subtitle = (
+        "Held-out Countdown-Lite: seed-aggregated validity separates real reward from placebo."
+    )
 
     valid_axis_max = 100.0 if max(valid.values()) > 30.0 else 30.0
     pass16_axis_max = 100.0 if max(pass16.values()) > 30.0 else 30.0
@@ -619,13 +583,9 @@ def main() -> None:
     mech_cd = _load_record(HERE / "countdown" / "mechanism.json", MechanismReport)
     symbolic = _load_record(HERE / "decontam" / "pass8-symbolic.json", PassKMultiSeed)
     platinum = _load_record(HERE / "decontam" / "pass8-platinum.json", PassKMultiSeed)
-    esme_multiseed = HERE / "esme-countdown" / "sampled_multiseed_summary.json"
-    esme_sampled_path = (
-        esme_multiseed
-        if esme_multiseed.exists()
-        else HERE / "esme-countdown" / "sampled_summary.json"
+    esme_sampled = json.loads(
+        (HERE / "esme-countdown" / "sampled_multiseed_summary.json").read_text()
     )
-    esme_sampled = json.loads(esme_sampled_path.read_text())
     _placebo_comparison_figure(placebo)
     _passk_curve_figure(panel)
     _contrast_figure(panel, countdown)

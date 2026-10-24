@@ -1,108 +1,71 @@
-# grpo-decomp Countdown findings (general Qwen2.5-1.5B, GRPO on Countdown)
+# Countdown findings: the positive control
 
-The **positive control**. Placebo comparison: **3 seeds per arm**; held-out `countdown-test`
-(n=192, disjoint from train, procedurally generated so uncontaminated); pass@1 greedy. The
-pass@k coverage panel is now **3 seeds** too (base n=16 / correct n=8, temp 0.7). Commit-pinned
-artifacts: `seed-placebo-comparison.json`, `pass8-multiseed.json` (3-seed pass@k),
-with the retired seed-0 `summary.json` and `decomposition.md` retained for historical context.
+_general Qwen2.5-1.5B · GRPO with a correctness reward · 3 training seeds per arm ·
+generated Countdown test, n=192 (disjoint from training, so uncontaminated)_
 
-## Headline (controlled)
+**Result.** GRPO beats a random-reward placebo by **+46.5 pp, 95% CI [21.4, 71.6]**, and
+this time pass@8 coverage rises with it. The gain is expansion: the trained model solves
+problems the base model cannot solve in 8 tries. The same protocol that reports elicitation
+on GSM8K reports expansion here, so its GSM8K verdict is not built in.
 
-A **large (+46.5pp), correctness-driven, statistically significant** gain that is **genuine
-capability expansion, not elicitation**: the trained model solves at pass@8 problems the
-base cannot solve in 8 tries. This is the *contrast* to GSM8K, and it validates the
-decomposition: the same instrument reads **elicitation** on GSM8K (a saturated benchmark)
-and **expansion** here (a search task the base genuinely lacks).
+Settings match the GSM8K study: greedy pass@1 for the placebo comparison; pass@8 at
+temperature 0.7 with base n=16 and correct n=8 for coverage. Artifacts:
+`seed-placebo-comparison.json`, `pass8-multiseed.json`, `mechanism.json`.
 
-## 1. Placebo comparison across seeds (the pre-registered confirmatory test)
+## Placebo comparison
 
-correct − random, 3 seeds → mean **+46.5 pp**, 95% CI **[21.4, 71.6]** (seed-level t, df=2).
-**Significant**: the interval excludes zero by a wide margin, and all 3 seeds are strongly
-positive.
+correct − random over 3 seeds: **+46.5 pp, 95% CI [21.4, 71.6]** (seed-level t, df=2).
 
-| seed | random | correct | Δ (pp) |
+| Seed | random | correct | Δ (pp) |
 | --- | --- | --- | --- |
 | 0 | 14.1% | 49.0% | +34.9 |
 | 1 | 4.2% | 55.7% | +51.6 |
 | 2 | 0.0% | 53.1% | +53.1 |
 
-- **The correct arm learned the task.** From a base of ~11% pass@1 (§2) it reaches ~49-56%
-  held-out pass@1, a skill the base genuinely lacked, not reliability on a skill it had.
-- **The placebo does not help.** Random reward sits at 0-14% (≈ base or below; a
-  correctness-blind reward can't teach search). Seed 2's random arm collapsed to 0%.
-- Three seeds, not six: the effect is so large that the seed-level interval clears zero
-  decisively (the GSM8K comparison needed six only because +3.9pp is small).
+Random reward stays at or below the base model (11.0% pass@1). A reward that ignores
+correctness cannot teach search.
 
-## 2. The pass@k curve: expansion, not elicitation (3 seeds, base n=16 / correct n=8, temp 0.7)
+## Coverage
 
-correct pass@8 over **3 seeds** vs the seed-independent base pass@8 anchor (`pass8-multiseed.json`):
-
-| arm | pass@1 | pass@8 |
+| Arm | pass@1 (sampled) | pass@8 |
 | --- | --- | --- |
-| base | 11.0% | **53.6%** [48.4, 58.9] |
-| correct (3-seed mean) | 58.0% | **94.6%** [91.9, 97.3] |
+| base | 11.0% | **53.6% [48.4, 58.9]** |
+| correct, 3-seed mean | 58.0% | **94.6% [91.9, 97.3]** |
 
-- **base pass@8 (53.6%) ≪ correct pass@8 (94.6%)**: pass@8 coverage **moved Δ +41.0 pp**,
-  propagated 95% CI **[+35.1, +46.9]** (base anchor folded in; seed-level [38.3, 43.7]). The
-  trained model solves at pass@8 problems the base fails even with 8 attempts: *new capability*,
-  by definition outside the base's pass@k envelope.
-- Contrast GSM8K, where Δ pass@8 = **+0.7 pp** (propagated **[−0.4, +1.9]**, bounded under
-  2 pp): coverage barely moves, so the gain is elicitation. **Same decomposition, same protocol,
-  opposite verdicts**. The propagated intervals (**[−0.4, +1.9]** vs **[+35.1, +46.9]**) do not
-  come close to overlapping.
+Coverage moves: Δ +41.0 pp, 95% CI [+35.1, +46.9] with the base model's sampling noise
+added (seed-level [38.3, 43.7]).
 
-### Mechanism: real new capability, not just reliability
+![pass@8 coverage: GSM8K barely moves (+0.7 pp, elicitation) while Countdown rises from 53.6 to 94.6 (+41.0 pp, expansion)](../fig-passk-contrast.png)
 
-Per problem (`mechanism.json`, reliability threshold tau = 0.5): the base solves almost nothing
-first-try-reliably (0.5%); the trained model makes **47.9%** migrated (within the base's pass@8
-reach) and **10.9% genuinely new** (outside it). That **10.9% new-capability mass** is the
-expansion signature GSM8K lacks (0.0% there). Completions also get *shorter* (366 → 315 words):
-RL finds the target more directly, not by searching longer.
+## Per-problem mechanism
 
-## 3. Two-sided validation (the point of the study)
+The base model solves almost nothing reliably on the first try (0.5%). The trained model
+makes 47.9% of problems reliable within the base model's pass@8 reach, and 10.9% genuinely
+new: reliable after RL, never solved by the base model in 8 tries. Completions get shorter
+(366 → 315 words).
 
-| | GSM8K (Qwen2.5-Math-1.5B) | Countdown (general Qwen2.5-1.5B) |
+## Against GSM8K
+
+| | GSM8K (Qwen2.5-Math-1.5B) | Countdown (Qwen2.5-1.5B) |
 | --- | --- | --- |
-| placebo comparison (pass@1) | +3.9 pp [2.3, 5.6] (6 seeds) | **+46.5 pp [21.4, 71.6]** (3 seeds) |
-| Δ pass@8 (propagated CI) | **+0.7 pp [−0.4, +1.9]** (6 seeds) | **+41.0 pp [+35.1, +46.9]** (3 seeds) |
+| Placebo comparison (pass@1) | +3.9 pp [2.3, 5.6] | +46.5 pp [21.4, 71.6] |
+| Δ pass@8 | +0.7 pp [-0.4, +1.9] | +41.0 pp [+35.1, +46.9] |
 | base → correct pass@8 | 94.0 → 94.7 | 53.6 → 94.6 |
-| new-capability mass (mechanism) | **0.0%** | **10.9%** |
-| verdict | **elicitation** (saturated base) | **expansion** (base lacked the skill) |
+| New-capability share | 0.0% | 10.9% |
+| Verdict | elicitation | expansion |
 
-![pass@8 coverage: GSM8K barely moves (+0.7 pp, elicitation) while Countdown leaps from 53.6 to 94.6 (+41.0 pp, expansion) with the same decomposition and opposite verdicts](../fig-passk-contrast.png)
+## Same base model
 
-Both pass@8 rows are now seed-level (the panel was seed-0-only before) and their CIs fold in the
-base anchor's own sampling uncertainty (propagated, not anchor-fixed); the intervals do not come
-close to overlapping, so the contrast rests on neither a single draw nor a noiseless anchor.
+The table above changes the base model as well as the task. Trained from the GSM8K base
+(Qwen2.5-Math-1.5B), Countdown still expands, by +11.8 pp (paired CI [8.3, 15.5]), but with
+0.5% new capability. The Math model already covers 84.8% of Countdown in 8 tries. See the
+[pre-registered results](../preregistered-results-2026-10.md).
 
-The decomposition is not biased toward "it's all fake": on a task where RL genuinely teaches
-new ability, it reports expansion with higher pass@8 coverage; on a saturated benchmark it reports
-elicitation. That two-sidedness is what makes the GSM8K "mostly elicitation" finding
-trustworthy rather than a null-by-construction result.
+## Limitations
 
-## Bottom line
-
-On Countdown, a verifiable, uncontaminated search task the base cannot do, GRPO with a
-correctness reward delivers a **large, significant, genuinely-new-capability** gain (+46.5pp
-placebo comparison; Δ pass@8 +41.0 pp, propagated [35.1, 46.9], coverage 53.6 → 94.6). It is the
-positive control that proves the decomposition can detect expansion when it exists. Paired with GSM8K's
-controlled elicitation result, the instrument is validated from both sides, now with both
-pass@8 panels seed-level, not seed-0 draws.
-
-## Caveats
-
-- **3 seeds**: both the placebo comparison and the pass@8 panel clear their thresholds
-  decisively, but the CIs are df=2; the point estimates are less precise than GSM8K's 6 seeds.
-- **Different base from GSM8K**: Countdown uses general Qwen2.5-1.5B, GSM8K uses
-  Qwen2.5-Math-1.5B, so the two-sided contrast mixes task and base model. A pre-registered
-  follow-up trained Qwen2.5-Math-1.5B on Countdown: Δ pass@8 is +11.8 pp (paired CI
-  [8.3, 15.5]), still expansion but about 3.5× smaller, with 0.5% new capability. See
-  [`../preregistered-results-2026-10.md`](../preregistered-results-2026-10.md).
-- **Within-Qwen, single base**: the placebo is a within-model lower bound on
-  non-correctness-driven gain, not a cross-family verdict (a Llama arm is the follow-up).
-- **Narrow task**: Countdown certifies that the *instrument* detects expansion; it does not
-  claim broad reasoning transfer. It is the control, not a marquee capability result.
-- **CoT-gated pass@k is uninformative here too**: chain coverage is 0.0% (Countdown completions
-  do not emit `<<a op b = c>>` calculator steps either), so CoT-gated pass@8 is 0.0% for both
-  arms: the same `<<>>`-proxy coverage limit as GSM8K, not a reasoning verdict. See
-  `pass8-multiseed.json` (`base_chain_coverage`) and the GSM8K findings' CoT-gated section.
+- **3 seeds.** Both intervals clear zero, but with df=2 they are wide.
+- **One model family.** The placebo is a within-Qwen lower bound.
+- **Narrow task.** Countdown shows that the protocol detects expansion. It is not evidence
+  of broad reasoning transfer.
+- **No verifiable-chain check.** Countdown completions contain no `<<a op b = c>>` steps:
+  chain coverage is 0.0%, so CoT-gated pass@8 is 0.0% for both arms.
