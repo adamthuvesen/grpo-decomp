@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TypeVar
 
 import matplotlib.pyplot as plt
 from pydantic import BaseModel
@@ -25,7 +24,6 @@ from grpo_decomp.report.seeds import SeedPlaceboComparison
 
 HERE = Path(__file__).parents[1] / "results"
 PP = 100  # fractions -> percentage points
-T = TypeVar("T", bound=BaseModel)
 
 # Shared palette so all three headline figures read as one set.
 BASE_C, RL_C, MEAN_C = "#c7d2e8", "#1d4ed8", "#dc2626"
@@ -39,7 +37,7 @@ def _style_axis_grid_and_spines(ax, grid_axis: str = "y") -> None:
     ax.spines[["top", "right"]].set_visible(False)
 
 
-def _load_record(path: Path, model: type[T]) -> dict:
+def _load_record(path: Path, model: type[BaseModel]) -> dict:
     return model.model_validate_json(path.read_text(encoding="utf-8")).model_dump()
 
 
