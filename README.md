@@ -10,9 +10,9 @@ that split with controls, and finds both outcomes, depending on the base model a
 
 On a benchmark the base model has already saturated, the GRPO gain is **elicitation**:
 pass@1 rises, but pass@k coverage stays where it was. On a task the base model cannot do,
-the same protocol reports **expansion**: coverage rises too. How much it expands depends on
-the headroom the base model leaves: the same task on a stronger base expands about 3.5× less.
-A pass@1 gain alone cannot tell these cases apart. A random-reward placebo, seed aggregation,
+the same protocol reports **expansion**: coverage rises too. On a stronger base model the
+same task still expands, but by less, because the base already covers more of it. A pass@1
+gain alone cannot tell these cases apart. A random-reward placebo, seed aggregation,
 and per-problem accounting can.
 
 ![pass@8 coverage: GSM8K barely moves (+0.7 pp, elicitation) while Countdown rises from 53.6% to 94.6% (+41.0 pp, expansion)](results/fig-passk-contrast.png)
@@ -76,8 +76,8 @@ Full writeups, figures, and the decontamination, mechanism, and CoT-gated checks
   rollout batch, so the policy ratio stays at 1 and the clip never binds. Their mechanism
   predicts no gain in this regime. A pre-registered off-policy placebo
   (`steps_per_generation: 4`) also stays flat: **+0.4 pp, 95% CI [-0.8, +1.6]** over base.
-  But the clip bound on under 0.02% of tokens at learning rate 1e-6, so this test barely
-  exercises the mechanism. It shows the flat placebo is robust to off-policy updates. It
+  But in the retained (early) training logs the clip bound on under 0.02% of tokens at
+  learning rate 1e-6, so this test barely exercises the mechanism. It shows the flat placebo is robust to off-policy updates. It
   does not settle the clipping question at 1.5B.
 - **Liu et al. 2025**, _ProRL: Prolonged Reinforcement Learning Expands Reasoning
   Boundaries in Large Language Models_. Long RL training on diverse tasks expands pass@k
@@ -91,8 +91,8 @@ Full writeups, figures, and the decontamination, mechanism, and CoT-gated checks
 **Contribution:** a controls-first protocol (placebo, seed aggregation, paired per-problem
 accounting, and a positive control), packaged as a task-agnostic harness. With it: a
 small-scale replication of the elicitation result, a pre-registered same-base control that
-ties the size of expansion to the base model's headroom, and a mechanism-level reason why
-the placebo is flat in on-policy GRPO.
+confirms the task effect on one base model, and a mechanism-level reason why the placebo is
+flat in on-policy GRPO.
 
 ## Limitations
 
@@ -105,7 +105,9 @@ the placebo is flat in on-policy GRPO.
 - **Small and narrow.** One model family (Qwen), 1.5B parameters, 500 steps, one prompt per
   optimizer step. The placebo is a within-Qwen lower bound, not a cross-family result.
 - **Weak clipping test.** The off-policy placebo barely made the clip bind (under 0.02% of
-  tokens), so the clipping-driven random-reward effect is still untested at 1.5B.
+  tokens in the retained early logs). It also mixes 4 prompts per optimizer step, a second
+  change TRL makes alongside off-policy updates. The clipping-driven random-reward effect is
+  still untested at 1.5B.
 - **Problem noise in the intervals.** The GSM8K and Countdown placebo and control intervals
   are seed-level t intervals, which leave out problem-sampling noise. The harness now has a
   paired seed × problem bootstrap. The per-problem completions for these runs are no longer
