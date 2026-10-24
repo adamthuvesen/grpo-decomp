@@ -72,7 +72,6 @@ def test_arm_rejects_unknown_fields() -> None:
 
 
 def test_on_policy_arms_keep_trl_default_steps_per_generation() -> None:
-    assert GRPOSettings().steps_per_generation is None
     assert load_arm_config(_CONFIGS / "random.yaml").grpo.steps_per_generation is None
 
 

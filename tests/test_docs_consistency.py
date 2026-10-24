@@ -24,6 +24,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 # Glyphs the prose uses in number phrases; named so expected strings read clearly.
 _DELTA = "Δ"
 _ARROW = "→"
+_TIMES = "\u00d7"  # multiplication sign
 
 
 def _load(rel: str) -> dict:
@@ -377,6 +378,34 @@ _CLAIMS: list[tuple[str, str, str]] = [
     ("prereg.cdm-base-pass8", _PREREG, f"| base pass@8 | 53.6% | {_pct(_CDM['base_passk'])}% |"),
     ("prereg.cdm-new", _PREREG, f"{_pct(_MECH_CDM['frac_new_capability'])}% of problems"),
     ("readme.cdm-base-pass8", _README, f"base pass@8 is already {_pct(_CDM['base_passk'])}%"),
+    (
+        "countdown.cdm-delta",
+        _FIND_C,
+        f"{_pct(_CDM['delta'], sign=True)} pp (paired CI "
+        f"[{_pct(_CDM['delta_paired_ci_low'])}, {_pct(_CDM['delta_paired_ci_high'])}])",
+    ),
+    ("countdown.cdm-new", _FIND_C, f"{_pct(_MECH_CDM['frac_new_capability'])}% new capability"),
+    (
+        "prereg.cdm-migration",
+        _PREREG,
+        f"{_pct(_MECH_CDM['migration_share_of_gain'], dp=0)}% of the added",
+    ),
+    ("prereg.cdm-ratio", _PREREG, f"about {_CP8['delta'] / _CDM['delta']:.1f}{_TIMES} smaller"),
+    ("prereg.offpolicy-base", _PREREG, f"base model at {_pct(_OFFP['base_acc'])}%"),
+    (
+        "prereg.offpolicy-seeds",
+        _PREREG,
+        "Per seed: " + ", ".join(_pct(d, sign=True) for d in _OFFP["per_seed_delta"]) + " pp",
+    ),
+    *(
+        (
+            f"prereg.headroom-{name}",
+            _PREREG,
+            f"| {_pct(panel['base_passk'])}% | {_pct(panel['delta'], sign=True)} pp | "
+            f"{panel['delta'] / (1 - panel['base_passk']) * 100:.0f}% |",
+        )
+        for name, panel in (("gsm8k", _GP), ("cdm", _CDM), ("countdown", _CP8))
+    ),
     (
         "ctrl6.symbolic",
         _FIND_G,
