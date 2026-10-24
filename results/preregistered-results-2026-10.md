@@ -20,8 +20,9 @@ effect.
 
 - **The clip rarely bound.** In the retained training logs (steps 450–500 of 500) the PPO
   clip bound on at most 0.015% of tokens
-  ([`offpolicy-clip-ratios.json`](offpolicy-clip-ratios.json)). At learning rate 1e-6 the
-  policy moves little within the 4 steps that share a rollout batch.
+  ([`offpolicy-clip-ratios.json`](offpolicy-clip-ratios.json)). The clip fraction over
+  the first 450 steps is not known. At learning rate 1e-6 the policy moves little within the
+  4 steps that share a rollout batch.
 - **The arm differs from the on-policy placebo in two ways, not one.** In TRL 1.0.0,
   `steps_per_generation: 4` generates 4 prompts × 8 completions, shuffles them, and splits
   them across 4 optimizer steps (`GRPOTrainer._prepare_inputs`). Each step is off-policy and

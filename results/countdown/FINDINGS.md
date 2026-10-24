@@ -22,7 +22,7 @@ correct − random over 3 seeds: **+46.5 pp, 95% CI [21.4, 71.6]** (seed-level t
 | 1 | 4.2% | 55.7% | +51.6 |
 | 2 | 0.0% | 53.1% | +53.1 |
 
-Random reward stays at or below the base model (11.0% pass@1). A reward that ignores
+Random reward stays at 0–14%, near or below the base model. A reward that ignores
 correctness cannot teach search.
 
 ## Coverage

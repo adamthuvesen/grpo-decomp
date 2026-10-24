@@ -45,7 +45,7 @@ problems together (6 seeds × 30 problems).
 ## Reading
 
 - **Validity is robust.** Real reward reaches about 97% valid expressions in five of six
-  seeds. Seed 214 reaches 27%. The placebo stays at the base rate in all six.
+  seeds. Seed 214 reaches 27%. The placebo stays near the base rate in all six.
 - **Exact solving rests on three problems.** Every real-reward seed solves the same three
   (`easy_0000`, `easy_0002`, `medium_0004`; seed 214 adds `medium_0003`). The effect is
   consistent across seeds, but resampling problems makes its interval wide.

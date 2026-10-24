@@ -1,9 +1,7 @@
 """Sampled (n>1) decomposition of the Esme-214M-RL gain on held-out Countdown.
 
-The committed historical Esme result is greedy pass@1: one deterministic
-sample per problem, graded on exact-solve only. For a 214M model on Countdown that is the
-sparsest, lowest-power slice there is — the whole dynamic range is 1-2 solved problems, so real
-reward and a random-reward placebo look identical (the accepted table: +3.3pp, p=1.0).
+Greedy exact pass@1 is too coarse for a 214M model on Countdown: its whole dynamic range is
+one or two solved problems, so real reward and a random-reward placebo look identical.
 
 This script scores the *sampled* arms (n=16, temperature 1.0) on the two axes where the reward
 signal actually lives:

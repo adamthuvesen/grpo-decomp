@@ -90,7 +90,7 @@ Seed 0 overstates every gain that the 6-seed mean confirms:
 | gsm8k-platinum control | +4.8 → +3.2 |
 
 A single run gives a confident number (seed 0's placebo test has McNemar p = 3e-9) that
-seed aggregation shrinks by 29–61%. This is why the harness labels any result
+seed aggregation shrinks by about 30–60%. This is why the harness labels any result
 from fewer than three seeds preliminary.
 
 ## Verifiable-chain check

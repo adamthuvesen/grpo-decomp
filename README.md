@@ -65,8 +65,8 @@ verdict; the base model sets how much room RL has.
   GRPO's clipping term. Here the placebo is flat (75.8% vs base 76.4%), and the training is
   on-policy (TRL 1.0.0, one optimizer step per rollout batch), so the clip never binds,
   and their mechanism predicts no gain. A pre-registered off-policy placebo is also flat,
-  **+0.4 pp, 95% CI [-0.8, +1.6]**, but its clip rarely bound, so the mechanism stays
-  untested at 1.5B.
+  **+0.4 pp, 95% CI [-0.8, +1.6]**, but its clip rarely bound in the logged steps
+  (450–500 of 500), so the mechanism stays untested at 1.5B.
 - **Liu et al. 2025**, _ProRL_. Long RL training on diverse tasks expands pass@k beyond
   the base model. The runs here are short (500 steps), so they say nothing about long
   training.
@@ -86,13 +86,15 @@ the placebo is flat in on-policy GRPO.
   Countdown may shrink.
 - **Small and narrow.** One model family (Qwen), 1.5B parameters, 500 steps. The placebo is
   a within-Qwen lower bound.
-- **Weak clipping test.** The off-policy placebo's clip bound on under 0.02% of tokens, and
-  TRL's off-policy setting also mixes 4 prompts per optimizer step.
+- **Weak clipping test.** The off-policy placebo's clip bound on under 0.02% of tokens in
+  the only logged steps (450–500 of 500), and TRL's off-policy setting also mixes 4 prompts
+  per optimizer step.
 - **Partial controls on the same-base result.** 3 seeds and no random-reward placebo; it
   compares against the base model only.
-- **Seed-level intervals for GSM8K and Countdown.** These intervals leave out
-  problem-sampling noise. The per-problem data needed for the paired seed × problem
-  bootstrap that the newer results use is not published for these runs.
+- **Aggregates only for GSM8K and Countdown.** These studies publish result JSON and
+  figures, not completions, so their seed-level intervals leave out problem-sampling noise
+  and cannot be recomputed with the paired seed × problem bootstrap that the pre-registered
+  and Esme results use.
 - **No reasoning-validity check.** Correct answers are not proof of correct reasoning.
 
 ## Next Experiments

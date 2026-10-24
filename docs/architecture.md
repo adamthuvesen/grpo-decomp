@@ -118,7 +118,7 @@ Study: `src/llm_grpo_gains/` plus repo-root `configs/`, `results/`, `modal_app.p
 | `rewards/`         | The verifiable graders `correct` and `countdown` (one shared signature).                  |
 | `registration.py`  | `register()`: wires the study's datasets/rewards/verifiers/task profiles into the harness. |
 | `configs/`         | One YAML per (arm, seed).                                                                  |
-| `results/`         | Committed multi-seed JSON, figures, findings, and the Esme raw completions.               |
+| `results/`         | Committed multi-seed JSON, figures, findings, the Esme raw completions, and one seed-0 controls file. |
 | `modal_app.py`     | The cloud runner used for the published GPU jobs.                                           |
 
 The dependency direction is one-way: the study depends on the harness, never the reverse

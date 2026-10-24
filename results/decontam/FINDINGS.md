@@ -5,7 +5,7 @@ temperature 0.7), re-run on two distributions the base model cannot have memoriz
 
 **Result.** The elicitation verdict is not a contamination artifact. Off the memorizable
 distribution, base pass@8 stays high and far above correct pass@1, and RL still moves
-coverage by only 1–2 pp. Contamination inflates the base model's first try, not its reach.
+coverage by under 2 pp. Contamination inflates the base model's first try, not its reach.
 
 | Distribution | Change | Size |
 | --- | --- | --- |
