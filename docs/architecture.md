@@ -118,7 +118,7 @@ Study: `src/llm_grpo_gains/` plus repo-root `configs/`, `results/`, `modal_app.p
 | `rewards/`         | The verifiable graders `correct` and `countdown` (one shared signature).                  |
 | `registration.py`  | `register()`: wires the study's datasets/rewards/verifiers/task profiles into the harness. |
 | `configs/`         | One YAML per (arm, seed).                                                                  |
-| `results/`         | Committed multi-seed JSON, figures, findings, and historical single-seed artifacts.       |
+| `results/`         | Committed multi-seed JSON, figures, findings, and the Esme raw completions.               |
 | `modal_app.py`     | The cloud runner used for the published GPU jobs.                                           |
 
 The dependency direction is one-way: the study depends on the harness, never the reverse
@@ -292,7 +292,7 @@ classDiagram
   `battery`, the multi-seed aggregators `report-seeds` (placebo),
   `report-passk-seeds` (pass@k coverage),
   `report-mechanism` (per-problem migration), `report-control-seeds` (the
-  Holm-corrected §3 controls), and `heldout` (the held-out curve).
+  Holm-corrected GSM8K controls), and `heldout` (the held-out curve).
 
 The **held-out curve** (`heldout` / `heldout_arm`) scores every saved checkpoint of
 a finished run on its validation split and writes `heldout.json`. It is a diagnostic for
@@ -307,9 +307,10 @@ use the same completion length.
 
 ## Decomposition and statistics
 
-The committed claims come from four multi-seed aggregators. Each recomputes its metric per
-training seed and aggregates at the seed level with a t-interval, so uncertainty includes
-run-to-run variance. Compared artifacts must carry identical dataset metadata, problem
+The committed claims come from five multi-seed aggregators. Each recomputes its metric per
+training seed and aggregates over seeds, so uncertainty includes run-to-run variance. Where
+per-problem data is available, the interval is a paired seed × problem bootstrap, which also
+covers problem-sampling noise; otherwise it is a seed-level t interval. Compared artifacts must carry identical dataset metadata, problem
 records, and prompt strategies; misalignment is a clear error. Below three seeds a result
 stays preliminary. The placebo comparison is confirmatory; the other panels explain the
 gain and test its controls.
@@ -322,9 +323,9 @@ Each FINDINGS number traces to one aggregator and one JSON file in `results/` (t
 | Aggregator (`grpo-decomp …`) | Module                    | Artifact                       | What it backs                                                                                                                   |
 | ---------------------------- | ------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
 | `report-seeds`               | `report/seeds.py`         | `seed-placebo-comparison.json` | The confirmatory placebo delta (correct − random), seed-level t CI.                                                             |
-| `report-passk-seeds`         | `report/passk_seeds.py`   | `pass8-multiseed.json`         | pass@k coverage: base anchor (problem-bootstrap CI) vs per-seed correct, with the paired seed × problem Δ interval, the legacy propagated one, and the CoT-gated twin. |
+| `report-passk-seeds`         | `report/passk_seeds.py`   | `pass8-multiseed.json`         | pass@k coverage: base anchor (problem-bootstrap CI) vs per-seed correct, with the paired seed × problem Δ interval, the unpaired propagated one, and the CoT-gated twin. |
 | `report-mechanism`           | `report/mechanism.py`     | `mechanism.json`               | Per-problem migration vs new capability + the completion-length shift.                                                          |
-| `report-control-seeds`       | `report/control_seeds.py` | `decomposition-multiseed.json` | The §3 controls (gsm-symbolic / gsm-plus / gsm8k-platinum), Holm-corrected across the family.                                   |
+| `report-control-seeds`       | `report/control_seeds.py` | `decomposition-multiseed.json` | The GSM8K controls (gsm-symbolic / gsm-plus / gsm8k-platinum), Holm-corrected across the family.                                   |
 | `report-arm-vs-base`         | `report/arm_vs_base.py`   | `offpolicy-placebo.json`       | One trained arm vs the base, greedy pass@1 paired per problem, seed × problem bootstrap CI, with the per-problem grades stored. |
 
 The Countdown positive control, the same-base control (`countdown-math/`), and the
