@@ -93,8 +93,7 @@ _FIND_E = "results/esme-countdown/sampled_decomposition.md"
 _README = "README.md"
 _PREREG = "results/preregistered-results-2026-10.md"
 
-_ESME_VALID = _ESME["valid_rate_seed_aggregate"]
-_ESME_EXACT = _ESME["exact_any_seed_aggregate"]
+_ESME_EFFECTS = _ESME["effects"]
 
 # (claim_id, doc, expected substring derived from the JSON above).
 _CLAIMS: list[tuple[str, str, str]] = [
@@ -324,33 +323,45 @@ _CLAIMS: list[tuple[str, str, str]] = [
         _README,
         f"base {_pct(_CP8['base_passk'])}% {_ARROW} correct {_pct(_CP8['mean_correct_passk'])}%",
     ),
-    # -- Esme sampled multiseed result (esme-countdown/sampled_multiseed_summary.json) --
-    (
-        "esme.readme-valid",
-        _README,
-        f"{_pct(_ESME_VALID['mean_delta'], sign=True)} pp, 95% CI "
-        f"[{_pct(_ESME_VALID['ci_low'], sign=True)}, "
-        f"{_pct(_ESME_VALID['ci_high'], sign=True)}]",
-    ),
-    (
-        "esme.result-valid",
-        _FIND_E,
-        f"{_pct(_ESME_VALID['mean_delta'], sign=True)} pp, 95% CI "
-        f"[{_pct(_ESME_VALID['ci_low'], sign=True)}, "
-        f"{_pct(_ESME_VALID['ci_high'], sign=True)}]",
+    # -- Esme step-240 result (esme-countdown/sampled_multiseed_summary.json) --
+    *(
+        (
+            f"esme.{claim}-{metric}",
+            doc,
+            f"{_pct(_ESME_EFFECTS[metric]['mean_delta'], sign=True)} pp, 95% CI "
+            f"[{_pct(_ESME_EFFECTS[metric]['ci_low'], sign=True)}, "
+            f"{_pct(_ESME_EFFECTS[metric]['ci_high'], sign=True)}]",
+        )
+        for claim, doc, metrics in (
+            ("readme", _README, ("valid_rate",)),
+            ("result", _FIND_E, ("valid_rate", "exact_rate", "any_exact")),
+        )
+        for metric in metrics
     ),
     (
         "esme.result-valid-rates",
         _FIND_E,
-        f"{_pct(_ESME['arms']['correct']['mean_valid_rate'])}% vs "
-        f"{_pct(_ESME['arms']['random']['mean_valid_rate'])}%",
+        f"{_pct(_ESME['arms']['correct']['valid_rate'])}% vs "
+        f"{_pct(_ESME['arms']['random']['valid_rate'])}%",
+    ),
+    *(
+        (
+            f"esme.{claim}-sum-template",
+            doc,
+            f"{_pct(_ESME['arms']['correct']['sum_template_rate'])}% of real-reward samples",
+        )
+        for claim, doc in (("readme", _README), ("result", _FIND_E))
+    ),
+    ("esme.readme-sum-tasks", _README, f"solves the {_ESME['n_sum_target_problems']} tasks whose"),
+    (
+        "esme.result-sum-tasks",
+        _FIND_E,
+        f"solves the {_ESME['n_sum_target_problems']} held-out tasks whose",
     ),
     (
-        "esme.result-exact",
+        "esme.result-sign-flip",
         _FIND_E,
-        f"{_pct(_ESME_EXACT['mean_delta'], sign=True)} pp, 95% CI "
-        f"[{_pct(_ESME_EXACT['ci_low'], sign=True)}, "
-        f"{_pct(_ESME_EXACT['ci_high'], sign=True)}]",
+        f"p = {_ESME_EFFECTS['valid_rate']['sign_flip_p']:.3f} is the smallest p",
     ),
     # -- Pre-registered follow-ups (offpolicy-placebo.json, countdown-math/) --
     *(

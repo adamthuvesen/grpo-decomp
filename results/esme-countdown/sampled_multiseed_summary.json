@@ -1,5 +1,6 @@
 {
   "task_set": "esme-countdown",
+  "dataset_revision": "heldout_large+164ed5a000dbe017",
   "n_seeds": 6,
   "seeds": [
     "214",
@@ -9,255 +10,188 @@
     "218",
     "219"
   ],
-  "n_problems": 30,
+  "preliminary": false,
+  "n_problems": 200,
+  "n_sum_target_problems": 13,
   "n_samples": 16,
   "temperature": 1.0,
-  "k_values": [
-    1,
-    8,
-    16
-  ],
-  "preliminary": false,
+  "max_new_tokens": 12,
   "arms": {
     "base": {
-      "valid_rate": 0.008333333333333333,
-      "pass_at_k": {
-        "1": 0.0020833333333333333,
-        "8": 0.016666666666666666,
-        "16": 0.03333333333333333
-      },
-      "any_exact_solved": 1
+      "model": "heldout_large-chat",
+      "valid_rate": 0.0140625,
+      "sum_template_rate": 0.0078125,
+      "exact_rate": 0.0009375,
+      "any_exact_rate": 0.015,
+      "solved_sum_target": 2,
+      "solved_other": 1
     },
     "correct": {
-      "mean_valid_rate": 0.8541666666666666,
-      "mean_pass_at_k": {
-        "1": 0.09027777777777778,
-        "8": 0.10256410256410257,
-        "16": 0.10555555555555556
-      },
-      "mean_any_exact_solved": 3.1666666666666665
+      "valid_rate": 0.9790625,
+      "sum_template_rate": 0.9771354166666667,
+      "exact_rate": 0.06260416666666667,
+      "any_exact_rate": 0.06583333333333334,
+      "solved_sum_target": 13.0,
+      "solved_other": 0.16666666666666666
     },
     "random": {
-      "mean_valid_rate": 0.0076388888888888895,
-      "mean_pass_at_k": {
-        "1": 0.0010416666666666667,
-        "8": 0.008333333333333333,
-        "16": 0.016666666666666666
-      },
-      "mean_any_exact_solved": 0.5
+      "valid_rate": 0.012864583333333334,
+      "sum_template_rate": 0.007239583333333334,
+      "exact_rate": 0.0007291666666666667,
+      "any_exact_rate": 0.011666666666666667,
+      "solved_sum_target": 1.3333333333333333,
+      "solved_other": 1.0
     }
   },
   "per_seed": [
     {
       "seed": "214",
       "correct": {
-        "valid_rate": 0.2708333333333333,
-        "pass_at_k": {
-          "1": 0.05625,
-          "8": 0.11538461538461539,
-          "16": 0.13333333333333333
-        },
-        "any_exact_solved": 4
+        "model": "heldout_large-real-seed214-step240",
+        "valid_rate": 0.98125,
+        "sum_template_rate": 0.979375,
+        "exact_rate": 0.0628125,
+        "any_exact_rate": 0.065,
+        "solved_sum_target": 13,
+        "solved_other": 0
       },
       "random": {
-        "valid_rate": 0.008333333333333333,
-        "pass_at_k": {
-          "1": 0.0,
-          "8": 0.0,
-          "16": 0.0
-        },
-        "any_exact_solved": 0
-      },
-      "valid_rate_delta": 0.2625,
-      "exact_any_delta": 0.13333333333333333,
-      "exact_solve_test": {
-        "accuracy_a": 0.0,
-        "accuracy_b": 0.13333333333333333,
-        "delta": 0.13333333333333333,
-        "ci_low": 0.03333333333333333,
-        "ci_high": 0.26666666666666666,
-        "p_value": 0.125,
-        "n_discordant": 4,
-        "test": "exact-binomial"
+        "model": "heldout_large-placebo-seed214-step240",
+        "valid_rate": 0.0115625,
+        "sum_template_rate": 0.004375,
+        "exact_rate": 0.000625,
+        "any_exact_rate": 0.01,
+        "solved_sum_target": 1,
+        "solved_other": 1
       }
     },
     {
       "seed": "215",
       "correct": {
-        "valid_rate": 0.9770833333333333,
-        "pass_at_k": {
-          "1": 0.09791666666666667,
-          "8": 0.1,
-          "16": 0.1
-        },
-        "any_exact_solved": 3
+        "model": "heldout_large-real-seed215-step240",
+        "valid_rate": 0.98,
+        "sum_template_rate": 0.97875,
+        "exact_rate": 0.0628125,
+        "any_exact_rate": 0.065,
+        "solved_sum_target": 13,
+        "solved_other": 0
       },
       "random": {
-        "valid_rate": 0.004166666666666667,
-        "pass_at_k": {
-          "1": 0.0,
-          "8": 0.0,
-          "16": 0.0
-        },
-        "any_exact_solved": 0
-      },
-      "valid_rate_delta": 0.9729166666666667,
-      "exact_any_delta": 0.1,
-      "exact_solve_test": {
-        "accuracy_a": 0.0,
-        "accuracy_b": 0.1,
-        "delta": 0.1,
-        "ci_low": 0.0,
-        "ci_high": 0.2,
-        "p_value": 0.25,
-        "n_discordant": 3,
-        "test": "exact-binomial"
+        "model": "heldout_large-placebo-seed215-step240",
+        "valid_rate": 0.0084375,
+        "sum_template_rate": 0.0040625,
+        "exact_rate": 0.000625,
+        "any_exact_rate": 0.01,
+        "solved_sum_target": 1,
+        "solved_other": 1
       }
     },
     {
       "seed": "216",
       "correct": {
-        "valid_rate": 0.9708333333333333,
-        "pass_at_k": {
-          "1": 0.09791666666666667,
-          "8": 0.1,
-          "16": 0.1
-        },
-        "any_exact_solved": 3
+        "model": "heldout_large-real-seed216-step240",
+        "valid_rate": 0.9825,
+        "sum_template_rate": 0.980625,
+        "exact_rate": 0.0628125,
+        "any_exact_rate": 0.065,
+        "solved_sum_target": 13,
+        "solved_other": 0
       },
       "random": {
-        "valid_rate": 0.008333333333333333,
-        "pass_at_k": {
-          "1": 0.0020833333333333333,
-          "8": 0.016666666666666666,
-          "16": 0.03333333333333333
-        },
-        "any_exact_solved": 1
-      },
-      "valid_rate_delta": 0.9625,
-      "exact_any_delta": 0.06666666666666668,
-      "exact_solve_test": {
-        "accuracy_a": 0.03333333333333333,
-        "accuracy_b": 0.1,
-        "delta": 0.06666666666666668,
-        "ci_low": 0.0,
-        "ci_high": 0.16666666666666669,
-        "p_value": 0.5,
-        "n_discordant": 2,
-        "test": "exact-binomial"
+        "model": "heldout_large-placebo-seed216-step240",
+        "valid_rate": 0.0165625,
+        "sum_template_rate": 0.011875,
+        "exact_rate": 0.000625,
+        "any_exact_rate": 0.01,
+        "solved_sum_target": 1,
+        "solved_other": 1
       }
     },
     {
       "seed": "217",
       "correct": {
-        "valid_rate": 0.9708333333333333,
-        "pass_at_k": {
-          "1": 0.09583333333333334,
-          "8": 0.1,
-          "16": 0.1
-        },
-        "any_exact_solved": 3
+        "model": "heldout_large-real-seed217-step240",
+        "valid_rate": 0.9775,
+        "sum_template_rate": 0.9753125,
+        "exact_rate": 0.061875,
+        "any_exact_rate": 0.065,
+        "solved_sum_target": 13,
+        "solved_other": 0
       },
       "random": {
-        "valid_rate": 0.00625,
-        "pass_at_k": {
-          "1": 0.0,
-          "8": 0.0,
-          "16": 0.0
-        },
-        "any_exact_solved": 0
-      },
-      "valid_rate_delta": 0.9645833333333333,
-      "exact_any_delta": 0.1,
-      "exact_solve_test": {
-        "accuracy_a": 0.0,
-        "accuracy_b": 0.1,
-        "delta": 0.1,
-        "ci_low": 0.0,
-        "ci_high": 0.2,
-        "p_value": 0.25,
-        "n_discordant": 3,
-        "test": "exact-binomial"
+        "model": "heldout_large-placebo-seed217-step240",
+        "valid_rate": 0.0128125,
+        "sum_template_rate": 0.0075,
+        "exact_rate": 0.0009375,
+        "any_exact_rate": 0.015,
+        "solved_sum_target": 2,
+        "solved_other": 1
       }
     },
     {
       "seed": "218",
       "correct": {
-        "valid_rate": 0.9666666666666667,
-        "pass_at_k": {
-          "1": 0.09583333333333334,
-          "8": 0.1,
-          "16": 0.1
-        },
-        "any_exact_solved": 3
+        "model": "heldout_large-real-seed218-step240",
+        "valid_rate": 0.978125,
+        "sum_template_rate": 0.97625,
+        "exact_rate": 0.0628125,
+        "any_exact_rate": 0.065,
+        "solved_sum_target": 13,
+        "solved_other": 0
       },
       "random": {
-        "valid_rate": 0.00625,
-        "pass_at_k": {
-          "1": 0.0020833333333333333,
-          "8": 0.016666666666666666,
-          "16": 0.03333333333333333
-        },
-        "any_exact_solved": 1
-      },
-      "valid_rate_delta": 0.9604166666666667,
-      "exact_any_delta": 0.06666666666666668,
-      "exact_solve_test": {
-        "accuracy_a": 0.03333333333333333,
-        "accuracy_b": 0.1,
-        "delta": 0.06666666666666668,
-        "ci_low": 0.0,
-        "ci_high": 0.16666666666666669,
-        "p_value": 0.5,
-        "n_discordant": 2,
-        "test": "exact-binomial"
+        "model": "heldout_large-placebo-seed218-step240",
+        "valid_rate": 0.0140625,
+        "sum_template_rate": 0.008125,
+        "exact_rate": 0.0009375,
+        "any_exact_rate": 0.015,
+        "solved_sum_target": 2,
+        "solved_other": 1
       }
     },
     {
       "seed": "219",
       "correct": {
-        "valid_rate": 0.96875,
-        "pass_at_k": {
-          "1": 0.09791666666666667,
-          "8": 0.1,
-          "16": 0.1
-        },
-        "any_exact_solved": 3
+        "model": "heldout_large-real-seed219-step240",
+        "valid_rate": 0.975,
+        "sum_template_rate": 0.9725,
+        "exact_rate": 0.0625,
+        "any_exact_rate": 0.07,
+        "solved_sum_target": 13,
+        "solved_other": 1
       },
       "random": {
-        "valid_rate": 0.0125,
-        "pass_at_k": {
-          "1": 0.0020833333333333333,
-          "8": 0.016666666666666666,
-          "16": 0.03333333333333333
-        },
-        "any_exact_solved": 1
-      },
-      "valid_rate_delta": 0.95625,
-      "exact_any_delta": 0.06666666666666668,
-      "exact_solve_test": {
-        "accuracy_a": 0.03333333333333333,
-        "accuracy_b": 0.1,
-        "delta": 0.06666666666666668,
-        "ci_low": 0.0,
-        "ci_high": 0.16666666666666669,
-        "p_value": 0.5,
-        "n_discordant": 2,
-        "test": "exact-binomial"
+        "model": "heldout_large-placebo-seed219-step240",
+        "valid_rate": 0.01375,
+        "sum_template_rate": 0.0075,
+        "exact_rate": 0.000625,
+        "any_exact_rate": 0.01,
+        "solved_sum_target": 1,
+        "solved_other": 1
       }
     }
   ],
-  "valid_rate_seed_aggregate": {
-    "mean_delta": 0.8465277777777778,
-    "ci_low": 0.6010416666666667,
-    "ci_high": 0.975,
-    "ci_kind": "seed x problem bootstrap (6 seeds x 30 problems)"
-  },
-  "exact_any_seed_aggregate": {
-    "mean_delta": 0.08888888888888889,
-    "ci_low": 0.005555555555555556,
-    "ci_high": 0.19444444444444445,
-    "ci_kind": "seed x problem bootstrap (6 seeds x 30 problems)"
-  },
-  "conclusion": "supported: real verifier reward separates from the random-reward placebo on sampled held-out Countdown validity"
+  "effects": {
+    "valid_rate": {
+      "mean_delta": 0.9661979166666667,
+      "ci_low": 0.9592174479166666,
+      "ci_high": 0.9728645833333334,
+      "ci_kind": "seed x problem bootstrap (6 seeds x 200 problems)",
+      "sign_flip_p": 0.03125
+    },
+    "exact_rate": {
+      "mean_delta": 0.061875,
+      "ci_low": 0.03166666666666667,
+      "ci_high": 0.09588671874999999,
+      "ci_kind": "seed x problem bootstrap (6 seeds x 200 problems)",
+      "sign_flip_p": 0.03125
+    },
+    "any_exact": {
+      "mean_delta": 0.05416666666666667,
+      "ci_low": 0.020833333333333332,
+      "ci_high": 0.09,
+      "ci_kind": "seed x problem bootstrap (6 seeds x 200 problems)",
+      "sign_flip_p": 0.03125
+    }
+  }
 }

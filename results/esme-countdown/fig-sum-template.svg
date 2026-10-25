@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="620"
+  viewBox="0 0 920 620" role="img" aria-labelledby="title desc">
+  <title id="title">Esme-214M-RL learns the sum of the numbers</title>
+  <desc id="desc">Two-panel chart. Left: almost every valid real-reward sample is the sum of
+    the supplied numbers, while base and placebo stay near zero. Right: real reward solves
+    the 13 held-out tasks whose target is the sum, and almost no others.</desc>
+  <style>
+    .bg { fill: #ffffff; }
+    .panel { fill: #ffffff; stroke: #d9dde7; stroke-width: 1; }
+    text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .title { fill: #1f2937; font-size: 22px; font-weight: 700; }
+    .subtitle { fill: #6b7280; font-size: 14px; }
+    .axis { stroke: #cfd5df; stroke-width: 1; }
+    .grid { stroke: #eef1f6; stroke-width: 1; }
+    .tick { fill: #6b7280; font-size: 12px; }
+    .label { fill: #374151; font-size: 13px; }
+    .value { fill: #1f2937; font-size: 13px; font-weight: 700; }
+    .small { fill: #6b7280; font-size: 12px; }
+    .legend { fill: #374151; font-size: 13px; }
+  </style>
+  <rect class="bg" width="920" height="620" rx="10"/>
+  <rect class="panel" x="28" y="24" width="864" height="560" rx="8"/>
+
+  <text class="title" x="56" y="64">Esme-214M-RL: real reward teaches the sum of the numbers</text>
+  <text class="subtitle" x="56" y="88">Held-out Countdown-Lite, 200 tasks.
+    Red marks the sum template.</text>
+
+  <g transform="translate(90 142)">
+    <text class="label" x="0" y="0">Valid expressions</text>
+    <text class="small" x="0" y="24">% of samples; red = the sum of the numbers</text>
+    <line class="grid" x1="0" y1="300.0" x2="330" y2="300.0"/>
+    <text class="tick" x="-12" y="304.0" text-anchor="end">0.0%</text>
+    <line class="grid" x1="0" y1="245.0" x2="330" y2="245.0"/>
+    <text class="tick" x="-12" y="249.0" text-anchor="end">25.0%</text>
+    <line class="grid" x1="0" y1="190.0" x2="330" y2="190.0"/>
+    <text class="tick" x="-12" y="194.0" text-anchor="end">50.0%</text>
+    <line class="grid" x1="0" y1="135.0" x2="330" y2="135.0"/>
+    <text class="tick" x="-12" y="139.0" text-anchor="end">75.0%</text>
+    <line class="grid" x1="0" y1="80.0" x2="330" y2="80.0"/>
+    <text class="tick" x="-12" y="84.0" text-anchor="end">100.0%</text>
+    <line class="axis" x1="0" y1="80" x2="0" y2="300"/>
+    <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
+    <rect x="50" y="298.3" width="54" height="1.7" fill="#ef553b"/>
+    <rect x="50" y="296.9" width="54" height="1.4" fill="#c7d2e8"/>
+    <text class="value" x="77" y="286.9" text-anchor="middle">1.4%</text>
+    <text class="label" x="77" y="326" text-anchor="middle">base</text>
+    <rect x="138" y="298.4" width="54" height="1.6" fill="#ef553b"/>
+    <rect x="138" y="297.2" width="54" height="1.2" fill="#c7d2e8"/>
+    <text class="value" x="165" y="287.2" text-anchor="middle">1.3%</text>
+    <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
+    <rect x="226" y="85.0" width="54" height="215.0" fill="#ef553b"/>
+    <rect x="226" y="84.6" width="54" height="0.4" fill="#c7d2e8"/>
+    <text class="value" x="253" y="74.6" text-anchor="middle">97.9%</text>
+    <text class="label" x="253" y="326" text-anchor="middle">real reward</text>
+    <text class="small" x="0" y="44">valid vs placebo: +96.6 pp,
+      95% CI [95.9, 97.3]</text>
+  </g>
+
+  <g transform="translate(512 142)">
+    <text class="label" x="0" y="0">Tasks solved at least once</text>
+    <text class="small" x="0" y="24">mean per seed, of 200</text>
+    <text class="small" x="0" y="44">red = the 13 tasks whose target is the sum</text>
+    <line class="grid" x1="0" y1="300.0" x2="330" y2="300.0"/>
+    <text class="tick" x="-12" y="304.0" text-anchor="end">0.0</text>
+    <line class="grid" x1="0" y1="226.7" x2="330" y2="226.7"/>
+    <text class="tick" x="-12" y="230.7" text-anchor="end">5.0</text>
+    <line class="grid" x1="0" y1="153.3" x2="330" y2="153.3"/>
+    <text class="tick" x="-12" y="157.3" text-anchor="end">10.0</text>
+    <line class="grid" x1="0" y1="80.0" x2="330" y2="80.0"/>
+    <text class="tick" x="-12" y="84.0" text-anchor="end">15.0</text>
+    <line class="axis" x1="0" y1="80" x2="0" y2="300"/>
+    <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
+    <rect x="50" y="270.7" width="54" height="29.3" fill="#ef553b"/>
+    <rect x="50" y="256.0" width="54" height="14.7" fill="#c7d2e8"/>
+    <text class="value" x="77" y="246.0" text-anchor="middle">3.0</text>
+    <text class="label" x="77" y="326" text-anchor="middle">base</text>
+    <rect x="138" y="280.4" width="54" height="19.6" fill="#ef553b"/>
+    <rect x="138" y="265.8" width="54" height="14.7" fill="#c7d2e8"/>
+    <text class="value" x="165" y="255.8" text-anchor="middle">2.3</text>
+    <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
+    <rect x="226" y="109.3" width="54" height="190.7" fill="#ef553b"/>
+    <rect x="226" y="106.9" width="54" height="2.4" fill="#c7d2e8"/>
+    <text class="value" x="253" y="96.9" text-anchor="middle">13.2</text>
+    <text class="label" x="253" y="326" text-anchor="middle">real reward</text>
+  </g>
+
+  <g transform="translate(470 520)">
+    <rect x="0" y="-10" width="12" height="12" fill="#ef553b" rx="2"/>
+    <text class="legend" x="18" y="1">sum of the numbers / sum-target task</text>
+    <rect x="270" y="-10" width="12" height="12" fill="#c7d2e8" rx="2"/>
+    <text class="legend" x="288" y="1">anything else</text>
+  </g>
+  <text class="small" x="56" y="560">6 training seeds per arm, all at the same training step; 16 samples per task. The CI resamples seeds and problems.</text>
+</svg>

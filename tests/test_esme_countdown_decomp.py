@@ -82,7 +82,7 @@ def test_esme_countdown_registered() -> None:
     assert "esme-countdown" in EVAL_SETS
     problems = load_esme_countdown()
     assert problems.source.name == ESME_COUNTDOWN_SOURCE
-    assert len(problems) == 30
+    assert len(problems) == 200
     # The harness routes esme-countdown grading to the Esme verifier, not the default.
     assert verifier_for(problems.source) is esme_countdown_is_correct
 
@@ -90,13 +90,13 @@ def test_esme_countdown_registered() -> None:
 def test_esme_countdown_fixture_revision_is_pinned() -> None:
     """Guard the cross-repo contract: this must equal esme-posttrain's emitter revision.
 
-    The revision is a content hash of the 30 held-out problem records the esme-posttrain
-    emitter samples over. esme-posttrain pins the same value in its emitter test; if either
-    side changes, the pins diverge and one repo's test fails, catching silent drift before
-    a report grades arms over mismatched problems.
+    The revision is a content hash of the 200 held-out problem records the esme-posttrain
+    emitter samples over. esme-posttrain pins the same value in its study specifications; if
+    either side changes, the pins diverge, catching silent drift before a report grades arms
+    over mismatched problems.
     """
     problems = load_esme_countdown()
-    assert problems.source.revision == "heldout_fresh+e6e671c24ca56d27"
+    assert problems.source.revision == "heldout_large+164ed5a000dbe017"
 
 
 def test_esme_verifier_rules() -> None:
@@ -128,6 +128,7 @@ def test_esme_wellformed_rules() -> None:
     assert esme_countdown_is_wellformed("9 / 1 + 1", gold) is False  # division illegal
     assert esme_countdown_is_wellformed("9", gold) is False  # not all numbers used
     assert esme_countdown_is_wellformed("1 + 1", gold) is False  # number reuse / omission
+    assert esme_countdown_is_wellformed("1 + + 9", gold) is False  # Esme has no unary ops
     assert esme_countdown_is_wellformed(None, gold) is False
 
 
@@ -169,8 +170,6 @@ def test_sampled_decomp_writes_multiseed_summary(tmp_path: Path) -> None:
             str(base),
             "--task-set",
             "esme-countdown",
-            "--k",
-            "1",
             "--out",
             str(out),
         ],
@@ -184,6 +183,8 @@ def test_sampled_decomp_writes_multiseed_summary(tmp_path: Path) -> None:
     summary = json.loads((out / "sampled_multiseed_summary.json").read_text(encoding="utf-8"))
     assert summary["n_seeds"] == 3
     assert summary["preliminary"] is False
-    assert summary["valid_rate_seed_aggregate"]["mean_delta"] == pytest.approx(1.0)
-    assert summary["valid_rate_seed_aggregate"]["ci_low"] == pytest.approx(1.0)
-    assert summary["conclusion"].startswith("supported:")
+    valid = summary["effects"]["valid_rate"]
+    assert valid["mean_delta"] == pytest.approx(1.0)
+    assert valid["ci_low"] == pytest.approx(1.0)
+    assert valid["sign_flip_p"] == pytest.approx(2 / 2**3)
+    assert summary["arms"]["correct"]["any_exact_rate"] == pytest.approx(1.0)

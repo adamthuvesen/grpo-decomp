@@ -1,22 +1,23 @@
 {
   "backend": "transformers",
-  "commit": "esme-posttrain",
+  "commit": "e8af0b2a71f12143de6f59717094e3d8949ee7f3",
   "dataset": {
-    "config": "heldout_fresh",
+    "config": "heldout_large",
     "name": "esme-countdown",
-    "revision": "heldout_fresh+e6e671c24ca56d27",
-    "split": "heldout_fresh"
+    "revision": "heldout_large+164ed5a000dbe017",
+    "split": "heldout_large"
   },
+  "device": "cuda",
   "dirty": false,
-  "model": "Esme-214M-RL-seed217",
-  "model_revision": null,
-  "n_problems": 30,
+  "model": "heldout_large-real-seed217-step240",
+  "model_revision": "sha256:8cc1159ed5a68c1fce30b30341a9193986148c66b7822dc216776280859017ed",
+  "n_problems": 200,
   "package_versions": {
     "tokenizers": "0.23.1",
     "torch": "2.12.1"
   },
   "prompt_strategy": "esme_countdown_chat",
-  "python_version": "3.12.13",
+  "python_version": "3.12.10",
   "sampling": {
     "max_new_tokens": 12,
     "n": 16,
