@@ -46,6 +46,7 @@ class GenerationProvenance(Record):
     model: str = Field(description="Model id or checkpoint path.")
     model_revision: str | None
     backend: str = Field(description="'transformers' or 'vllm'.")
+    device: str | None = Field(default=None, description="Device the generator ran on.")
     prompt_strategy: str = Field(
         default=DEFAULT_PROMPT_STRATEGY,
         description="Prompt strategy used to build prompts (must match training).",
