@@ -20,6 +20,7 @@ extractor recovers the expression before this verifier grades it.
 
 from __future__ import annotations
 
+import ast
 import json
 from collections import Counter
 from fractions import Fraction
@@ -32,7 +33,7 @@ from llm_grpo_gains.data.countdown import _evaluate_expression, parse_countdown_
 #: The ``DatasetRef.name`` the emitter stamps and the verifier keys on.
 ESME_COUNTDOWN_SOURCE = "esme-countdown"
 
-_FIXTURE_PATH = Path(__file__).parent / "data" / "esme_countdown_heldout_fresh.json"
+_FIXTURE_PATH = Path(__file__).parent / "data" / "esme_countdown_heldout_large.json"
 
 
 @lru_cache(maxsize=1)
@@ -46,10 +47,10 @@ def _load_fixture() -> ProblemSet:
     return ProblemSet(source=ref, problems=problems)
 
 
-def load_esme_countdown(split: str = "heldout_fresh") -> ProblemSet:
+def load_esme_countdown(split: str = "heldout_large") -> ProblemSet:
     """Load the pinned Esme held-out Countdown set (a `ProblemSet`).
 
-    Only ``heldout_fresh`` is registered; the fixture carries its own `DatasetRef`, so a
+    Only ``heldout_large`` is registered; the fixture carries its own `DatasetRef`, so a
     different split name is an explicit error rather than a silent empty set.
     """
     problem_set = _load_fixture()
@@ -59,7 +60,17 @@ def load_esme_countdown(split: str = "heldout_fresh") -> ProblemSet:
 
 
 def _evaluate(text: str) -> tuple[Fraction, list[int]] | None:
-    """Exactly evaluate an Esme Countdown expression, or None if malformed/disallowed."""
+    """Exactly evaluate an Esme Countdown expression, or None if malformed/disallowed.
+
+    Esme's grammar has no unary operators, so ``1 + + 5`` or ``-1 + 5`` is invalid here even
+    though the general Countdown grader accepts unary ±.
+    """
+    try:
+        tree = ast.parse(text.strip(), mode="eval")
+    except SyntaxError:
+        return None
+    if any(isinstance(node, ast.UnaryOp) for node in ast.walk(tree)):
+        return None
     return _evaluate_expression(text, allow_division=False, normalize_operators=False)
 
 
@@ -82,13 +93,10 @@ def is_valid_esme_countdown_solution(text: str, numbers: tuple[int, ...], target
 def is_wellformed_esme_countdown(text: str, numbers: tuple[int, ...]) -> bool:
     """True iff `text` is a legal Esme Countdown-Lite *expression*, target aside.
 
-    Same grammar as `is_valid_esme_countdown_solution` (parses, only ``+ - *`` and unary ±,
+    Same grammar as `is_valid_esme_countdown_solution` (parses, only binary ``+ - *``,
     integer literals, each supplied number used **exactly once**) but with the ``== target``
-    check dropped. This is the axis the training reward's ``valid_expression`` rung pays for
-    (invalid 0.0 < valid 0.3 < exact 1.0): does the model emit a well-formed arithmetic
-    expression over the given numbers at all, independent of whether it hits the target. It is
-    where a real verifier reward concentrates its gradient and where a random-reward placebo
-    has none — so it separates the arms far more sharply than the sparse exact-solve rung.
+    check dropped. The graded training reward pays a valid expression whether or not it hits
+    the target, so this axis shows what that partial credit teaches, apart from exact solving.
     """
     evaluated = _evaluate(text)
     if evaluated is None:
