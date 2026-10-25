@@ -107,15 +107,20 @@ In order of information per GPU dollar:
 3. **A random-reward placebo for the same-base Countdown pair.**
 4. **A non-Qwen family** (Llama), to make the placebo a cross-family result.
 
-## Appendix: Esme-214M (Form, Not Reasoning)
+## Appendix: Esme-214M (A Sum Template, Not Arithmetic)
 
-_trained from scratch · 6 seeds · 30 held-out problems_
+_trained from scratch · 6 seeds · 200 held-out problems_
 
 A side study on a 214M model from the
 [Esme](https://github.com/adamthuvesen/esme-pretrain/blob/main/docs/retrospective.md)
-pretraining project. Real reward teaches well-formed Countdown expressions: the
-valid-expression rate is 85.4% for real reward vs 0.8% for the placebo,
-**+84.7 pp, 95% CI [+60.1, +97.5]**. Exact solving barely clears zero.
+pretraining project, trained with GRPO in
+[esme-posttrain](https://github.com/adamthuvesen/esme-posttrain/blob/main/docs/rlvr-research-report.md).
+Against a random-reward placebo at the same training step, real reward raises the
+valid-expression rate on held-out Countdown by **+96.6 pp, 95% CI [+95.9, +97.3]**, and
+exact solves by +6.2 pp per sample. The controls show what the gain is. 97.7% of
+real-reward samples write the sum of the numbers. Every seed solves the 13 tasks whose
+target is that sum, and across six seeds only one other task. The reward teaches a
+template, not arithmetic.
 `make reproduce-esme` recomputes this result from the committed raw completions.
 [Findings](results/esme-countdown/sampled_decomposition.md).
 

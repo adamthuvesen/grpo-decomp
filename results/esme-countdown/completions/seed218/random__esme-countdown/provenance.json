@@ -1,0 +1,28 @@
+{
+  "backend": "transformers",
+  "commit": "e8af0b2a71f12143de6f59717094e3d8949ee7f3",
+  "dataset": {
+    "config": "heldout_large",
+    "name": "esme-countdown",
+    "revision": "heldout_large+164ed5a000dbe017",
+    "split": "heldout_large"
+  },
+  "device": "cuda",
+  "dirty": false,
+  "model": "heldout_large-placebo-seed218-step240",
+  "model_revision": "sha256:015189e7e245a250afb710a8b1669c00b5aee70535e3c332fd8076c4f02375bb",
+  "n_problems": 200,
+  "package_versions": {
+    "tokenizers": "0.23.1",
+    "torch": "2.12.1"
+  },
+  "prompt_strategy": "esme_countdown_chat",
+  "python_version": "3.12.10",
+  "sampling": {
+    "max_new_tokens": 12,
+    "n": 16,
+    "seed": 0,
+    "temperature": 1.0,
+    "top_p": 1.0
+  }
+}

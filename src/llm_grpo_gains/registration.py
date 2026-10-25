@@ -64,7 +64,7 @@ def register() -> None:
     register_eval_set("countdown-test", lambda: load_countdown("test"))
     # Esme-214M-RL decomposition: the held-out Countdown-Lite set the esme-posttrain
     # emitter samples over. The completions arrive as artifacts; the harness only grades.
-    register_eval_set("esme-countdown", lambda: load_esme_countdown("heldout_fresh"))
+    register_eval_set("esme-countdown", lambda: load_esme_countdown("heldout_large"))
 
     # Training datasets (ArmConfig.dataset). GSM8K carves a per-seed validation split from
     # train; Countdown ships a fixed, seed-independent one.

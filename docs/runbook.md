@@ -66,10 +66,10 @@ make reproduce-esme
 ```
 
 This recomputes the Esme sampled decomposition from the raw completions in
-`results/esme-countdown/completions/` (6 seeds × correct/random arms, plus the base
-model). It writes the summary to a temporary directory and fails if it differs from
+`results/esme-countdown/completions/` (6 seeds × correct/random arms at training step 240,
+plus the base model, on 200 held-out tasks). It writes the summary to a temporary directory and fails if it differs from
 `results/esme-countdown/sampled_multiseed_summary.json`. CI runs it on every push. It needs
-no GPU or network and takes about 10 seconds.
+no GPU or network and takes about 5 seconds.
 
 Expected strict accuracy:
 

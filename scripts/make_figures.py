@@ -440,56 +440,76 @@ def _decontam_figure(test: dict, symbolic: dict, platinum: dict) -> None:
     plt.close(fig)
 
 
-def _esme_sampled_figure(summary: dict) -> None:
-    """Esme's held-out signal is form first, exact solving second."""
-    valid = {
-        "base": summary["arms"]["base"]["valid_rate"] * PP,
-        "random": summary["arms"]["random"]["mean_valid_rate"] * PP,
-        "correct": summary["arms"]["correct"]["mean_valid_rate"] * PP,
+def _esme_sum_template_figure(summary: dict) -> None:
+    """Esme's real-reward gain is the sum template, and it solves only sum-target tasks."""
+    arms = ("base", "random", "correct")
+    labels = {"base": "base", "random": "placebo", "correct": "real reward"}
+    rows = summary["arms"]
+    sum_rate = {arm: rows[arm]["sum_template_rate"] * PP for arm in arms}
+    other_valid = {
+        arm: (rows[arm]["valid_rate"] - rows[arm]["sum_template_rate"]) * PP for arm in arms
     }
-    pass16 = {
-        "base": summary["arms"]["base"]["pass_at_k"]["16"] * PP,
-        "random": summary["arms"]["random"]["mean_pass_at_k"]["16"] * PP,
-        "correct": summary["arms"]["correct"]["mean_pass_at_k"]["16"] * PP,
-    }
-    valid_test = summary["valid_rate_seed_aggregate"]
-    seed_note = f"{summary['n_seeds']} training seeds; the CI resamples seeds and problems."
-    subtitle = (
-        "Held-out Countdown-Lite: seed-aggregated validity separates real reward from placebo."
+    solved_sum = {arm: float(rows[arm]["solved_sum_target"]) for arm in arms}
+    solved_other = {arm: float(rows[arm]["solved_other"]) for arm in arms}
+    valid_effect = summary["effects"]["valid_rate"]
+    n_sum = summary["n_sum_target_problems"]
+    n_problems = summary["n_problems"]
+    seed_note = (
+        f"{summary['n_seeds']} training seeds per arm, all at the same training step; "
+        f"{summary['n_samples']} samples per task. The CI resamples seeds and problems."
     )
 
-    valid_axis_max = 100.0 if max(valid.values()) > 30.0 else 30.0
-    pass16_axis_max = 100.0 if max(pass16.values()) > 30.0 else 30.0
+    def panel(
+        values_low: dict,
+        values_high: dict,
+        axis_max: float,
+        tick_values: list[float],
+        tick_fmt: str,
+    ) -> str:
+        def y(value: float) -> float:
+            return 300 - (value / axis_max) * 220
 
-    def y(value: float, axis_max: float) -> float:
-        return 300 - (value / axis_max) * 260
-
-    def h(value: float, axis_max: float) -> float:
-        return (value / axis_max) * 260
-
-    def ticks(axis_max: float) -> str:
-        values = [0.0, 25.0, 50.0, 75.0, 100.0] if axis_max == 100.0 else [0.0, 10.0, 20.0, 30.0]
         parts = []
-        for value in values:
-            y_pos = y(value, axis_max)
+        for value in tick_values:
             parts.append(
-                f'    <line class="grid" x1="0" y1="{y_pos:.1f}" x2="330" y2="{y_pos:.1f}"/>'
+                f'    <line class="grid" x1="0" y1="{y(value):.1f}" x2="330" y2="{y(value):.1f}"/>'
             )
             parts.append(
-                f'    <text class="tick" x="-24" y="{y_pos + 4:.1f}" '
-                f'text-anchor="end">{value:.0f}%</text>'
+                f'    <text class="tick" x="-12" y="{y(value) + 4:.1f}" '
+                f'text-anchor="end">{tick_fmt.format(value)}</text>'
+            )
+        parts.append('    <line class="axis" x1="0" y1="80" x2="0" y2="300"/>')
+        parts.append('    <line class="axis" x1="0" y1="300" x2="330" y2="300"/>')
+        for i, arm in enumerate(arms):
+            x = 50 + 88 * i
+            low, high = values_low[arm], values_high[arm]
+            parts.append(
+                f'    <rect x="{x}" y="{y(low):.1f}" width="54" height="{300 - y(low):.1f}" '
+                f'fill="#ef553b"/>'
+            )
+            parts.append(
+                f'    <rect x="{x}" y="{y(low + high):.1f}" width="54" '
+                f'height="{y(low) - y(low + high):.1f}" fill="#c7d2e8"/>'
+            )
+            parts.append(
+                f'    <text class="value" x="{x + 27}" y="{y(low + high) - 10:.1f}" '
+                f'text-anchor="middle">{tick_fmt.format(low + high)}</text>'
+            )
+            parts.append(
+                f'    <text class="label" x="{x + 27}" y="326" '
+                f'text-anchor="middle">{labels[arm]}</text>'
             )
         return "\n".join(parts)
 
-    valid_ticks = ticks(valid_axis_max)
-    pass16_ticks = ticks(pass16_axis_max)
+    valid_panel = panel(sum_rate, other_valid, 100.0, [0.0, 25.0, 50.0, 75.0, 100.0], "{:.1f}%")
+    solved_panel = panel(solved_sum, solved_other, 15.0, [0.0, 5.0, 10.0, 15.0], "{:.1f}")
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="920" height="620"
   viewBox="0 0 920 620" role="img" aria-labelledby="title desc">
-  <title id="title">Esme-214M-RL sampled decomposition</title>
-  <desc id="desc">Two-panel chart showing that Esme-214M-RL separates from placebo on
-    valid-expression form, while exact solving moves in the same direction but is
-    underpowered.</desc>
+  <title id="title">Esme-214M-RL learns the sum of the numbers</title>
+  <desc id="desc">Two-panel chart. Left: almost every valid real-reward sample is the sum of
+    the supplied numbers, while base and placebo stay near zero. Right: real reward solves
+    the {n_sum} held-out tasks whose target is the sum, and almost no others.</desc>
   <style>
     .bg {{ fill: #ffffff; }}
     .panel {{ fill: #ffffff; stroke: #d9dde7; stroke-width: 1; }}
@@ -507,72 +527,35 @@ def _esme_sampled_figure(summary: dict) -> None:
   <rect class="bg" width="920" height="620" rx="10"/>
   <rect class="panel" x="28" y="24" width="864" height="560" rx="8"/>
 
-  <text class="title" x="56" y="64">Esme-214M-RL: reward sharpens form first</text>
-  <text class="subtitle" x="56" y="88">{subtitle}</text>
+  <text class="title" x="56" y="64">Esme-214M-RL: real reward teaches the sum of the numbers</text>
+  <text class="subtitle" x="56" y="88">Held-out Countdown-Lite, {n_problems} tasks.
+    Red marks the sum template.</text>
 
   <g transform="translate(90 142)">
-    <text class="label" x="0" y="0">Form validity</text>
-    <text class="small" x="0" y="24">valid-expression rate, 16 samples/problem</text>
-{valid_ticks}
-    <line class="axis" x1="0" y1="40" x2="0" y2="300"/>
-    <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
-    <rect x="50" y="{y(valid["base"], valid_axis_max):.1f}" width="54"
-      height="{h(valid["base"], valid_axis_max):.1f}" fill="#c7d2e8" rx="4"/>
-    <rect x="138" y="{y(valid["random"], valid_axis_max):.1f}" width="54"
-      height="{h(valid["random"], valid_axis_max):.1f}" fill="#aeb6ff" rx="4"/>
-    <rect x="226" y="{y(valid["correct"], valid_axis_max):.1f}" width="54"
-      height="{h(valid["correct"], valid_axis_max):.1f}" fill="#ef553b" rx="4"/>
-    <text class="value" x="77" y="{y(valid["base"], valid_axis_max) - 10:.1f}"
-      text-anchor="middle">{valid["base"]:.1f}%</text>
-    <text class="value" x="165" y="{y(valid["random"], valid_axis_max) - 10:.1f}"
-      text-anchor="middle">{valid["random"]:.1f}%</text>
-    <text class="value" x="253" y="{y(valid["correct"], valid_axis_max) - 10:.1f}"
-      text-anchor="middle">{valid["correct"]:.1f}%</text>
-    <text class="label" x="77" y="326" text-anchor="middle">base</text>
-    <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
-    <text class="label" x="253" y="326" text-anchor="middle">real reward</text>
-    <text class="value" x="165" y="74" text-anchor="middle">
-      +{valid_test["mean_delta"] * PP:.1f} pp</text>
-    <text class="small" x="165" y="94" text-anchor="middle">
-      95% CI [{valid_test["ci_low"] * PP:.1f}, {valid_test["ci_high"] * PP:.1f}]
-    </text>
+    <text class="label" x="0" y="0">Valid expressions</text>
+    <text class="small" x="0" y="24">% of samples; red = the sum of the numbers</text>
+{valid_panel}
+    <text class="small" x="0" y="44">valid vs placebo: +{valid_effect["mean_delta"] * PP:.1f} pp,
+      95% CI [{valid_effect["ci_low"] * PP:.1f}, {valid_effect["ci_high"] * PP:.1f}]</text>
   </g>
 
   <g transform="translate(512 142)">
-    <text class="label" x="0" y="0">Exact solving</text>
-    <text class="small" x="0" y="24">pass@16 exact solve rate</text>
-{pass16_ticks}
-    <line class="axis" x1="0" y1="40" x2="0" y2="300"/>
-    <line class="axis" x1="0" y1="300" x2="330" y2="300"/>
-    <rect x="50" y="{y(pass16["base"], pass16_axis_max):.1f}" width="54"
-      height="{h(pass16["base"], pass16_axis_max):.1f}" fill="#c7d2e8" rx="4"/>
-    <rect x="138" y="{y(pass16["random"], pass16_axis_max):.1f}" width="54"
-      height="{h(pass16["random"], pass16_axis_max):.1f}" fill="#aeb6ff" rx="4"/>
-    <rect x="226" y="{y(pass16["correct"], pass16_axis_max):.1f}" width="54"
-      height="{h(pass16["correct"], pass16_axis_max):.1f}" fill="#ef553b" rx="4"/>
-    <text class="value" x="77" y="{y(pass16["base"], pass16_axis_max) - 10:.1f}"
-      text-anchor="middle">{pass16["base"]:.1f}%</text>
-    <text class="value" x="165" y="{y(pass16["random"], pass16_axis_max) - 10:.1f}"
-      text-anchor="middle">{pass16["random"]:.1f}%</text>
-    <text class="value" x="253" y="{y(pass16["correct"], pass16_axis_max) - 10:.1f}"
-      text-anchor="middle">{pass16["correct"]:.1f}%</text>
-    <text class="label" x="77" y="326" text-anchor="middle">base</text>
-    <text class="label" x="165" y="326" text-anchor="middle">placebo</text>
-    <text class="label" x="253" y="326" text-anchor="middle">real reward</text>
+    <text class="label" x="0" y="0">Tasks solved at least once</text>
+    <text class="small" x="0" y="24">mean per seed, of {n_problems}</text>
+    <text class="small" x="0" y="44">red = the {n_sum} tasks whose target is the sum</text>
+{solved_panel}
   </g>
 
-  <g transform="translate(506 520)">
-    <rect x="0" y="-10" width="12" height="12" fill="#c7d2e8" rx="2"/>
-    <text class="legend" x="18" y="1">base</text>
-    <rect x="78" y="-10" width="12" height="12" fill="#aeb6ff" rx="2"/>
-    <text class="legend" x="96" y="1">placebo</text>
-    <rect x="176" y="-10" width="12" height="12" fill="#ef553b" rx="2"/>
-    <text class="legend" x="194" y="1">real reward</text>
+  <g transform="translate(470 520)">
+    <rect x="0" y="-10" width="12" height="12" fill="#ef553b" rx="2"/>
+    <text class="legend" x="18" y="1">sum of the numbers / sum-target task</text>
+    <rect x="270" y="-10" width="12" height="12" fill="#c7d2e8" rx="2"/>
+    <text class="legend" x="288" y="1">anything else</text>
   </g>
   <text class="small" x="56" y="560">{seed_note}</text>
 </svg>
 """
-    (HERE / "esme-countdown" / "fig-sampled-form-vs-exact.svg").write_text(svg, encoding="utf-8")
+    (HERE / "esme-countdown" / "fig-sum-template.svg").write_text(svg, encoding="utf-8")
 
 
 def main() -> None:
@@ -583,19 +566,17 @@ def main() -> None:
     mech_cd = _load_record(HERE / "countdown" / "mechanism.json", MechanismReport)
     symbolic = _load_record(HERE / "decontam" / "pass8-symbolic.json", PassKMultiSeed)
     platinum = _load_record(HERE / "decontam" / "pass8-platinum.json", PassKMultiSeed)
-    esme_sampled = json.loads(
-        (HERE / "esme-countdown" / "sampled_multiseed_summary.json").read_text()
-    )
+    esme = json.loads((HERE / "esme-countdown" / "sampled_multiseed_summary.json").read_text())
     _placebo_comparison_figure(placebo)
     _passk_curve_figure(panel)
     _contrast_figure(panel, countdown)
     _mechanism_figure(mech, mech_cd)
     _decontam_figure(panel, symbolic, platinum)
-    _esme_sampled_figure(esme_sampled)
+    _esme_sum_template_figure(esme)
     print(
         "wrote fig-placebo-comparison.png, fig-passk-curve.png, fig-passk-contrast.png, "
         "fig-mechanism.png, decontam/fig-decontam.png, "
-        "esme-countdown/fig-sampled-form-vs-exact.svg"
+        "esme-countdown/fig-sum-template.svg"
     )
 
 
