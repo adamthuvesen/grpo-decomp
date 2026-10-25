@@ -1,4 +1,4 @@
-"""McNemar's paired significance test for two models on a shared test set.
+"""Paired significance tests: McNemar per problem, and an exact sign flip per seed.
 
 eval-audit provides the bootstrap CI but not a paired *significance* test, so this
 is local: the exact two-sided binomial on the discordant pairs when they are few
@@ -8,6 +8,7 @@ with continuity correction otherwise.
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Sequence
 
 import numpy as np
@@ -40,6 +41,27 @@ def mcnemar(correct_a: Sequence[bool], correct_b: Sequence[bool]) -> tuple[float
         return float(p), discordant, "exact-binomial"
     stat = (abs(a_only - b_only) - 1) ** 2 / discordant
     return float(chi2.sf(stat, df=1)), discordant, "chi2"
+
+
+#: 2**16 sign assignments is the largest exact enumeration kept cheap.
+_MAX_SIGN_FLIP_SEEDS = 16
+
+
+def sign_flip_p_value(seed_effects: Sequence[float]) -> float:
+    """Exact two-sided sign-flip permutation p-value for the mean of paired seed effects.
+
+    Under the null each seed's treatment-minus-control effect is equally likely to carry
+    either sign, so every sign assignment is enumerated. With n seeds the smallest possible
+    p is ``2 / 2**n`` (0.031 for six seeds), however large the effect.
+    """
+    values = np.asarray(seed_effects, dtype=float)
+    if values.size == 0:
+        raise ValueError("no seed effects")
+    if values.size > _MAX_SIGN_FLIP_SEEDS:
+        raise ValueError(f"exact sign flip supports at most {_MAX_SIGN_FLIP_SEEDS} seeds")
+    signs = np.array(list(itertools.product((1.0, -1.0), repeat=values.size)))
+    permuted = np.abs((signs * values).mean(axis=1))
+    return float(np.mean(permuted >= abs(values.mean()) - 1e-12))
 
 
 def holm_correction(p_values: Sequence[float]) -> tuple[float, ...]:

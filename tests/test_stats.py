@@ -7,7 +7,7 @@ import pytest
 from grpo_decomp.stats.bootstrap import bootstrap_mean_ci, seed_problem_bootstrap_ci
 from grpo_decomp.stats.compare import compare
 from grpo_decomp.stats.seed_aggregate import seed_level_mean_ci
-from grpo_decomp.stats.significance import holm_correction, mcnemar
+from grpo_decomp.stats.significance import holm_correction, mcnemar, sign_flip_p_value
 
 
 def _by_id(values: list[bool]) -> dict[str, bool]:
@@ -105,8 +105,7 @@ def test_bootstrap_mean_ci_rejects_empty() -> None:
 
 
 def test_seed_problem_bootstrap_stays_inside_the_rate_range_where_a_t_interval_does_not() -> None:
-    # One bad seed among near-ceiling seeds: the Esme validity shape that pushed a df=5
-    # t interval past +100 pp.
+    # One bad seed among near-ceiling seeds pushes a df=5 t interval past +100 pp.
     deltas = [[0.25] * 30] + [[0.97] * 30] * 5
     _mean, _sem, _t_low, t_high, _kind = seed_level_mean_ci([row[0] for row in deltas])
     mean, ci_low, ci_high = seed_problem_bootstrap_ci(deltas)
@@ -151,3 +150,8 @@ def test_holm_correction_validates() -> None:
         holm_correction([])
     with pytest.raises(ValueError, match=r"\[0, 1\]"):
         holm_correction([0.5, 1.2])
+
+
+def test_sign_flip_floor_is_two_over_two_to_the_n() -> None:
+    assert sign_flip_p_value([0.9, 0.95, 0.97, 0.96, 0.96, 0.98]) == pytest.approx(2 / 64)
+    assert sign_flip_p_value([0.1, -0.1, 0.1, -0.1]) == pytest.approx(1.0)
