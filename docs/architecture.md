@@ -397,6 +397,22 @@ problem ids across compared arms.
 
 ---
 
+## Plug in your own model and task
+
+The harness takes any model (`base_model` / `--model` is a free HF id or path) and any task
+through registries. No fork is required:
+
+1. Write a `register()` that calls `register_eval_set`, `register_train_dataset`,
+   `register_reward`, `register_verifier` (if not boxed-math), and
+   `register_validation_reconstructor` (for held-out diagnostics). Optionally
+   `register_prompt_strategy` for a chat-template model; the harness default is `r1_zero`.
+2. Declare it under the `grpo_decomp.plugins` entry-point group so the CLI/Modal discover it.
+3. Point an `ArmConfig` at your `base_model` + your registered `reward`/`dataset`/`prompt_strategy`.
+
+[`llm_grpo_gains/registration.py`](../src/llm_grpo_gains/registration.py) is the worked example.
+
+---
+
 ## Repository layout
 
 ```

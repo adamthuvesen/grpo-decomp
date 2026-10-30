@@ -24,12 +24,14 @@ uv sync --locked --extra dev --extra eval --extra generate  # local transformers
 ## GPU Runs On Modal
 
 Training and generation run on Modal (one A100-80GB per arm) and log curves to W&B.
+Every launch spends money, so each Modal entry point refuses to run without `--approved`.
+Add the flag only after Adam approves the run.
 `modal_app.py` imports the project, so run the Modal CLI from the project environment:
 
 ```bash
 uv run modal setup
 uv run modal secret create wandb WANDB_API_KEY="$WANDB_API_KEY"
-uv run modal run --detach modal_app.py --arm configs/correct.yaml
+uv run modal run --detach modal_app.py --approved --arm configs/correct.yaml
 ```
 
 Runs write checkpoints and completions to the `assay-runs` Volume. Launch several arms
@@ -44,10 +46,10 @@ make verify
 `make verify` runs the complete locked offline gate described in [development.md](development.md).
 It includes types, import boundaries, the installed wheel, unit tests, public results, and figures.
 
-To rebuild public figures from committed JSON:
+To rewrite the committed figures from result JSON:
 
 ```bash
-make results
+make figures
 ```
 
 ## CPU Demo
@@ -94,11 +96,11 @@ problems, and provenance. `battery` grades that artifact offline.
 
 ## Reproduce Published Results
 
-The committed JSON and figures can be checked locally:
+The committed JSON and figures can be checked locally without rewriting them:
 
 ```bash
 make install
-make results
+make results-check
 ```
 
 To re-derive JSON, place matching `CompletionSet` directories under `runs/` and
@@ -109,7 +111,8 @@ make aggregate
 uv run grpo-decomp report-seeds --task-set gsm8k-test \
   --battery-dirs runs/battery runs/battery-seed{1,2,3,4,5} \
   --out results/seed-placebo-comparison.json
-make results
+make figures
+make check   # includes the docs <-> JSON consistency test
 ```
 
 `make aggregate` rebuilds the pass@k, mechanism, control, Countdown, same-base
@@ -123,12 +126,12 @@ The two follow-ups in `results/preregistration-2026-10.md` train six arms and ge
 eval sets. Launch the training runs about 40 seconds apart (Modal rate-limits app creation):
 
 ```bash
-uv run modal run --detach modal_app.py --arm configs/offpolicy-random.yaml
-uv run modal run --detach modal_app.py --arm configs/offpolicy-random-seed1.yaml
-uv run modal run --detach modal_app.py --arm configs/offpolicy-random-seed2.yaml
-uv run modal run --detach modal_app.py --arm configs/countdown-math-correct.yaml
-uv run modal run --detach modal_app.py --arm configs/countdown-math-correct-seed1.yaml
-uv run modal run --detach modal_app.py --arm configs/countdown-math-correct-seed2.yaml
+uv run modal run --detach modal_app.py --approved --arm configs/offpolicy-random.yaml
+uv run modal run --detach modal_app.py --approved --arm configs/offpolicy-random-seed1.yaml
+uv run modal run --detach modal_app.py --approved --arm configs/offpolicy-random-seed2.yaml
+uv run modal run --detach modal_app.py --approved --arm configs/countdown-math-correct.yaml
+uv run modal run --detach modal_app.py --approved --arm configs/countdown-math-correct-seed1.yaml
+uv run modal run --detach modal_app.py --approved --arm configs/countdown-math-correct-seed2.yaml
 ```
 
 When each run resolves to one completed attempt, generate the eval sets.
@@ -136,10 +139,10 @@ A final directory alone does not establish completion for new attempts. Seed 0 o
 battery also generates the base model:
 
 ```bash
-uv run modal run --detach modal_app.py --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 0
-uv run modal run --detach modal_app.py --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 1
-uv run modal run --detach modal_app.py --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 2
-uv run modal run --detach modal_app.py --command passk-multiseed --task countdown-math --correct-seeds 0,1,2
+uv run modal run --detach modal_app.py --approved --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 0
+uv run modal run --detach modal_app.py --approved --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 1
+uv run modal run --detach modal_app.py --approved --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 2
+uv run modal run --detach modal_app.py --approved --command passk-multiseed --task countdown-math --correct-seeds 0,1,2
 ```
 
 Pull them into the layout `make aggregate` reads. Seed labels come from the directory
@@ -182,4 +185,7 @@ Choose the intended execution before generation. Do not count retries as indepen
 `make study-validate` reports all missing inputs before `make aggregate` writes outputs.
 `make results-check` verifies public artifacts in temporary directories without rewriting them.
 External CompletionSets, GPU training, and Modal persistence require separate verification.
+The local GPU smoke needs CUDA, the locked `train` extra, and a local model directory:
+`GRPO_GPU_MODEL=/absolute/local/model make verify-gpu`. It checks real vLLM generation and
+grading. It does not verify training or launch Modal jobs.
 See [development.md](development.md#external-verification) for exact boundaries.

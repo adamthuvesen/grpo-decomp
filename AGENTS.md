@@ -28,18 +28,18 @@ make verify         # check + result reproduction + installed-wheel smoke (CI ma
 make demo           # score committed mini CompletionSets; no model load
 make help           # focused checks and study commands
 
-modal run --detach modal_app.py --arm configs/correct.yaml  # paid A100 run: see docs/runbook.md
+modal run --detach modal_app.py --approved --arm configs/correct.yaml  # paid A100: only after Adam approves
 grpo-decomp battery --completions runs/base__dev --k 1      # grade a CompletionSet (CPU)
 ```
 
 Only `generate` and training need a model or GPU. Grading and reports run on CPU.
-Do not start Modal or GPU jobs without an explicit request: they cost money.
 
 ## Enforced Rules
 
 | Rule | Enforced by | Added |
 | --- | --- | --- |
 | The harness never imports the study | `pyproject.toml::[tool.importlinter]`, `tests/test_architecture.py::test_harness_imports_without_a_study_or_gpu_stack` | 2026-11-05 |
+| A paid Modal launch refuses to run without `--approved` | `modal_app.py::_require_approval`, `tests/test_modal_app.py::test_every_modal_entry_point_requires_approval`, `tests/test_modal_app.py::test_unapproved_launch_refuses_with_the_exact_approved_command` | 2026-11-06 |
 | No new runtime dependency without asking Adam | `tests/test_packaging.py::test_runtime_dependencies_are_the_approved_stack` | 2026-11-06 |
 | TRL and vLLM stay exact `==` pins | `tests/test_packaging.py::test_trl_and_vllm_are_exact_pins`, `uv.lock` | 2026-11-06 |
 | Fewer than three seeds is labeled preliminary | `src/grpo_decomp/report/status.py::MIN_HEADLINE_SEEDS`, `tests/test_passk_seeds.py::test_below_min_seeds_is_preliminary` | 2026-07-01 |
@@ -75,24 +75,11 @@ dependencies are listed in `tests/test_packaging.py`; dev-only tools go in the `
 The rationale lives in
 [`docs/architecture.md`](docs/architecture.md#design-rules-that-shaped-the-code).
 
-## Plug In Your Own Model + Task
-
-The harness takes any model (`base_model` / `--model` is a free HF id or path) and any task
-through registries. No fork is required:
-
-1. Write a `register()` that calls `register_eval_set`, `register_train_dataset`,
-   `register_reward`, `register_verifier` (if not boxed-math), and
-   `register_validation_reconstructor` (for held-out diagnostics). Optionally
-   `register_prompt_strategy` for a chat-template model; the harness default is `r1_zero`.
-2. Declare it under the `grpo_decomp.plugins` entry-point group so the CLI/Modal discover it.
-3. Point an `ArmConfig` at your `base_model` + your registered `reward`/`dataset`/`prompt_strategy`.
-
-`llm_grpo_gains/registration.py` is the worked example.
-
 ## Pointers
 
 | Topic | Doc |
 | --- | --- |
 | Architecture, data flow, module map, Modal execution | [docs/architecture.md](docs/architecture.md) |
+| Plug in your own model and task | [docs/architecture.md](docs/architecture.md#plug-in-your-own-model-and-task) |
 | Which module owns a change, and its focused check | [docs/development.md](docs/development.md) |
 | Training a GRPO arm on Modal, reproducing results | [docs/runbook.md](docs/runbook.md) |

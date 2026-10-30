@@ -66,9 +66,7 @@ Coverage and reliability transitions remain descriptive measurements, not causal
 `make test-integration` requires the `generate` extra and network access to Hugging Face.
 Missing dependencies fail explicitly. It exercises dataset loaders and real transformers generation.
 
-`make gpu-plan` describes the local CUDA test. `GRPO_GPU_MODEL=/local/model make verify-gpu`
-requires installed training dependencies, CUDA, and an existing model. It performs real vLLM
-generation and grading. It neither provisions hardware nor verifies training.
+[runbook.md](runbook.md) gives the prerequisites for the local CUDA smoke, `make verify-gpu`.
 
 A training release also needs a bounded real training run, final-checkpoint loading, cleanup checks,
 and held-out reconstruction on the intended GPU stack. Modal needs an authorized deployment check,

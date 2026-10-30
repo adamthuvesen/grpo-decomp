@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := check
 .NOTPARALLEL: check verify
-.PHONY: help install sync-check fmt lint imports typecheck test test-integration verify-gpu gpu-plan check verify demo results results-check aggregate study-plan study-validate test-docs reproduce-esme
+.PHONY: help install sync-check fmt lint imports typecheck test test-integration verify-gpu check verify demo figures results-check aggregate study-plan study-validate reproduce-esme
 
 RUN := uv run --locked --offline --no-sync
 
@@ -34,9 +34,6 @@ test-integration:  ## Run network and real transformers tests, with required dep
 	@$(RUN) python -c "import importlib.util, sys; missing = [name for name in ('torch', 'transformers') if importlib.util.find_spec(name) is None]; sys.exit('Missing integration dependencies: ' + ', '.join(missing) + '. Run uv sync --locked --extra dev --extra eval --extra generate') if missing else None"
 	$(RUN) pytest -m 'integration and not gpu'
 
-gpu-plan:  ## Show the explicit local GPU smoke prerequisites without starting a job
-	@printf '%s\n' 'GPU smoke: local CUDA hardware, the locked train extra, and a local model directory.' 'Run: GRPO_GPU_MODEL=/absolute/local/model make verify-gpu' 'This verifies real vLLM generation and grading. It does not verify training or launch Modal jobs.' 'Training jobs and paid hardware require the explicit scope in docs/runbook.md.'
-
 verify-gpu:  ## Run real local vLLM generation, fail when GPU prerequisites are absent
 	$(RUN) pytest tests/integration/test_gpu.py -m gpu
 
@@ -45,18 +42,14 @@ check: sync-check lint imports typecheck test  ## Fast offline gate, the first C
 verify: check results-check  ## Full offline gate: fast lane, result reproduction, installed wheel
 	$(RUN) pytest -m slow
 
-test-docs:  ## Check published documentation against committed result JSON
-	$(RUN) pytest tests/test_docs_consistency.py
-
 demo:  ## Score committed mini CompletionSets without loading a model
 	$(RUN) grpo-decomp battery --completions tests/fixtures/mini/base__mini --k 1
 	$(RUN) grpo-decomp battery --completions tests/fixtures/mini/correct-seed0__mini --k 1
 
-results:  ## Regenerate figures from published JSON and verify documented numbers
+figures:  ## Rewrite the committed figures from published result JSON
 	$(RUN) python scripts/make_figures.py
-	$(RUN) pytest tests/test_docs_consistency.py
 
-results-check: reproduce-esme  ## Compare committed Esme results and regenerate figures in a temporary directory
+results-check: reproduce-esme  ## Read-only: reproduce Esme results and compare figures in a temp dir
 	$(RUN) python -m llm_grpo_gains.workflows figures-check
 
 study-plan:  ## Show every study route, seed axis, output, and reproduction level

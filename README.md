@@ -158,7 +158,8 @@ run volumes or checkpoints. Module map and data flow: [docs/architecture.md](doc
 make install   # CPU env: data, rewards, eval, stats, reports, tests
 make check     # fast locked offline gate: lint, imports, types, fast tests
 make verify    # check plus results, figures, docs, and the installed wheel
-make results   # rebuild committed figures from JSON, then docs <-> JSON check
+make figures   # rewrite committed figures from result JSON
+make results-check  # read-only: reproduce results and compare figures
 make demo      # score two tiny committed CompletionSets; no model load
 make reproduce-esme  # reproduce the historical Esme result without rewriting it
 ```
@@ -181,7 +182,7 @@ To add a task, write a `register()` that registers your eval set, train dataset,
 reward (plus a verifier and validation reconstructor for non-boxed-math tasks), then
 declare it under the `grpo_decomp.plugins` entry point.
 [src/llm_grpo_gains/registration.py](src/llm_grpo_gains/registration.py) is the worked
-example.
+example. Step-by-step: [docs/architecture.md](docs/architecture.md#plug-in-your-own-model-and-task).
 
 ## Study Rules
 
