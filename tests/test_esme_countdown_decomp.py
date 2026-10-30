@@ -132,6 +132,7 @@ def test_esme_wellformed_rules() -> None:
     assert esme_countdown_is_wellformed(None, gold) is False
 
 
+@pytest.mark.slow
 def test_sampled_decomp_writes_multiseed_summary(tmp_path: Path) -> None:
     problems = load_esme_countdown()
     solutions = {

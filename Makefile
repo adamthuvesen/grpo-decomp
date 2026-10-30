@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := check
-.NOTPARALLEL: check
-.PHONY: help install sync-check fmt lint imports typecheck test test-integration verify-gpu gpu-plan check demo results results-check aggregate study-plan study-validate test-docs reproduce-esme
+.NOTPARALLEL: check verify
+.PHONY: help install sync-check fmt lint imports typecheck test test-integration verify-gpu gpu-plan check verify demo results results-check aggregate study-plan study-validate test-docs reproduce-esme
 
 RUN := uv run --locked --offline --no-sync
 
@@ -27,7 +27,7 @@ imports:  ## Enforce the one-way harness and study import boundary
 typecheck:  ## Check source-package type annotations
 	$(RUN) mypy
 
-test:  ## Run all offline CPU tests, including the installed-wheel smoke
+test:  ## Run the fast offline CPU tests
 	$(RUN) pytest
 
 test-integration:  ## Run network and real transformers tests, with required dependencies
@@ -40,7 +40,10 @@ gpu-plan:  ## Show the explicit local GPU smoke prerequisites without starting a
 verify-gpu:  ## Run real local vLLM generation, fail when GPU prerequisites are absent
 	$(RUN) pytest tests/integration/test_gpu.py -m gpu
 
-check: sync-check lint imports typecheck test results-check  ## Complete offline CPU gate, shared with CI
+check: sync-check lint imports typecheck test  ## Fast offline gate, the first CI job
+
+verify: check results-check  ## Full offline gate: fast lane, result reproduction, installed wheel
+	$(RUN) pytest -m slow
 
 test-docs:  ## Check published documentation against committed result JSON
 	$(RUN) pytest tests/test_docs_consistency.py

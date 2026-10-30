@@ -1,8 +1,10 @@
 # Development and verification
 
 Start with `make install`, then `make help`. Installation may access the network.
-`make check` uses the lockfile and runs without network access after installation.
-CI calls the same command on macOS and Linux with Python 3.13 and 3.14.
+`make check` is the fast offline gate and the first CI job. `make verify` adds slow work:
+result reproduction, figures, and the installed-wheel smoke. Both use the lockfile and run
+without network access after installation. CI runs `make verify` on macOS and Linux with
+Python 3.13 and 3.14.
 
 ## Ownership and focused changes
 
@@ -17,31 +19,20 @@ CI calls the same command on macOS and Linux with Python 3.13 and 3.14.
 | Countdown arithmetic | `llm_grpo_gains/data/countdown.py` | `uv run pytest tests/test_countdown_grammar.py tests/test_rewards.py` |
 | Study inventory and reproduction | `llm_grpo_gains/workflows.py` | `make study-plan`, `make results-check` |
 | Esme analysis and figures | `llm_grpo_gains/esme_analysis.py`, `figures.py` | `make reproduce-esme`, `make results-check` |
-| Package and dependency boundary | `pyproject.toml`, `uv.lock` | `make imports`, `uv run pytest tests/test_packaging.py tests/test_architecture.py` |
+| Package and dependency boundary | `pyproject.toml`, `uv.lock` | `make imports`, `uv run pytest tests/test_packaging.py`, `make verify` |
 
 Run `make check` after the focused checks pass. It includes lint, formatting, imports,
-types, offline tests, installed-wheel verification, public-result reproduction, and figures.
+types, and the fast offline tests. Run `make verify` before a change to packaging or results.
+Mark an offline test `slow` when it would push `make check` past about 15 seconds.
 `make demo` exercises the installed CLI with committed completions and no model load.
 
 The wheel test builds and installs into a temporary environment outside the checkout.
 It uses locked cached dependencies. Missing caches fail with the failed command and output.
 Run `make install` before offline verification. Do not convert missing prerequisites into skips.
 
-## Enforcement choices
+## Enforced rules
 
-| Guarantee | Strongest mechanism | Why another check remains necessary |
-| --- | --- | --- |
-| One owner per artifact | Atomic publication and immutable destination | Filesystems can fail. Failure tests exercise interrupted publication and conflicts. |
-| One identity per training attempt | Unique directories and terminal status records | Process failures remain possible. Lifecycle tests verify failure states and cleanup. |
-| Comparable experimental units | One `ComparisonInputs` constructor | External JSON is untyped. Boundary validation rejects drift and duplicate identities. |
-| Consistent result values | Constrained models and derived-value validation | Historical JSON stores redundant fields. Validators preserve its format without trusting contradictions. |
-| Harness never depends on study | One-way package design | Future imports can violate the design. Import-linter and isolated imports enforce the boundary. |
-| Package works after installation | Package metadata and narrow entry points | Source tests cannot prove wheel contents or discovery. The isolated wheel test does. |
-| Study commands remain reproducible | One typed workflow inventory | External inputs may be absent. Inventory validation reports every missing input before execution. |
-| Correct statistical implementation | Shared estimators and report methods | Types cannot prove arithmetic or inference. Synthetic paired cases and committed Esme data verify behavior. |
-| Accurate interpretation | Descriptive report output | Scientific claims still require judgment. Independent review assesses inference and evidence limits. |
-
-Documentation explains ownership and choices. It does not replace these mechanisms.
+[AGENTS.md](../AGENTS.md#enforced-rules) is the single list of enforced rules and their checks.
 Agent review concentrates on scientific interpretation, compatibility, and operational assumptions.
 
 ## Compatibility and evidence

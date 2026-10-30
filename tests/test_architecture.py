@@ -6,7 +6,10 @@ import os
 import subprocess
 import sys
 
+import pytest
 
+
+@pytest.mark.slow
 def test_harness_imports_without_a_study_or_gpu_stack(tmp_path) -> None:
     script = """
 import importlib

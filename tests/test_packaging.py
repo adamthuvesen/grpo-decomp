@@ -1,15 +1,48 @@
-"""Install the wheel in a clean CPU environment outside the source checkout."""
+"""Pin the runtime dependency list and install the wheel outside the source checkout."""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
+import pytest
+
 _REPO = Path(__file__).resolve().parents[1]
+_RUNTIME_GROUPS = ("generate", "train", "eval")
+_ALLOWED_RUNTIME_DEPENDENCIES = {
+    "pydantic", "datasets", "numpy", "scipy", "math-verify", "pyyaml",
+    "transformers", "torch", "grpo-decomp", "trl", "vllm", "wandb", "polars", "eval-audit",
+}  # fmt: skip
+
+
+def _name(requirement: str) -> str:
+    return re.split(r"[\s\[<>=!~;@]", requirement, maxsplit=1)[0].lower().replace("_", "-")
+
+
+def _runtime_requirements() -> list[str]:
+    project = tomllib.loads((_REPO / "pyproject.toml").read_text())["project"]
+    extras = project["optional-dependencies"]
+    return project["dependencies"] + [req for group in _RUNTIME_GROUPS for req in extras[group]]
+
+
+def test_runtime_dependencies_are_the_approved_stack() -> None:
+    added = {_name(req) for req in _runtime_requirements()} - _ALLOWED_RUNTIME_DEPENDENCIES
+    assert not added, (
+        f"New runtime dependencies {sorted(added)}: ask Adam before adding them. "
+        "Dev-only tools go in the `dev` extra; once approved, extend _ALLOWED_RUNTIME_DEPENDENCIES."
+    )
+
+
+def test_trl_and_vllm_are_exact_pins() -> None:
+    pins = {_name(req): req for req in _runtime_requirements()}
+    for name in ("trl", "vllm"):
+        assert "==" in pins[name], f"{name} must stay an exact == pin: its GRPO behavior moves."
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -18,6 +51,7 @@ def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.Co
     return result
 
 
+@pytest.mark.slow
 def test_installed_wheel_discovers_plugin_grades_and_loads_packaged_fixture(tmp_path) -> None:
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)

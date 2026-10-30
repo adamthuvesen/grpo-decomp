@@ -12,6 +12,7 @@ import pytest
 from llm_grpo_gains import figures
 
 
+@pytest.mark.slow
 def test_figures_render_into_requested_output_directory(tmp_path) -> None:
     results = Path(__file__).resolve().parents[1] / "results"
     source_json = tuple(results.rglob("*.json"))

@@ -156,7 +156,8 @@ run volumes or checkpoints. Module map and data flow: [docs/architecture.md](doc
 
 ```bash
 make install   # CPU env: data, rewards, eval, stats, reports, tests
-make check     # locked offline gate, including types, wheel, results, and docs
+make check     # fast locked offline gate: lint, imports, types, fast tests
+make verify    # check plus results, figures, docs, and the installed wheel
 make results   # rebuild committed figures from JSON, then docs <-> JSON check
 make demo      # score two tiny committed CompletionSets; no model load
 make reproduce-esme  # reproduce the historical Esme result without rewriting it

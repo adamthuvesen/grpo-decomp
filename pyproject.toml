@@ -115,8 +115,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
-addopts = "-q -m 'not integration and not gpu'"
+addopts = "-q -m 'not integration and not gpu and not slow'"
 markers = [
+    "slow: offline but too slow for the fast lane; runs in make verify",
     "integration: hits the network / HuggingFace; deselected by default",
     "gpu: requires explicit local CUDA hardware and generate dependencies",
 ]

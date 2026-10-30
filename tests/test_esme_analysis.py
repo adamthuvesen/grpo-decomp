@@ -128,6 +128,7 @@ def test_generation_seeds_may_differ_but_training_labels_remain_unverified(tmp_p
     assert all(effect.sign_flip_p_holm == 1 for effect in result.effects.values())
 
 
+@pytest.mark.slow
 def test_committed_legacy_summary_is_byte_identical() -> None:
     root = Path(__file__).resolve().parents[1] / "results/esme-countdown"
     completions = root / "completions"

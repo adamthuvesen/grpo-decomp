@@ -1,8 +1,10 @@
 """Modal app: run a grpo-decomp GRPO arm on a single A100.
 
-    modal run modal_app.py --arm configs/correct.yaml          # launch a run
-    modal run modal_app.py --arm configs/correct.yaml --smoke-problems 8   # short check
+    modal run --detach modal_app.py --arm configs/correct.yaml --approved   # launch a run
+    modal run modal_app.py --no-spawn --arm configs/correct.yaml --smoke-problems 8 --approved
     modal shell modal_app.py                                    # inspect the image
+
+Every run spends money on an A100, so each entry point refuses to start without `--approved`.
 
 A 1.5B model fits comfortably on one A100 80GB with colocated vLLM. Checkpoints and
 provenance persist to a Modal Volume; training curves go to Weights & Biases.
@@ -14,6 +16,8 @@ WANDB_API_KEY=...`). CUDA, torch, vLLM, and TRL versions must remain compatible.
 
 from __future__ import annotations
 
+import inspect
+import shlex
 from pathlib import Path
 
 import modal
@@ -83,6 +87,19 @@ image = (
 )
 
 runs = modal.Volume.from_name("assay-runs", create_if_missing=True)
+
+LAUNCH_APPROVAL_FLAG = "--approved"
+# A direct `modal run modal_app.py::<function>` skips the entrypoint, so remote functions gate too.
+_DIRECT_CALL_COMMAND = f"modal run --detach modal_app.py <same arguments> {LAUNCH_APPROVAL_FLAG}"
+
+
+def _require_approval(approved: bool, command: str) -> None:
+    if not approved:
+        raise SystemExit(
+            "Refusing to launch: this Modal GPU run spends money. "
+            "Stop and ask Adam to approve it.\n"
+            f"Once approved, run: {command}"
+        )
 
 
 def _generate_completion_set_to_volume(
@@ -160,12 +177,14 @@ def train_arm(
     commit: str | None = None,
     dirty: bool | None = None,
     arm_config_json: str | None = None,
+    approved: bool = False,
 ) -> str:
     """Run one arm on the GPU; persist checkpoints + provenance to the Volume.
 
     `commit`/`dirty` are computed by the local entrypoint (the container has no .git)
     and recorded in provenance so a GPU run is traceable to the code that produced it.
     """
+    _require_approval(approved, _DIRECT_CALL_COMMAND)
     from pathlib import Path
 
     from grpo_decomp.train.config import ArmConfig, load_arm_config
@@ -196,8 +215,9 @@ def train_arm(
     volumes={RUNS_DIR: runs},
     timeout=6 * 60 * 60,
 )
-def heldout_arm(arm_yaml: str) -> str:
+def heldout_arm(arm_yaml: str, approved: bool = False) -> str:
     """Held-out accuracy curve over a finished arm's checkpoints (check this, not reward)."""
+    _require_approval(approved, _DIRECT_CALL_COMMAND)
     from pathlib import Path
 
     from grpo_decomp.eval.heldout import run_heldout_curve
@@ -224,6 +244,7 @@ def eval_matrix(
     task: str | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
+    approved: bool = False,
 ) -> str:
     """Generate decomposition completions for one seed; pass@1 greedy.
 
@@ -238,6 +259,7 @@ def eval_matrix(
     `commit`/`dirty` come from the local entrypoint (no .git in the image) so each
     artifact is traceable to its code.
     """
+    _require_approval(approved, _DIRECT_CALL_COMMAND)
     out_root, jobs = plan_battery(Path(RUNS_DIR), seed=seed, scope=scope, task=task)
     _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
@@ -258,6 +280,7 @@ def passk_multiseed(
     limit: int | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
+    approved: bool = False,
 ) -> str:
     """Multi-seed pass@k coverage panel: base anchor once + each correct training seed.
 
@@ -274,6 +297,7 @@ def passk_multiseed(
     control can be matched to the task set's size. The set suffix keeps control panels
     disjoint from the task-set cells in one dir.
     """
+    _require_approval(approved, _DIRECT_CALL_COMMAND)
     out_root, jobs = plan_passk(
         Path(RUNS_DIR),
         task=task,
@@ -302,23 +326,27 @@ def main(
     set_name: str | None = None,
     limit: int | None = None,
     spawn: bool = True,
+    approved: bool = False,
 ) -> None:
     """Train an arm, score its held-out curve, or generate eval completions.
 
     Every command this entrypoint dispatches is a long GPU run whose output is written to
     the `assay-runs` Volume, not the inline return value. `spawn` defaults to true so the
     function starts server-side and the entrypoint returns its FunctionCall id without
-    blocking. Pair the default with `--detach`:
+    blocking. Pair the default with `--detach`. Every launch needs `--approved` (it spends money):
 
-    full train:  modal run --detach modal_app.py --arm configs/correct.yaml
-    held-out:    modal run --detach modal_app.py --arm configs/correct.yaml --command heldout
-    battery:     modal run --detach modal_app.py --command battery               # seed 0, full
-    placebo:     modal run --detach modal_app.py --command battery --seed 1 --scope placebo
-    controls:    modal run --detach modal_app.py --command battery --scope controls --seed 1
-    passk-seeds: modal run --detach modal_app.py --command passk-multiseed
+    full train:  modal run --detach modal_app.py --approved --arm configs/correct.yaml
+    held-out:    modal run --detach modal_app.py --approved --arm configs/correct.yaml \\
+                   --command heldout
+    battery:     modal run --detach modal_app.py --approved --command battery  # seed 0, full
+    placebo:     modal run --detach modal_app.py --approved --command battery --seed 1 \\
+                   --scope placebo
+    controls:    modal run --detach modal_app.py --approved --command battery --seed 1 \\
+                   --scope controls
+    passk-seeds: modal run --detach modal_app.py --approved --command passk-multiseed
     escalated:   ...same, plus --n-base 32 --n-correct 16 (or --task countdown)
     decontam:    ...same, plus --set-name gsm-symbolic --limit 1319 (or --set-name gsm8k-platinum)
-    countdown:   modal run --detach modal_app.py --command battery --task countdown \\
+    countdown:   modal run --detach modal_app.py --approved --command battery --task countdown \\
                    --scope placebo --seed 1
 
     `--task` (gsm8k default, or countdown) selects the eval wiring for generation:
@@ -331,13 +359,14 @@ def main(
 
     For a short blocking check, use Modal's auto-generated `--no-spawn`:
 
-    short check: modal run modal_app.py --no-spawn --arm configs/correct.yaml \\
+    short check: modal run modal_app.py --approved --no-spawn --arm configs/correct.yaml \\
                    --smoke-problems 8 --max-steps 5
 
     Use `--no-spawn` for any chained step that must finish before the next one starts.
     """
     # Computed here (locally) because the image ignores .git, so the container can't
     # read git - pass the real commit/dirty into provenance.
+    launch_args = dict(locals())
     from grpo_decomp.train.config import load_arm_config
     from grpo_decomp.train.launcher import preflight_arm
 
@@ -351,6 +380,7 @@ def main(
         validate_battery_request(task, scope, seed)
     elif command == "passk-multiseed":
         validate_passk_request(task, n_base, n_correct, correct_seeds, set_name, limit)
+    _require_approval(approved, _approved_command(launch_args))
     commit, dirty = git_commit(), git_is_dirty()
     if command == "train":
         fn, kwargs = (
@@ -396,6 +426,7 @@ def main(
             f"command must be 'train', 'heldout', 'battery', or 'passk-multiseed', got {command!r}"
         )
 
+    kwargs["approved"] = True
     if spawn:
         # Fire-and-return so the work survives a client disconnect (use with --detach).
         # The deliverable lands on the Volume, not here; print the monitor hints.
@@ -405,3 +436,17 @@ def main(
     else:
         result = fn.remote(**kwargs)
         print(f"{command} complete: {result}")
+
+
+def _approved_command(launch_args: dict[str, object]) -> str:
+    defaults = inspect.signature(main).parameters
+    parts = ["modal run", "--detach" if launch_args["spawn"] else "", "modal_app.py"]
+    for name, value in launch_args.items():
+        if name == "approved" or value == defaults[name].default:
+            continue
+        flag = name.replace("_", "-")
+        if isinstance(value, bool):
+            parts.append(f"--{flag}" if value else f"--no-{flag}")
+        else:
+            parts.append(f"--{flag} {shlex.quote(str(value))}")
+    return " ".join(part for part in [*parts, LAUNCH_APPROVAL_FLAG] if part)

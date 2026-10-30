@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import sys
 from pathlib import Path
@@ -84,13 +85,13 @@ def test_passk_multiseed_rejects_unknown_set(monkeypatch) -> None:
     # under the fake modal, so the raw function runs on CPU up to the first generate().)
     modal_app = _modal_app(monkeypatch)
     with pytest.raises(ValueError, match="unknown set"):
-        modal_app.passk_multiseed(task="gsm8k", set_name="not-a-real-set")
+        modal_app.passk_multiseed(task="gsm8k", set_name="not-a-real-set", approved=True)
 
 
 def test_passk_multiseed_rejects_nonpositive_limit(monkeypatch) -> None:
     modal_app = _modal_app(monkeypatch)
     with pytest.raises(ValueError, match="limit must be"):
-        modal_app.passk_multiseed(task="gsm8k", limit=0)
+        modal_app.passk_multiseed(task="gsm8k", limit=0, approved=True)
 
 
 @pytest.mark.parametrize(
@@ -108,7 +109,7 @@ def test_local_entrypoint_rejects_before_dispatch(monkeypatch, kwargs) -> None:
     modal_app = _modal_app(monkeypatch)
     # Fake Modal returns plain functions. A dispatch attempt would fail with AttributeError.
     with pytest.raises(ValueError):
-        modal_app.main(**kwargs)
+        modal_app.main(**kwargs, approved=True)
 
 
 def test_all_outputs_preflight_before_first_generation(monkeypatch, tmp_path) -> None:
@@ -168,7 +169,7 @@ def test_training_failure_commits_failed_attempt_records(monkeypatch) -> None:
 
     monkeypatch.setattr(launcher, "launch", fail)
     with pytest.raises(RuntimeError, match="training failed"):
-        modal_app.train_arm("configs/correct.yaml")
+        modal_app.train_arm("configs/correct.yaml", approved=True)
     assert commits == [True]
 
 
@@ -186,7 +187,7 @@ def test_dispatch_sends_exact_validated_effective_config(monkeypatch) -> None:
 
     monkeypatch.setattr(modal_app, "train_arm", SimpleNamespace(spawn=spawn))
     monkeypatch.setattr(modal_app.runs, "name", "fake-volume", raising=False)
-    modal_app.main(max_steps=3)
+    modal_app.main(max_steps=3, approved=True)
     effective = ArmConfig.model_validate_json(calls[0]["arm_config_json"])
     assert effective.grpo.max_steps == 3
     assert effective.grpo.logging_steps == 1
@@ -207,7 +208,9 @@ def test_remote_train_accepts_validated_payload_without_local_yaml(monkeypatch) 
         return Path("/runs/payload")
 
     monkeypatch.setattr(launcher, "launch", launch)
-    modal_app.train_arm("/local/only/missing.yaml", arm_config_json=arm.model_dump_json())
+    modal_app.train_arm(
+        "/local/only/missing.yaml", arm_config_json=arm.model_dump_json(), approved=True
+    )
     assert seen == [arm]
 
 
@@ -231,6 +234,70 @@ def test_heldout_output_stays_with_the_scored_attempt(monkeypatch, tmp_path) -> 
         return SimpleNamespace(payload="curve from a")
 
     monkeypatch.setattr(heldout, "run_heldout_curve", score)
-    assert modal_app.heldout_arm("configs/correct.yaml") == str(attempt_a / "heldout.json")
+    assert modal_app.heldout_arm("configs/correct.yaml", approved=True) == str(
+        attempt_a / "heldout.json"
+    )
     assert (attempt_a / "heldout.json").read_text() == "curve from a"
     assert not (attempt_b / "heldout.json").exists()
+
+
+def test_unapproved_launch_refuses_with_the_exact_approved_command(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    modal_app = _modal_app(monkeypatch)
+    spawn = SimpleNamespace(spawn=lambda **kw: pytest.fail("dispatched without approval"))
+    monkeypatch.setattr(modal_app, "eval_matrix", spawn)
+    with pytest.raises(SystemExit, match="spends money") as refusal:
+        modal_app.main(command="battery", seed=1, scope="placebo")
+    assert str(refusal.value).endswith(
+        "run: modal run --detach modal_app.py --command battery --seed 1 --scope placebo --approved"
+    )
+    for remote in (modal_app.train_arm, modal_app.heldout_arm):
+        with pytest.raises(SystemExit, match="ask Adam"):
+            remote("configs/correct.yaml")
+
+
+_MODAL_CALLS = {"spawn", "remote", "map", "starmap", "spawn_map"}
+
+
+def _modal_sources() -> list[Path]:
+    root = Path(__file__).parents[1]
+    candidates = [*root.glob("*.py"), *root.glob("src/**/*.py"), *root.glob("scripts/**/*.py")]
+    return [path for path in candidates if "import modal" in path.read_text()]
+
+
+def _modal_calls(node: ast.AST) -> list[ast.Call]:
+    return [
+        n
+        for n in ast.walk(node)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr in _MODAL_CALLS
+    ]
+
+
+@pytest.mark.parametrize("source", _modal_sources(), ids=lambda path: path.name)
+def test_every_modal_entry_point_requires_approval(source: Path) -> None:
+    """Structural: a new entry point, or a Modal call outside one, fails without the gate."""
+    tree = ast.parse(source.read_text())
+    gated: set[ast.AST] = set()
+    for fn in (node for node in tree.body if isinstance(node, ast.FunctionDef)):
+        decorators = {ast.unparse(d).split("(")[0].rsplit(".", 1)[-1] for d in fn.decorator_list}
+        if not decorators & {"function", "local_entrypoint"}:
+            continue
+        gates = [
+            n.lineno
+            for n in ast.walk(fn)
+            if isinstance(n, ast.Call) and ast.unparse(n.func) == "_require_approval"
+        ]
+        first_call = min((call.lineno for call in _modal_calls(fn)), default=None)
+        assert "approved" in [arg.arg for arg in fn.args.args] and gates, (
+            f"{source.name}:{fn.name} reaches paid Modal hardware: add `approved: bool = False` "
+            "and call `_require_approval(approved, ...)` before any Modal call."
+        )
+        assert first_call is None or min(gates) < first_call, (
+            f"{source.name}:{fn.name} calls Modal before `_require_approval`."
+        )
+        gated.update(ast.walk(fn))
+    stray = [ast.unparse(call) for call in _modal_calls(tree) if call not in gated]
+    assert not stray, f"{source.name}: Modal calls outside a gated entry point: {stray}"
