@@ -1,6 +1,6 @@
 # grpo-decomp
 
-![License](https://img.shields.io/github/license/adamthuvesen/grpo-decomp) ![Python](https://img.shields.io/badge/python-3.13%2B-blue)
+![License](https://img.shields.io/github/license/adamthuvesen/grpo-decomp) ![Python](https://img.shields.io/badge/python-3.14%2B-blue)
 
 When GRPO raises a benchmark score, how much of the gain is new reasoning, and how much is
 the base model getting more reliable at answers it could already find? `grpo-decomp` is a
@@ -156,13 +156,10 @@ run volumes or checkpoints. Module map and data flow: [docs/architecture.md](doc
 
 ```bash
 make install   # CPU env: data, rewards, eval, stats, reports, tests
-make check     # fast locked offline gate: lint, imports, types, fast tests
-make verify    # check plus results, figures, docs, and the installed wheel
-make figures   # rewrite committed figures from result JSON
-make results-check  # read-only: reproduce results and compare figures
 make demo      # score two tiny committed CompletionSets; no model load
-make reproduce-esme  # reproduce the historical Esme result without rewriting it
 ```
+
+Checks, figures, and reproduction commands: [AGENTS.md](AGENTS.md#commands) or `make help`.
 
 Generation and training need a model backend; everything else runs on CPU:
 
@@ -195,7 +192,7 @@ example. Step-by-step: [docs/architecture.md](docs/architecture.md#plug-in-your-
 
 ## Stack
 
-Python 3.13+ · `uv` · Pydantic · TRL GRPO · transformers · vLLM · Modal ·
+Python 3.14+ · `uv` · Pydantic · TRL GRPO · transformers · vLLM · Modal ·
 [`eval-audit`](https://github.com/adamthuvesen/eval-audit)
 
 ## References

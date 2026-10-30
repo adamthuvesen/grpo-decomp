@@ -31,7 +31,7 @@ Add the flag only after Adam approves the run.
 ```bash
 uv run modal setup
 uv run modal secret create wandb WANDB_API_KEY="$WANDB_API_KEY"
-uv run modal run --detach modal_app.py --approved --arm configs/correct.yaml
+uv run modal run --detach modal_app.py --arm configs/correct.yaml
 ```
 
 Runs write checkpoints and completions to the `assay-runs` Volume. Launch several arms
@@ -126,12 +126,12 @@ The two follow-ups in `results/preregistration-2026-10.md` train six arms and ge
 eval sets. Launch the training runs about 40 seconds apart (Modal rate-limits app creation):
 
 ```bash
-uv run modal run --detach modal_app.py --approved --arm configs/offpolicy-random.yaml
-uv run modal run --detach modal_app.py --approved --arm configs/offpolicy-random-seed1.yaml
-uv run modal run --detach modal_app.py --approved --arm configs/offpolicy-random-seed2.yaml
-uv run modal run --detach modal_app.py --approved --arm configs/countdown-math-correct.yaml
-uv run modal run --detach modal_app.py --approved --arm configs/countdown-math-correct-seed1.yaml
-uv run modal run --detach modal_app.py --approved --arm configs/countdown-math-correct-seed2.yaml
+uv run modal run --detach modal_app.py --arm configs/offpolicy-random.yaml
+uv run modal run --detach modal_app.py --arm configs/offpolicy-random-seed1.yaml
+uv run modal run --detach modal_app.py --arm configs/offpolicy-random-seed2.yaml
+uv run modal run --detach modal_app.py --arm configs/countdown-math-correct.yaml
+uv run modal run --detach modal_app.py --arm configs/countdown-math-correct-seed1.yaml
+uv run modal run --detach modal_app.py --arm configs/countdown-math-correct-seed2.yaml
 ```
 
 When each run resolves to one completed attempt, generate the eval sets.
@@ -139,10 +139,10 @@ A final directory alone does not establish completion for new attempts. Seed 0 o
 battery also generates the base model:
 
 ```bash
-uv run modal run --detach modal_app.py --approved --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 0
-uv run modal run --detach modal_app.py --approved --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 1
-uv run modal run --detach modal_app.py --approved --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 2
-uv run modal run --detach modal_app.py --approved --command passk-multiseed --task countdown-math --correct-seeds 0,1,2
+uv run modal run --detach modal_app.py --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 0
+uv run modal run --detach modal_app.py --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 1
+uv run modal run --detach modal_app.py --command battery --task gsm8k-offpolicy --scope random-vs-base --seed 2
+uv run modal run --detach modal_app.py --command passk-multiseed --task countdown-math --correct-seeds 0,1,2
 ```
 
 Pull them into the layout `make aggregate` reads. Seed labels come from the directory

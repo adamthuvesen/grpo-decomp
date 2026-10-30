@@ -1,23 +1,7 @@
 # AGENTS.md: grpo-decomp + llm_grpo_gains
 
-This repo has **two packages and one boundary**:
-
-- **`grpo_decomp`** (`src/grpo_decomp/`): the harness, a controls-first method for
-  decomposing a GRPO benchmark gain into real reasoning vs. contamination, formatting, and
-  elicitation. Task- and model-agnostic; knows nothing about GSM8K or Countdown. Tasks plug
-  in through the registries in `grpo_decomp/registries.py`.
-- **`llm_grpo_gains`** (`src/llm_grpo_gains/`): the reference study that exercises the
-  harness: GSM8K (primary) plus a generated Countdown positive control. It supplies datasets,
-  the `correct`/`countdown` rewards, configs, results, and a `registration.py` that wires
-  itself into the harness via a `grpo_decomp.plugins` entry point.
-
-The result is only as trustworthy as the controls. "Most of this gain was elicitation"
-beats a confident, uncontrolled "RL works."
-
-Put generic measurement machinery in `grpo_decomp` and anything GSM8K/Countdown-specific in
-`llm_grpo_gains`. A new task-shaped knob is a registry entry in
-`llm_grpo_gains/registration.py`, not an `if task == ...` in the harness. Add extension
-points, not a framework.
+Two packages, one-way boundary: the `grpo_decomp` harness never imports the `llm_grpo_gains` study.
+Read [docs/architecture.md](docs/architecture.md) for what goes where before you add code.
 
 ## Commands
 
@@ -28,17 +12,19 @@ make verify         # check + result reproduction + installed-wheel smoke (CI ma
 make demo           # score committed mini CompletionSets; no model load
 make help           # focused checks and study commands
 
-modal run --detach modal_app.py --approved --arm configs/correct.yaml  # paid A100: only after Adam approves
+modal run --detach modal_app.py --arm configs/correct.yaml  # paid A100: only after Adam approves
 grpo-decomp battery --completions runs/base__dev --k 1      # grade a CompletionSet (CPU)
 ```
 
 Only `generate` and training need a model or GPU. Grading and reports run on CPU.
 
+Prove changes with `make verify-app` (`verify-grpo-decomp` skill at `.agents/skills/verify-grpo-decomp/`).
+
 ## Enforced Rules
 
 | Rule | Enforced by | Added |
 | --- | --- | --- |
-| The harness never imports the study | `pyproject.toml::[tool.importlinter]`, `tests/test_architecture.py::test_harness_imports_without_a_study_or_gpu_stack` | 2026-11-05 |
+| The harness never imports the study | `pyproject.toml::tool.importlinter`, `tests/test_architecture.py::test_harness_imports_without_a_study_or_gpu_stack` | 2026-11-05 |
 | A paid Modal launch refuses to run without `--approved` | `modal_app.py::_require_approval`, `tests/test_modal_app.py::test_every_modal_entry_point_requires_approval`, `tests/test_modal_app.py::test_unapproved_launch_refuses_with_the_exact_approved_command` | 2026-11-06 |
 | No new runtime dependency without asking Adam | `tests/test_packaging.py::test_runtime_dependencies_are_the_approved_stack` | 2026-11-06 |
 | TRL and vLLM stay exact `==` pins | `tests/test_packaging.py::test_trl_and_vllm_are_exact_pins`, `uv.lock` | 2026-11-06 |
@@ -52,7 +38,8 @@ Only `generate` and training need a model or GPU. Grading and reports run on CPU
 | Historical result JSON stays byte-identical | `tests/test_esme_analysis.py::test_committed_legacy_summary_is_byte_identical`, `Makefile::reproduce-esme` | 2026-10-24 |
 | Documented numbers match committed results | `tests/test_docs_consistency.py` | 2026-07-01 |
 | The installed wheel discovers the plugin | `tests/test_packaging.py::test_installed_wheel_discovers_plugin_grades_and_loads_packaged_fixture` | 2026-11-05 |
-| This table cites only real enforcers | `tests/test_agents_rules.py::test_enforced_rules_cite_existing_paths_and_symbols` | 2026-11-06 |
+| `make verify-app` reports a pass only when its control observes FAIL | `.agents/skills/verify-grpo-decomp/drives.py::control_battery`, `Makefile::verify-app` | 2026-11-06 |
+| This table cites only real enforcers | `tests/test_agents_rules.py::test_enforced_rules_cite_existing_definitions` | 2026-11-06 |
 
 Ruff, mypy, and the Python version are configured in `pyproject.toml`. Approved runtime
 dependencies are listed in `tests/test_packaging.py`; dev-only tools go in the `dev` extra.

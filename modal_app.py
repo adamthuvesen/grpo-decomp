@@ -1,10 +1,11 @@
 """Modal app: run a grpo-decomp GRPO arm on a single A100.
 
-    modal run --detach modal_app.py --arm configs/correct.yaml --approved   # launch a run
-    modal run modal_app.py --no-spawn --arm configs/correct.yaml --smoke-problems 8 --approved
+    modal run --detach modal_app.py --arm configs/correct.yaml   # launch a run
+    modal run modal_app.py --no-spawn --arm configs/correct.yaml --smoke-problems 8
     modal shell modal_app.py                                    # inspect the image
 
 Every run spends money on an A100, so each entry point refuses to start without `--approved`.
+Add the flag only after Adam approves; the refusal prints the exact approved command.
 
 A 1.5B model fits comfortably on one A100 80GB with colocated vLLM. Checkpoints and
 provenance persist to a Modal Volume; training curves go to Weights & Biases.
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import inspect
 import shlex
+from collections.abc import Callable
 from pathlib import Path
 
 import modal
@@ -69,7 +71,7 @@ _IGNORE = [
 # train extra's pinned deps without the project itself; the project is linked
 # separately with --no-deps once the full source is present.
 image = (
-    modal.Image.from_registry(CUDA_IMAGE, add_python="3.13")
+    modal.Image.from_registry(CUDA_IMAGE, add_python="3.14")
     .apt_install("git")
     .pip_install("uv")
     .add_local_file(
@@ -311,7 +313,17 @@ def passk_multiseed(
     return str(out_root)
 
 
+_ENTRYPOINT_SIGNATURES: dict[str, inspect.Signature] = {}
+
+
+def _keep_signature[F: Callable[..., object]](fn: F) -> F:
+    # The real modal.App.local_entrypoint wraps the function in an object without its signature.
+    _ENTRYPOINT_SIGNATURES[fn.__name__] = inspect.signature(fn)
+    return fn
+
+
 @app.local_entrypoint()
+@_keep_signature
 def main(
     arm: str = "configs/correct.yaml",
     command: str = "train",
@@ -333,20 +345,20 @@ def main(
     Every command this entrypoint dispatches is a long GPU run whose output is written to
     the `assay-runs` Volume, not the inline return value. `spawn` defaults to true so the
     function starts server-side and the entrypoint returns its FunctionCall id without
-    blocking. Pair the default with `--detach`. Every launch needs `--approved` (it spends money):
+    blocking. Pair the default with `--detach`. Launches refuse without `--approved`:
 
-    full train:  modal run --detach modal_app.py --approved --arm configs/correct.yaml
-    held-out:    modal run --detach modal_app.py --approved --arm configs/correct.yaml \\
+    full train:  modal run --detach modal_app.py --arm configs/correct.yaml
+    held-out:    modal run --detach modal_app.py --arm configs/correct.yaml \\
                    --command heldout
-    battery:     modal run --detach modal_app.py --approved --command battery  # seed 0, full
-    placebo:     modal run --detach modal_app.py --approved --command battery --seed 1 \\
+    battery:     modal run --detach modal_app.py --command battery  # seed 0, full
+    placebo:     modal run --detach modal_app.py --command battery --seed 1 \\
                    --scope placebo
-    controls:    modal run --detach modal_app.py --approved --command battery --seed 1 \\
+    controls:    modal run --detach modal_app.py --command battery --seed 1 \\
                    --scope controls
-    passk-seeds: modal run --detach modal_app.py --approved --command passk-multiseed
+    passk-seeds: modal run --detach modal_app.py --command passk-multiseed
     escalated:   ...same, plus --n-base 32 --n-correct 16 (or --task countdown)
     decontam:    ...same, plus --set-name gsm-symbolic --limit 1319 (or --set-name gsm8k-platinum)
-    countdown:   modal run --detach modal_app.py --approved --command battery --task countdown \\
+    countdown:   modal run --detach modal_app.py --command battery --task countdown \\
                    --scope placebo --seed 1
 
     `--task` (gsm8k default, or countdown) selects the eval wiring for generation:
@@ -359,7 +371,7 @@ def main(
 
     For a short blocking check, use Modal's auto-generated `--no-spawn`:
 
-    short check: modal run modal_app.py --approved --no-spawn --arm configs/correct.yaml \\
+    short check: modal run modal_app.py --no-spawn --arm configs/correct.yaml \\
                    --smoke-problems 8 --max-steps 5
 
     Use `--no-spawn` for any chained step that must finish before the next one starts.
@@ -439,7 +451,7 @@ def main(
 
 
 def _approved_command(launch_args: dict[str, object]) -> str:
-    defaults = inspect.signature(main).parameters
+    defaults = _ENTRYPOINT_SIGNATURES["main"].parameters
     parts = ["modal run", "--detach" if launch_args["spawn"] else "", "modal_app.py"]
     for name, value in launch_args.items():
         if name == "approved" or value == defaults[name].default:

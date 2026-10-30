@@ -1,32 +1,52 @@
-"""Every enforcer cited in the AGENTS.md Enforced Rules table must exist."""
+"""Every row of the AGENTS.md Enforced Rules table cites enforcers that exist."""
 
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[1]
 
 
-def _cited_enforcers() -> list[str]:
+def _rows() -> list[tuple[str, list[str]]]:
     text = (_REPO / "AGENTS.md").read_text()
-    table = text.split("## Enforced Rules", 1)[1].split("\n## ", 1)[0]
-    rows = [line for line in table.splitlines() if line.startswith("| ") and "---" not in line]
-    cells = [row.split("|")[2] for row in rows[1:]]
-    return [ref for cell in cells for ref in re.findall(r"`([^`]+)`", cell)]
+    assert "\n## Enforced Rules\n" in text, "AGENTS.md must keep a `## Enforced Rules` section"
+    table = text.split("\n## Enforced Rules\n", 1)[1].split("\n## ", 1)[0]
+    lines = [line for line in table.splitlines() if line.startswith("| ") and "---" not in line]
+    cells = [line.split("|") for line in lines[1:]]
+    return [(cell[1].strip(), re.findall(r"`([^`]+)`", cell[2])) for cell in cells]
 
 
-def test_enforced_rules_cite_existing_paths_and_symbols() -> None:
-    cited = _cited_enforcers()
-    assert cited, "AGENTS.md ## Enforced Rules lists no enforcers"
+def _defines(path: Path, name: str) -> bool:
+    if path.suffix == ".toml":
+        node: object = tomllib.loads(path.read_text())
+        for key in name.split("."):
+            if not isinstance(node, dict) or key not in node:
+                return False
+            node = node[key]
+        return True
+    escaped = re.escape(name)
+    if path.name == "Makefile":
+        pattern = rf"^{escaped}:"
+    else:
+        pattern = rf"^\s*(def|class) {escaped}\b|^{escaped}\s*[:=]"
+    return re.search(pattern, path.read_text(), re.MULTILINE) is not None
+
+
+def test_enforced_rules_cite_existing_definitions() -> None:
+    rows = _rows()
+    assert rows, "AGENTS.md ## Enforced Rules has no rows"
+    uncited = [rule for rule, refs in rows if not refs]
+    assert not uncited, f"Enforced Rules rows cite no enforcer: {uncited}"
     missing = []
-    for ref in cited:
-        path, _, symbol = ref.partition("::")
-        file = _REPO / path
-        needle = f"def {symbol}(" if symbol.startswith("test_") else symbol
-        if not file.is_file() or needle not in file.read_text():
-            missing.append(ref)
+    for _, refs in rows:
+        for ref in refs:
+            path, _, name = ref.partition("::")
+            file = _REPO / path
+            if not file.is_file() or (name and not _defines(file, name)):
+                missing.append(ref)
     assert not missing, (
-        f"AGENTS.md Enforced Rules cites missing enforcers {missing}. "
-        "Cite `path` or `path::symbol` for a file, test, or config key that exists."
+        f"AGENTS.md Enforced Rules cites missing enforcers {missing}. Cite `path` or "
+        "`path::name` where the file defines name (def, class, assignment, make target, toml key)."
     )

@@ -16,6 +16,11 @@ concrete pieces through the registries in `grpo_decomp/registries.py`, discovere
 startup via a `grpo_decomp.plugins` entry point (`grpo_decomp/plugins.py`). That seam is
 what lets the harness point at your own model and task without a fork.
 
+Put generic measurement machinery in `grpo_decomp` and anything GSM8K/Countdown-specific in
+`llm_grpo_gains`. A new task-shaped knob is a registry entry in
+`llm_grpo_gains/registration.py`, not an `if task == ...` in the harness. Add extension
+points, not a framework.
+
 ```mermaid
 flowchart LR
     subgraph study["llm_grpo_gains (study)"]

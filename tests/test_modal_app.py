@@ -301,3 +301,36 @@ def test_every_modal_entry_point_requires_approval(source: Path) -> None:
         gated.update(ast.walk(fn))
     stray = [ast.unparse(call) for call in _modal_calls(tree) if call not in gated]
     assert not stray, f"{source.name}: Modal calls outside a gated entry point: {stray}"
+
+
+@pytest.mark.parametrize(
+    ("command", "approved_command"),
+    [
+        ("train", "modal run --detach modal_app.py --approved"),
+        ("heldout", "modal run --detach modal_app.py --command heldout --approved"),
+        ("battery", "modal run --detach modal_app.py --command battery --approved"),
+        (
+            "passk-multiseed",
+            "modal run --detach modal_app.py --command passk-multiseed --approved",
+        ),
+    ],
+)
+def test_real_modal_entrypoint_refuses_with_the_approved_command(
+    monkeypatch, command, approved_command
+) -> None:
+    # The fake above returns the raw function; the real decorator wraps it in an object
+    # whose signature has no parameters. Import only: no app.run, no network, no auth.
+    real_modal = pytest.importorskip("modal")
+    monkeypatch.setenv("MODAL_SERVER_URL", "http://127.0.0.1:9")
+    monkeypatch.setitem(sys.modules, "modal", real_modal)
+    sys.modules.pop("modal_app", None)
+    path = Path(__file__).parents[1] / "modal_app.py"
+    spec = importlib.util.spec_from_file_location("modal_app", path)
+    assert spec is not None and spec.loader is not None
+    modal_app = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "modal_app", modal_app)
+    spec.loader.exec_module(modal_app)
+    assert isinstance(modal_app.main, real_modal.app.LocalEntrypoint)
+    with pytest.raises(SystemExit, match="spends money") as refusal:
+        modal_app.main(command=command)
+    assert str(refusal.value).endswith(f"run: {approved_command}")
