@@ -12,14 +12,14 @@ Nothing reaches Modal, a GPU, Weights & Biases, or the Hugging Face Hub.
 ## Run
 
 ```bash
-make verify-app                       # drives for files changed against main; the smoke drive if none match
-make verify-app ARGS=all              # every drive, about 5 s
-make verify-app ARGS=list             # each drive, what it proves, the paths it covers
-make verify-app ARGS=control          # one drive with a wrong expectation; exits 0 only on FAIL
-make verify-app ARGS="launch-plan"    # named drives
+make verify                       # drives for files changed against main; the smoke drive if none match
+make verify ARGS=all              # every drive, about 5 s
+make verify ARGS=list             # each drive, what it proves, the paths it covers
+make verify ARGS=control          # one drive with a wrong expectation; exits 0 only on FAIL
+make verify ARGS="launch-plan"    # named drives
 ```
 
-`make verify` is a different target: the full offline test gate. Run `make install` once first.
+`make slow` is a different target: the full offline test gate. Run `make install` once first.
 
 ## Reading results
 

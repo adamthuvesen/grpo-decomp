@@ -471,9 +471,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             seeds=args.seed, task_set=args.task_set, base_completions_dir=args.base_completions_dir
         )
         table = render_tables(result)
+        name = LEGACY_SUMMARY_NAME if args.legacy else SUMMARY_NAME
         if args.out:
             args.out.mkdir(parents=True, exist_ok=True)
-            name = LEGACY_SUMMARY_NAME if args.legacy else SUMMARY_NAME
             payload = (
                 legacy_json(result)
                 if args.legacy

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := check
-.NOTPARALLEL: check verify
-.PHONY: help install sync-check fmt lint imports typecheck test test-integration verify-gpu check verify verify-app demo figures results-check aggregate study-plan study-validate reproduce-esme
+.NOTPARALLEL: check slow
+.PHONY: help install sync-check fix lint imports typecheck test test-integration verify-gpu check slow verify demo figures results-check aggregate study-plan study-validate reproduce-esme
 
 RUN := uv run --locked --offline --no-sync
 
@@ -13,9 +13,9 @@ install:  ## Install the locked CPU development and analysis environment
 sync-check:  ## Verify the locked CPU environment without network access
 	uv sync --locked --offline --extra dev --extra eval
 
-fmt:  ## Auto-format and apply safe lint fixes
-	$(RUN) ruff format .
+fix:  ## Auto-format and apply safe lint fixes
 	$(RUN) ruff check --fix .
+	$(RUN) ruff format .
 
 lint:  ## Lint and format-check with the locked formatter version
 	$(RUN) ruff check .
@@ -40,10 +40,10 @@ verify-gpu:  ## Run real local vLLM generation, fail when GPU prerequisites are 
 
 check: sync-check lint imports typecheck test  ## Fast offline gate, the first CI job
 
-verify: check results-check  ## Full offline gate: fast lane, result reproduction, installed wheel
+slow: check results-check  ## Full offline gate: fast lane, result reproduction, installed wheel
 	$(RUN) pytest -m slow
 
-verify-app:  ## Drive the real CLI and Modal launcher on CPU (ARGS=all|list|control|<drive>)
+verify:  ## Drive the real CLI and Modal launcher on CPU (ARGS=all|list|control|<drive>)
 	@$(RUN) python .agents/skills/verify-grpo-decomp/verify $(ARGS)
 
 demo:  ## Score committed mini CompletionSets without loading a model

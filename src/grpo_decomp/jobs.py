@@ -106,7 +106,7 @@ def plan_battery(
 
     base_row = ("base", base.base_model, base.base_model_revision, base.prompt_strategy)
 
-    def trained_row(role: str) -> tuple[str, str, None, str]:
+    def trained_row(role: str) -> tuple[str, str, str | None, str]:
         checkpoint, strategy = trained_checkpoint(role)
         return role, checkpoint, None, strategy
 

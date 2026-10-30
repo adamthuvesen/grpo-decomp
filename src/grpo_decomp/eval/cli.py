@@ -38,6 +38,7 @@ from grpo_decomp.report.arm_vs_base import aggregate_arm_vs_base
 from grpo_decomp.report.control_seeds import aggregate_control_rows
 from grpo_decomp.report.evidence import validate_grader
 from grpo_decomp.report.inputs import (
+    ComparisonInputs,
     base_and_correct_seeds,
     battery_inputs,
     greedy_pass1,
@@ -58,6 +59,9 @@ from grpo_decomp.stats.compare import Comparison, compare
 from grpo_decomp.train.provenance import resolve_run_dir
 
 _BACKEND_CHOICES = ("auto", "transformers", "vllm")
+
+
+type SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]  # pyright: ignore[reportPrivateUsage]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -91,7 +95,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _add_generate_parser(sub: argparse._SubParsersAction) -> None:
+def _add_generate_parser(sub: SubParsers) -> None:
     gen = sub.add_parser("generate", help="sample completions from a model over a set")
     gen.add_argument("--model", required=True, help="model id or checkpoint path")
     gen.add_argument("--revision", default=None, help="model revision (HF only)")
@@ -116,7 +120,7 @@ def _add_generate_parser(sub: argparse._SubParsersAction) -> None:
     gen.set_defaults(func=_cmd_generate)
 
 
-def _add_battery_parser(sub: argparse._SubParsersAction) -> None:
+def _add_battery_parser(sub: SubParsers) -> None:
     bat = sub.add_parser("battery", help="score one CompletionSet into a BatteryResult")
     bat.add_argument("--completions", required=True, type=Path, help="a CompletionSet dir")
     bat.add_argument("--k", type=int, nargs="+", default=[1], help="pass@k values")
@@ -124,7 +128,7 @@ def _add_battery_parser(sub: argparse._SubParsersAction) -> None:
     bat.set_defaults(func=_cmd_battery)
 
 
-def _add_report_seeds_parser(sub: argparse._SubParsersAction) -> None:
+def _add_report_seeds_parser(sub: SubParsers) -> None:
     rsd = sub.add_parser(
         "report-seeds", help="aggregate the seed-level placebo comparison across replicates"
     )
@@ -157,7 +161,7 @@ def _add_report_seeds_parser(sub: argparse._SubParsersAction) -> None:
     rsd.set_defaults(func=_cmd_report_seeds)
 
 
-def _add_report_passk_seeds_parser(sub: argparse._SubParsersAction) -> None:
+def _add_report_passk_seeds_parser(sub: SubParsers) -> None:
     rpk = sub.add_parser(
         "report-passk-seeds",
         help="aggregate multi-seed pass@k coverage (base anchor vs per-seed correct)",
@@ -188,7 +192,7 @@ def _add_report_passk_seeds_parser(sub: argparse._SubParsersAction) -> None:
     rpk.set_defaults(func=_cmd_report_passk_seeds)
 
 
-def _add_report_mechanism_parser(sub: argparse._SubParsersAction) -> None:
+def _add_report_mechanism_parser(sub: SubParsers) -> None:
     rmc = sub.add_parser(
         "report-mechanism", help="per-problem reliability migration + completion-length shift"
     )
@@ -224,7 +228,7 @@ def _add_report_mechanism_parser(sub: argparse._SubParsersAction) -> None:
     rmc.set_defaults(func=_cmd_report_mechanism)
 
 
-def _add_report_control_seeds_parser(sub: argparse._SubParsersAction) -> None:
+def _add_report_control_seeds_parser(sub: SubParsers) -> None:
     rcs = sub.add_parser(
         "report-control-seeds",
         help="multi-seed section-3 controls with Holm family-wise correction",
@@ -264,7 +268,7 @@ def _add_report_control_seeds_parser(sub: argparse._SubParsersAction) -> None:
     rcs.set_defaults(func=_cmd_report_control_seeds)
 
 
-def _add_report_arm_vs_base_parser(sub: argparse._SubParsersAction) -> None:
+def _add_report_arm_vs_base_parser(sub: SubParsers) -> None:
     rab = sub.add_parser(
         "report-arm-vs-base",
         help="one trained arm vs the base, greedy pass@1 paired per problem across seeds",
@@ -296,7 +300,7 @@ def _add_report_arm_vs_base_parser(sub: argparse._SubParsersAction) -> None:
     rab.set_defaults(func=_cmd_report_arm_vs_base)
 
 
-def _add_heldout_parser(sub: argparse._SubParsersAction) -> None:
+def _add_heldout_parser(sub: SubParsers) -> None:
     hld = sub.add_parser("heldout", help="held-out accuracy curve over a run's checkpoints")
     hld.add_argument(
         "--run", required=True, type=Path, help="a training run dir (provenance + checkpoints)"
@@ -407,7 +411,7 @@ def _cmd_report_control_seeds(args: argparse.Namespace) -> int:
     rows: list[tuple[str, str, list[Comparison]]] = []
     analyses = []
     seeds = [seed_label(path) for path in args.battery_dirs]
-    loaded = []
+    loaded: list[tuple[str, ComparisonInputs]] = []
     for control in args.control_sets:
         if control not in EVAL_SETS:
             raise ValueError(

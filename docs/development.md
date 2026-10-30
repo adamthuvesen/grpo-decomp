@@ -1,9 +1,9 @@
 # Development and verification
 
 Start with `make install`, then `make help`. Installation may access the network.
-`make check` is the fast offline gate and the first CI job. `make verify` adds slow work:
+`make check` is the fast offline gate and the first CI job. `make slow` adds slow work:
 result reproduction, figures, and the installed-wheel smoke. Both use the lockfile and run
-without network access after installation. CI runs `make verify` on macOS and Linux with
+without network access after installation. CI runs `make slow` on macOS and Linux with
 Python 3.14.
 
 ## Ownership and focused changes
@@ -19,10 +19,10 @@ Python 3.14.
 | Countdown arithmetic | `llm_grpo_gains/data/countdown.py` | `uv run pytest tests/test_countdown_grammar.py tests/test_rewards.py` |
 | Study inventory and reproduction | `llm_grpo_gains/workflows.py` | `make study-plan`, `make results-check` |
 | Esme analysis and figures | `llm_grpo_gains/esme_analysis.py`, `figures.py` | `make reproduce-esme`, `make results-check` |
-| Package and dependency boundary | `pyproject.toml`, `uv.lock` | `make imports`, `uv run pytest tests/test_packaging.py`, `make verify` |
+| Package and dependency boundary | `pyproject.toml`, `uv.lock` | `make imports`, `uv run pytest tests/test_packaging.py`, `make slow` |
 
 Run `make check` after the focused checks pass. It includes lint, formatting, imports,
-types, and the fast offline tests. Run `make verify` before a change to packaging or results.
+types, and the fast offline tests. Run `make slow` before a change to packaging or results.
 Mark an offline test `slow` when it would push `make check` past about 15 seconds.
 `make demo` exercises the installed CLI with committed completions and no model load.
 

@@ -7,6 +7,9 @@ ambiguous items were removed.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any, cast
+
 from datasets import load_dataset
 
 from grpo_decomp.schemas import DatasetRef, ProblemSet
@@ -22,7 +25,9 @@ REVISION = "e762492455a1cf7967de89f05b6bef72fc713b66"
 def load_gsm8k_platinum(*, revision: str = REVISION) -> ProblemSet:
     """Load the GSM8K-Platinum test split as a `ProblemSet` (test split only)."""
     ref = DatasetRef(name=NAME, config=CONFIG, split="test", revision=revision)
-    rows = load_dataset(NAME, CONFIG, split="test", revision=revision)
+    rows = cast(
+        "Iterable[dict[str, Any]]", load_dataset(NAME, CONFIG, split="test", revision=revision)
+    )
     return build_problem_set(
         rows,
         ref=ref,

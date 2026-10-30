@@ -44,9 +44,9 @@ jobs:
         run: make install
 
       - name: Full offline verification
-        run: make verify
+        run: make slow
 
       - name: Drive the real entry points
         run: |
-          make verify-app ARGS=all
-          make verify-app ARGS=control
+          make verify ARGS=all
+          make verify ARGS=control

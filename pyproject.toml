@@ -85,6 +85,7 @@ target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
+ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["grpo_decomp", "llm_grpo_gains"]
@@ -101,17 +102,19 @@ reportUnknownArgumentType = false
 reportUnknownVariableType = false
 reportUnknownParameterType = false
 reportUnknownLambdaType = false
+reportMissingTypeStubs = false
 
 [[tool.basedpyright.executionEnvironments]]
 root = "tests"
 reportMissingParameterType = false
+reportPrivateUsage = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
 addopts = "-q -m 'not integration and not gpu and not slow'"
 markers = [
-    "slow: offline but too slow for the fast lane; runs in make verify",
+    "slow: offline but too slow for the fast lane; runs in make slow",
     "integration: hits the network / HuggingFace; deselected by default",
     "gpu: requires explicit local CUDA hardware and generate dependencies",
 ]

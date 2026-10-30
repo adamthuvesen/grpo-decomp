@@ -6,9 +6,10 @@ Read [docs/architecture.md](docs/architecture.md) for what goes where before you
 ## Commands
 
 ```bash
+make fix            # auto-format + safe lint fixes
 make install        # CPU env: data, rewards, eval, stats, reports
 make check          # fast offline gate: lock, lint, imports, types, fast tests (first CI job)
-make verify         # check + result reproduction + installed-wheel smoke (CI matrix)
+make slow           # check + result reproduction + installed-wheel smoke (CI matrix)
 make demo           # score committed mini CompletionSets; no model load
 make help           # focused checks and study commands
 
@@ -18,7 +19,7 @@ grpo-decomp battery --completions runs/base__dev --k 1      # grade a Completion
 
 Only `generate` and training need a model or GPU. Grading and reports run on CPU.
 
-Prove changes with `make verify-app` (`verify-grpo-decomp` skill at `.agents/skills/verify-grpo-decomp/`).
+Prove changes with `make verify` (`verify-grpo-decomp` skill at `.agents/skills/verify-grpo-decomp/`).
 
 ## Enforced Rules
 
@@ -38,7 +39,7 @@ Prove changes with `make verify-app` (`verify-grpo-decomp` skill at `.agents/ski
 | Historical result JSON stays byte-identical | `tests/test_esme_analysis.py::test_committed_legacy_summary_is_byte_identical`, `Makefile::reproduce-esme` | 2026-10-24 |
 | Documented numbers match committed results | `tests/test_docs_consistency.py` | 2026-07-01 |
 | The installed wheel discovers the plugin | `tests/test_packaging.py::test_installed_wheel_discovers_plugin_grades_and_loads_packaged_fixture` | 2026-11-05 |
-| `make verify-app` reports a pass only when its control observes FAIL | `.agents/skills/verify-grpo-decomp/drives.py::control_battery`, `Makefile::verify-app` | 2026-11-06 |
+| `make verify` reports a pass only when its control observes FAIL | `.agents/skills/verify-grpo-decomp/drives.py::control_battery`, `Makefile::verify` | 2026-11-06 |
 | Source, scripts, tests, and Modal app pass basedpyright strict; the baseline only shrinks | `pyproject.toml::tool.basedpyright`, `scripts/check_basedpyright_ratchet.py::main`, `Makefile::typecheck` | 2026-11-06 |
 | This table cites only real enforcers | `tests/test_agents_rules.py::test_enforced_rules_cite_existing_definitions` | 2026-11-06 |
 

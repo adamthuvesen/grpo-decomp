@@ -446,10 +446,12 @@ def _esme_sum_template_figure(summary: LegacySampledSummary, out_dir: Path) -> N
     arms: tuple[ArmRole, ...] = ("base", "random", "correct")
     labels = {"base": "base", "random": "placebo", "correct": "real reward"}
     rows = summary.arms
-    sum_rate = {arm: rows[arm].sum_template_rate * PP for arm in arms}
-    other_valid = {arm: (rows[arm].valid_rate - rows[arm].sum_template_rate) * PP for arm in arms}
-    solved_sum = {arm: float(rows[arm].solved_sum_target) for arm in arms}
-    solved_other = {arm: float(rows[arm].solved_other) for arm in arms}
+    sum_rate: dict[ArmRole, float] = {arm: rows[arm].sum_template_rate * PP for arm in arms}
+    other_valid: dict[ArmRole, float] = {
+        arm: (rows[arm].valid_rate - rows[arm].sum_template_rate) * PP for arm in arms
+    }
+    solved_sum: dict[ArmRole, float] = {arm: float(rows[arm].solved_sum_target) for arm in arms}
+    solved_other: dict[ArmRole, float] = {arm: float(rows[arm].solved_other) for arm in arms}
     valid_effect = summary.effects["valid_rate"]
     n_sum = summary.n_sum_target_problems
     n_problems = summary.n_problems

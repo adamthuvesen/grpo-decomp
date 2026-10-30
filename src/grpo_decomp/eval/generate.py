@@ -9,6 +9,9 @@ Both backends draw on the shared training prompt and stop on the model's native 
 so eval measures the model on the distribution it trained on.
 """
 
+# The CPU environment has no GPU libraries (torch, transformers, trl, vllm).
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 from collections.abc import Sequence

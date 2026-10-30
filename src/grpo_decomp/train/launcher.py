@@ -12,6 +12,9 @@ trainer's EOS and vLLM's stop token disagree).
 The per-step unparseable rate is already logged by the `correct` reward.
 """
 
+# The CPU environment has no GPU libraries (torch, transformers, trl, vllm).
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 from pathlib import Path

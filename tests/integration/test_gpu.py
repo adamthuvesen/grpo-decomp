@@ -1,5 +1,8 @@
 """Explicit local GPU smoke. This test never provisions hardware or downloads a model."""
 
+# The CPU environment has no GPU libraries (torch, transformers, trl, vllm).
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 import os

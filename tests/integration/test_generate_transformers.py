@@ -1,5 +1,8 @@
 """Integration: the real transformers backend on a tiny model (needs `generate` extra + net)."""
 
+# The CPU environment has no GPU libraries (torch, transformers, trl, vllm).
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 import pytest

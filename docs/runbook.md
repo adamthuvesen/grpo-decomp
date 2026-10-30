@@ -40,10 +40,10 @@ about 40 seconds apart, since Modal rate-limits app creation.
 ## Local Checks
 
 ```bash
-make verify
+make slow
 ```
 
-`make verify` runs the complete locked offline gate described in [development.md](development.md).
+`make slow` runs the complete locked offline gate described in [development.md](development.md).
 It includes types, import boundaries, the installed wheel, unit tests, public results, and figures.
 
 To rewrite the committed figures from result JSON:

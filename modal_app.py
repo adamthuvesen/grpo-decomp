@@ -21,6 +21,7 @@ import inspect
 import shlex
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import modal
 
@@ -382,10 +383,12 @@ def main(
     from grpo_decomp.train.config import load_arm_config
     from grpo_decomp.train.launcher import preflight_arm
 
+    arm_config_json = ""
+    kwargs: dict[str, Any]
     if command == "train":
-        configured_arm = preflight_arm(
+        arm_config_json = preflight_arm(
             load_arm_config(Path(arm)), smoke_problems=smoke_problems, max_steps=max_steps
-        )
+        ).model_dump_json()
     elif command == "heldout":
         load_arm_config(Path(arm))
     elif command == "battery":
@@ -399,7 +402,7 @@ def main(
             train_arm,
             {
                 "arm_yaml": arm,
-                "arm_config_json": configured_arm.model_dump_json(),
+                "arm_config_json": arm_config_json,
                 "smoke_problems": smoke_problems,
                 "max_steps": max_steps,
                 "commit": commit,
