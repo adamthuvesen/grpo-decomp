@@ -59,7 +59,7 @@ def git_commit() -> str:
             ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
         )
         return result.stdout.strip()
-    except subprocess.SubprocessError, OSError:
+    except (subprocess.SubprocessError, OSError):
         return "unknown"
 
 
@@ -74,7 +74,7 @@ def git_is_dirty() -> bool:
         result = subprocess.run(
             ["git", "status", "--porcelain"], capture_output=True, text=True, check=True
         )
-    except subprocess.SubprocessError, OSError:
+    except (subprocess.SubprocessError, OSError):
         return False
     return bool(result.stdout.strip())
 

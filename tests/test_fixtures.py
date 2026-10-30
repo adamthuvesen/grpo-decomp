@@ -11,14 +11,14 @@ from pathlib import Path
 
 import pytest
 
-from grpo_decomp.eval.completions import load_completion_set
+from grpo_decomp.eval.completions import CompletionSet, load_completion_set
 from grpo_decomp.report.mechanism import build_mechanism
 from grpo_decomp.report.passk_seeds import aggregate_passk_seeds
 
 _MINI = Path(__file__).parent / "fixtures" / "mini"
 
 
-def _correct_sets() -> list:
+def _correct_sets() -> list[CompletionSet]:
     return [load_completion_set(_MINI / f"correct-seed{s}__mini") for s in (0, 1)]
 
 

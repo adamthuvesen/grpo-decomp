@@ -68,7 +68,7 @@ def test_prompt_strategy_defaults_to_r1_zero() -> None:
 
 def test_arm_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError):
-        ArmConfig(name="x", base_model="m", reward="correct", seed=0, surprise=1)
+        ArmConfig(name="x", base_model="m", reward="correct", seed=0, surprise=1)  # pyright: ignore[reportCallIssue]  # unknown field on purpose
 
 
 def test_on_policy_arms_keep_trl_default_steps_per_generation() -> None:

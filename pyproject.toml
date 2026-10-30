@@ -7,7 +7,9 @@ name = "grpo-decomp"
 version = "0.1.0"
 description = "Controls-first tool for analyzing what drives GRPO gains."
 readme = "README.md"
-requires-python = ">=3.14"
+# Python 3.13, not 3.14: the Modal image's locked vllm 0.17.1 pulls numba 0.61, llvmlite 0.44,
+# outlines-core and xgrammar, which have no cp314 wheels (2026-11-06).
+requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [
     { name = "Adam Thuvesen", email = "adam.thuvesen@mentimeter.com" },
@@ -17,7 +19,7 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "pydantic>=2.7,<3",
@@ -81,7 +83,7 @@ gsm8k = "llm_grpo_gains.registration:register"
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
@@ -92,7 +94,7 @@ known-first-party = ["grpo_decomp", "llm_grpo_gains"]
 
 [tool.basedpyright]
 typeCheckingMode = "strict"
-pythonVersion = "3.14"
+pythonVersion = "3.13"
 include = ["src/grpo_decomp", "src/llm_grpo_gains", "scripts", "tests", "modal_app.py", ".agents/skills/verify-grpo-decomp"]
 exclude = ["**/__pycache__", ".venv", ".verify"]
 venvPath = "."

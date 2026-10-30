@@ -25,6 +25,7 @@ from typing import Any
 
 import modal
 
+import grpo_decomp
 from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.jobs import (
     CompletionJob,
@@ -48,6 +49,12 @@ CUDA_IMAGE = "nvidia/cuda:12.4.1-devel-ubuntu22.04"
 RUNS_DIR = "/runs"
 # Where the project tree is mounted inside the image (arbitrary; kept off the volume).
 REMOTE_ROOT = "/root/grpo-decomp"
+# parents[2] is the project root locally and REMOTE_ROOT in the image (editable install).
+LOCAL_PYTHON = (
+    (Path(grpo_decomp.__file__).resolve().parents[2] / ".python-version")
+    .read_text(encoding="utf-8")
+    .strip()
+)
 
 app = modal.App(APP_NAME)
 
@@ -72,7 +79,7 @@ _IGNORE = [
 # train extra's pinned deps without the project itself; the project is linked
 # separately with --no-deps once the full source is present.
 image = (
-    modal.Image.from_registry(CUDA_IMAGE, add_python="3.14")
+    modal.Image.from_registry(CUDA_IMAGE, add_python=LOCAL_PYTHON)
     .apt_install("git")
     .pip_install("uv")
     .add_local_file(

@@ -1,6 +1,6 @@
 # grpo-decomp
 
-![License](https://img.shields.io/github/license/adamthuvesen/grpo-decomp) ![Python](https://img.shields.io/badge/python-3.14%2B-blue)
+![License](https://img.shields.io/github/license/adamthuvesen/grpo-decomp) ![Python](https://img.shields.io/badge/python-3.13%2B-blue)
 
 When GRPO raises a benchmark score, how much of the gain is new reasoning, and how much is
 the base model getting more reliable at answers it could already find? `grpo-decomp` is a
@@ -192,7 +192,7 @@ example. Step-by-step: [docs/architecture.md](docs/architecture.md#plug-in-your-
 
 ## Stack
 
-Python 3.14+ · `uv` · Pydantic · TRL GRPO · transformers · vLLM · Modal ·
+Python 3.13+ · `uv` · Pydantic · TRL GRPO · transformers · vLLM · Modal ·
 [`eval-audit`](https://github.com/adamthuvesen/eval-audit)
 
 ## References

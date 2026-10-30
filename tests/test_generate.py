@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+from typing import Literal
 
 import pytest
 
@@ -189,7 +190,13 @@ def test_vllm_records_loaded_config_metadata(monkeypatch) -> None:
     assert output.resolved_model_revision == "resolved"
 
 
-def _local_checkpoint(tmp_path, *, attempt_id="a" * 32, state="completed", seed=42):
+def _local_checkpoint(
+    tmp_path,
+    *,
+    attempt_id="a" * 32,
+    state: Literal["running", "completed", "failed"] = "completed",
+    seed=42,
+):
     from grpo_decomp.schemas import record_json
     from grpo_decomp.train.config import GRPOSettings
     from grpo_decomp.train.provenance import RunProvenance, RunStatus

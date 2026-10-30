@@ -153,7 +153,7 @@ def test_k_greater_than_n_is_explicit_error() -> None:
 def test_schema_rejects_unknown_fields() -> None:
     panel = aggregate_passk_seeds(_BASE, [(0, _SEED_A), (1, _SEED_B)], task="gsm8k-test", k=1)
     with pytest.raises(ValidationError):
-        PassKMultiSeed(**{**panel.model_dump(), "bogus": 1})
+        PassKMultiSeed.model_validate({**panel.model_dump(), "bogus": 1})
 
 
 def test_paired_delta_ci_drops_the_unpaired_anchor_noise() -> None:

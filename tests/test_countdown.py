@@ -47,19 +47,25 @@ def test_parse_rejects_a_malformed_key() -> None:
 # --- the restricted, eval-free evaluator ------------------------------------------------
 
 
+def _evaluate(text: str) -> tuple[Fraction, list[int]]:
+    result = evaluate_expression(text)
+    assert result is not None
+    return result
+
+
 def test_evaluate_basic_arithmetic_and_leaves() -> None:
-    value, leaves = evaluate_expression("4 * 5 + 6")
+    value, leaves = _evaluate("4 * 5 + 6")
     assert value == 26
     assert sorted(leaves) == [4, 5, 6]
 
 
 def test_evaluate_is_exact_rational_not_float() -> None:
-    value, _ = evaluate_expression("6 / 4")
+    value, _ = _evaluate("6 / 4")
     assert value == Fraction(3, 2)
 
 
 def test_evaluate_normalizes_latex_operators() -> None:
-    value, leaves = evaluate_expression(r"4 \times 5")
+    value, leaves = _evaluate(r"4 \times 5")
     assert value == 20
     assert sorted(leaves) == [4, 5]
 

@@ -4,7 +4,7 @@ Start with `make install`, then `make help`. Installation may access the network
 `make check` is the fast offline gate and the first CI job. `make slow` adds slow work:
 result reproduction, figures, and the installed-wheel smoke. Both use the lockfile and run
 without network access after installation. CI runs `make slow` on macOS and Linux with
-Python 3.14.
+Python 3.13.
 
 ## Ownership and focused changes
 

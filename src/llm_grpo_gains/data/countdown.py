@@ -124,7 +124,7 @@ def evaluate_expression(
         text = _normalize_expression(text)
     try:
         tree = ast.parse(text.strip(), mode="eval")
-    except SyntaxError, ValueError, RecursionError:
+    except (SyntaxError, ValueError, RecursionError):
         return None
     except MemoryError as exc:
         if "Parser stack overflowed" not in str(exc):

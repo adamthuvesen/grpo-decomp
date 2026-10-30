@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -27,7 +28,7 @@ _ARROW = "→"
 _TIMES = "\u00d7"  # multiplication sign
 
 
-def _load(rel: str) -> dict:
+def _load(rel: str) -> dict[str, Any]:
     return json.loads((_ROOT / rel).read_text())
 
 
@@ -66,7 +67,7 @@ _CDM = _load("results/countdown-math/pass8-multiseed.json")  # same-base Countdo
 _MECH_CDM = _load("results/countdown-math/mechanism.json")
 
 
-def _summary_control_comparison(needle: str) -> dict:
+def _summary_control_comparison(needle: str) -> dict[str, Any]:
     """The decomposition `comparison` whose control name contains `needle`."""
     for row in _SUM["rows"]:
         if needle in row["control"]:
@@ -74,7 +75,7 @@ def _summary_control_comparison(needle: str) -> dict:
     raise KeyError(needle)
 
 
-def _multiseed_control_row(control: str) -> dict:
+def _multiseed_control_row(control: str) -> dict[str, Any]:
     """The 6-seed control row for exactly `control` (decomposition-multiseed.json)."""
     for row in _DECOMP["rows"]:
         if row["control"] == control:

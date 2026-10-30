@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from grpo_decomp.plugins import ENTRY_POINT_GROUP, load_plugins
 from grpo_decomp.registries import EVAL_SETS, REWARDS, TASKS
+from grpo_decomp.schemas import ProblemSet
 
 
 def test_load_plugins_discovers_the_study_via_entry_point() -> None:
@@ -38,8 +39,11 @@ def test_failed_plugin_startup_restores_all_registry_changes(monkeypatch) -> Non
     owners_before = registries._OWNERS.copy()
     monkeypatch.setattr(plugins, "_loaded", False)
 
+    def never_loaded() -> ProblemSet:
+        raise AssertionError("the loader is registered, not called")
+
     def first() -> None:
-        registries.register_eval_set("temporary-first", lambda: None)
+        registries.register_eval_set("temporary-first", never_loaded)
 
     def broken() -> None:
         registries.register_control_set("temporary-control", "probe")
