@@ -212,3 +212,40 @@ def test_reward_and_eval_share_countdown_key_parsing() -> None:
         ),
         {"c0": r"\boxed{4 * 5 + 6}"},
     ) == {"c0": True}
+
+
+def test_long_expression_evaluation_does_not_use_python_recursion() -> None:
+    text = "+".join(["1"] * 1200)
+    assert evaluate_expression(text) == (Fraction(1200), [1] * 1200)
+    assert not is_valid_countdown_solution(text, [1, 1, 1], 1200)
+
+
+def test_parser_recursion_failures_are_invalid_expressions() -> None:
+    assert evaluate_expression("+" * 10000 + "1") is None
+    assert evaluate_expression("(" * 10000 + "1" + ")" * 10000) is None
+
+
+@pytest.mark.parametrize("text", ["-1 + +2", "1 - -2", "-(1 - 2)"])
+def test_general_countdown_keeps_its_historical_unary_grammar(text: str) -> None:
+    assert evaluate_expression(text) is not None
+
+
+def test_number_budget_is_checked_before_arithmetic(monkeypatch) -> None:
+    from llm_grpo_gains.data import countdown as countdown_module
+
+    def unexpected_arithmetic(*args, **kwargs):
+        raise AssertionError("invalid number budget reached arithmetic")
+
+    monkeypatch.setattr(countdown_module, "Fraction", unexpected_arithmetic)
+    assert evaluate_expression("1 + 2 + 3", numbers=[1, 2]) is None
+
+
+def test_unrelated_parser_memory_failure_propagates(monkeypatch) -> None:
+    from llm_grpo_gains.data import countdown as countdown_module
+
+    def exhausted_parser(*args, **kwargs):
+        raise MemoryError("allocation failed")
+
+    monkeypatch.setattr(countdown_module.ast, "parse", exhausted_parser)
+    with pytest.raises(MemoryError, match="allocation failed"):
+        evaluate_expression("1")

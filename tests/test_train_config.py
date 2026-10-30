@@ -96,3 +96,35 @@ def test_new_arms_change_one_variable_from_their_reference(
 
     a, b = flat(new), flat(reference)
     assert {key for key in a if a[key] != b[key]} == changed
+
+
+@pytest.mark.parametrize("name", ["../escape", "/tmp/run", "a/b", ".", "..", "bad\\name"])
+def test_arm_names_cannot_escape_run_root(name) -> None:
+    with pytest.raises(ValidationError):
+        ArmConfig(name=name, base_model="m", reward="correct", seed=0)
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"max_steps": 0},
+        {"num_generations": 1},
+        {"num_generations": 3},
+        {"learning_rate": float("nan")},
+        {"beta": float("inf")},
+        {"vllm_mode": "typo"},
+        {"loss_type": "typo"},
+        {"scale_rewards": "typo"},
+        {"steps_per_generation": 0},
+        {"max_steps": True},
+    ],
+)
+def test_invalid_settings_reject_before_gpu(settings) -> None:
+    with pytest.raises(ValidationError):
+        GRPOSettings(**settings)
+
+
+def test_trl_generation_batch_divisibility_uses_steps_per_generation() -> None:
+    # TRL checks generation batch, not the per-device optimizer batch.
+    config = GRPOSettings(per_device_train_batch_size=2, num_generations=8, steps_per_generation=4)
+    assert config.steps_per_generation == 4

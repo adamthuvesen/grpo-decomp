@@ -8,9 +8,14 @@ record *shapes* (run vs. generation) are defined by their own modules.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 from collections.abc import Sequence
 from importlib import metadata
+from pathlib import Path
+
+from grpo_decomp.schemas import ProblemSet
 
 #: Dependencies whose versions pin a result's behavior (training or generation).
 PROVENANCE_PACKAGES = (
@@ -26,6 +31,25 @@ PROVENANCE_PACKAGES = (
     "scipy",
     "polars",
 )
+
+
+def content_digest(value: object) -> str:
+    """SHA256 of canonical JSON, including ordered problem and prompt content."""
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def problem_set_digest(problems: ProblemSet) -> str:
+    """Identify the dataset metadata and actual ordered problem records."""
+    return content_digest(problems.model_dump())
+
+
+def file_digest(path: Path) -> str:
+    """Hash a file without loading model weights into memory."""
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def git_commit() -> str:

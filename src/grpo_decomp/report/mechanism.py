@@ -1,19 +1,8 @@
-"""Mechanism of the GSM8K gain: reliability, not new capability.
+"""Descriptive reliability transitions and completion lengths.
 
-The multi-seed pass@8 panel shows *that* the gain is elicitation (coverage barely moves); this
-shows *why*, per problem, over the same completions. Two readouts:
-
-- migration: at a reliability threshold ``tau``, classify each problem by whether the base
-  solves it first-try (pass@1 >= tau), whether the trained model does (correct
-  pass@1 >= tau), and when the base did not, whether the base could still reach it within
-  pass@k. The elicitation signature is problems that migrate from "base needs several tries"
-  (base pass@1 < tau <= base pass@k) to "trained solves first try", with almost none genuinely
-  new (outside the base's pass@k envelope). Expansion (Countdown) is the opposite.
-- length: the mean completion-length shift (characters + whitespace words), base vs trained:
-  the style change that accompanies the reliability gain.
-
-Reads the same base + per-seed correct CompletionSets as the pass@8 panel. Correct samples are
-pooled over seeds for a seed-averaged per-problem pass@1. Deterministic; CPU-only.
+This report partitions observed problems at a recorded reliability threshold.
+It does not identify a causal mechanism or establish new reasoning capability.
+Correct samples are pooled over seeds for a seed-averaged per-problem pass@1.
 """
 
 from __future__ import annotations
@@ -21,11 +10,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import NamedTuple
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from grpo_decomp.eval.battery import counts_by_problem
 from grpo_decomp.eval.completions import CompletionSet
 from grpo_decomp.eval.passk import pass_at_k
+from grpo_decomp.report.evidence import AnalysisProvenance, anchored_inputs
+from grpo_decomp.report.validation import PositiveCount, Rate, require_close
 from grpo_decomp.schemas import Record
 
 #: Default pass-rate cutoff for classifying a problem as first-try reliable.
@@ -36,11 +27,15 @@ class MechanismReport(Record):
     """Per-problem base->trained migration + the completion-length shift behind the verdict."""
 
     task: str
-    n_problems: int
-    n_base: int = Field(description="Base samples per problem.")
-    n_correct_pooled: int = Field(description="Correct samples per problem, pooled over seeds.")
-    k: int = Field(description="pass@k envelope level for 'the base could still reach it'.")
-    reliability_threshold: float = Field(description="pass-rate cutoff tau for 'reliably solves'.")
+    n_problems: PositiveCount
+    n_base: PositiveCount = Field(description="Base samples per problem.")
+    n_correct_pooled: PositiveCount = Field(
+        description="Correct samples per problem, pooled over seeds."
+    )
+    k: PositiveCount = Field(
+        description="pass@k envelope level for 'the base could still reach it'."
+    )
+    reliability_threshold: Rate = Field(description="pass-rate cutoff tau for 'reliably solves'.")
 
     base_mean_chars: float
     correct_mean_chars: float
@@ -48,20 +43,55 @@ class MechanismReport(Record):
     correct_mean_words: float
 
     # Mutually exclusive, exhaustive problem categories (the four fractions sum to 1).
-    frac_base_already_reliable: float = Field(description="base pass@1 >= tau (RL adds nothing).")
-    frac_migrated_to_reliable: float = Field(
-        description="base pass@1 < tau <= base pass@k and correct pass@1 >= tau: the elicitation "
-        "signature, a within-reach problem made first-try reliable."
+    frac_base_already_reliable: Rate = Field(
+        description="base and correct pass@1 >= tau (retained reliability)."
     )
-    frac_new_capability: float = Field(
+    frac_migrated_to_reliable: Rate = Field(
+        description="base pass@1 < tau <= base pass@k and correct pass@1 >= tau: a within-envelope "
+        "problem that becomes first-try reliable."
+    )
+    frac_new_capability: Rate = Field(
         description="base pass@k < tau <= correct pass@1: outside the base's pass@k envelope."
     )
-    frac_still_hard: float = Field(description="correct pass@1 < tau (not reliably solved).")
-    migration_share_of_gain: float = Field(
+    frac_still_hard: Rate = Field(description="correct pass@1 < tau (not reliably solved).")
+    migration_share_of_gain: Rate = Field(
         description="migrated / (migrated + new): of the problems the trained model newly solves "
-        "first-try reliably, the share already within the base's pass@k reach. ~1 is pure "
-        "elicitation; lower means real expansion."
+        "first-try reliably, the share already within the base's pass@k reach. "
+        "This is a descriptive "
+        "fraction, not a causal attribution."
     )
+
+    frac_lost_reliability: Rate | None = None
+    frac_never_reliable: Rate | None = None
+    analysis: AnalysisProvenance | None = None
+
+    @model_validator(mode="after")
+    def _consistent(self) -> MechanismReport:
+        if self.reliability_threshold <= 0 or self.k > self.n_base:
+            raise ValueError("require 0 < reliability_threshold <= 1 and k <= n_base")
+        require_close(
+            "migration partition",
+            self.frac_base_already_reliable
+            + self.frac_migrated_to_reliable
+            + self.frac_new_capability
+            + self.frac_still_hard,
+            1.0,
+        )
+        gain = self.frac_migrated_to_reliable + self.frac_new_capability
+        require_close(
+            "migration_share_of_gain",
+            self.migration_share_of_gain,
+            self.frac_migrated_to_reliable / gain if gain else 0.0,
+        )
+        if (self.frac_lost_reliability is None) != (self.frac_never_reliable is None):
+            raise ValueError("lost and never-reliable fractions must be supplied together")
+        if self.frac_lost_reliability is not None and self.frac_never_reliable is not None:
+            require_close(
+                "still_hard",
+                self.frac_still_hard,
+                self.frac_lost_reliability + self.frac_never_reliable,
+            )
+        return self
 
     def headline(self) -> str:
         """One-line mechanism verdict: how much of the added reliability is within-envelope."""
@@ -74,8 +104,8 @@ class MechanismReport(Record):
         share = self.migration_share_of_gain * 100
         return (
             f"{self.task}: of the first-try reliability the trained model adds, {share:.0f}% is "
-            f"migration within the base pass@{self.k} envelope (elicitation), {100 - share:.0f}% "
-            f"new capability; mean completion {self.base_mean_words:.0f}->"
+            f"migration within the base pass@{self.k} envelope, {100 - share:.0f}% "
+            f"outside that envelope (descriptive). Mean completion {self.base_mean_words:.0f}->"
             f"{self.correct_mean_words:.0f} words"
         )
 
@@ -118,9 +148,9 @@ def _migration_counts(
     base_counts: Sequence[int],
     pooled_correct_counts: Sequence[int],
     *,
-    n_base: int,
+    n_base: PositiveCount,
     n_pool: int,
-    k: int,
+    k: PositiveCount,
     tau: float,
 ) -> _MigrationCounts:
     base_already_reliable = migrated = new_capability = still_hard = 0
@@ -152,7 +182,7 @@ def build_mechanism(
     correct_by_seed: Sequence[CompletionSet],
     *,
     task: str,
-    k: int = 8,
+    k: PositiveCount = 8,
     tau: float = DEFAULT_RELIABILITY_TAU,
 ) -> MechanismReport:
     """Classify each problem's base->trained migration and measure the completion-length shift.
@@ -165,6 +195,13 @@ def build_mechanism(
     if not 0.0 < tau <= 1.0:
         raise ValueError(f"tau must satisfy 0 < tau <= 1, got {tau}")
 
+    inputs = anchored_inputs(
+        base,
+        [
+            (cs.provenance.training_seed if cs.provenance.training_seed is not None else i, cs)
+            for i, cs in enumerate(correct_by_seed)
+        ],
+    )
     base_counts, _cot, n_base = counts_by_problem(base.problem_set(), base.completions_by_id())
     if not 1 <= k <= n_base:
         raise ValueError(f"pass@{k} envelope needs 1<=k<=n_base; base has n={n_base}")
@@ -175,7 +212,14 @@ def build_mechanism(
 
     base_samples = _samples([base])
     correct_samples = _samples(correct_by_seed)
+    lost = sum(
+        c_base / n_base >= tau and c_correct / n_pool < tau
+        for c_base, c_correct in zip(base_counts, pooled, strict=True)
+    )
     return MechanismReport(
+        analysis=inputs.provenance("descriptive reliability migration", bootstrap=False),
+        frac_lost_reliability=lost / n,
+        frac_never_reliable=(migration.still_hard - lost) / n,
         task=task,
         n_problems=n,
         n_base=n_base,

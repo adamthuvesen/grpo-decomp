@@ -83,7 +83,7 @@ def test_base_and_correct_seeds_rejects_mismatched_correct_sample_counts(
         temperature=0.7,
     )
 
-    with pytest.raises(ValueError, match=r"share sampling\.n"):
+    with pytest.raises(ValueError, match=r"share n"):
         base_and_correct_seeds(tmp_path, "mini")
 
 

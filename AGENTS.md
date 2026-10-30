@@ -14,8 +14,8 @@ This repo has **two packages and one boundary**:
 The result is only as trustworthy as the controls. "Most of this gain was elicitation"
 beats a confident, uncontrolled "RL works."
 
-**Keep the boundary one-way.** The harness must never import the study (verified by a
-standalone-import smoke). Put generic measurement machinery in `grpo_decomp`; put anything
+**Keep the boundary one-way.** The harness must never import the study (enforced by import-linter and isolated
+wheel/import tests). Put generic measurement machinery in `grpo_decomp`; put anything
 GSM8K/Countdown-specific in `llm_grpo_gains`. The harness is a narrow measurement harness.
 Add extension points (registry entries), not a framework.
 User-level guidance (tone, principles, git etiquette) lives in the user's agent defaults
@@ -25,9 +25,9 @@ and is _not_ duplicated here.
 
 ```bash
 make install        # CPU env: data, rewards, eval, stats, reports
-make check          # Ruff + mypy + unit tests + docs consistency
+make check          # complete locked offline gate, including wheel and results checks
 make demo           # score committed mini CompletionSets; no model load
-make results        # rebuild figures from results/*.json + docs<->JSON consistency check
+make results-check  # compare regenerated public artifacts without changing them
 
 modal run --detach modal_app.py --arm configs/correct.yaml  # train one arm on an A100 (see docs/runbook.md)
 grpo-decomp battery --completions runs/base__dev --k 1      # grade a CompletionSet (CPU)
@@ -46,7 +46,7 @@ Only `generate` (and training) needs a model/GPU; grading and reports run on CPU
 - Determinism: fixed seeds, pinned dataset revisions, recorded model/commit/config/dependency hashes on every artifact.
 - **Pin TRL.** Its GRPO defaults move between versions; re-check config at build time. Same for vLLM (`==0.17.1`, TRL 1.0.0's supported max).
 - No new runtime deps without asking. Stack is TRL + transformers + vLLM + datasets (train) and `eval-audit` (stats); no broad RL/agent frameworks.
-- Python 3.13+, `uv`, ruff (line length 100), strict Pydantic for result schemas. `CLAUDE.md` is a symlink to this file.
+- Python 3.13+, `uv`, ruff (line length 100), strict Pydantic for result schemas. This file is the canonical repository guidance.
 - **Respect the boundary.** Harness code imports only `grpo_decomp.*`; study code may import both. A new GSM8K/Countdown-shaped knob is a registry entry in `llm_grpo_gains/registration.py`, not an `if task == ...` in the harness.
 
 The rationale behind these rules (why the reward curve lies, why seeds, why strict schemas)
@@ -72,3 +72,17 @@ any task through registries. No fork is required:
 | ---------------------------------------------------- | -------------------------------------------- |
 | Architecture, data flow, module map, Modal execution | [docs/architecture.md](docs/architecture.md) |
 | Training a GRPO arm on Modal, reproducing results    | [docs/runbook.md](docs/runbook.md)           |
+
+## Change navigation and verification
+
+- Artifact format or generation: start in `eval/completions.py` and `eval/generate.py`.
+  Preserve legacy reads. New publications are atomic and immutable.
+- Comparison rules: change `report/evidence.py`, then test CLI and direct library callers.
+  Training seeds identify replicates. Execution attempts and decoding seeds do not.
+- Training lifecycle: `train/provenance.py` owns attempt state. A run alias resolves only
+  one completed attempt. Multiple successful attempts require explicit selection.
+- Study reproduction: `llm_grpo_gains/workflows.py` owns the input and output inventory.
+  Scripts remain thin adapters. Use `make help` to discover focused checks.
+- Published aggregate-only results cannot recover missing raw evidence or lineage.
+  Keep historical JSON intact. Record corrections in separate versioned results.
+- Read `docs/development.md` for enforcement ownership, focused checks, and external limits.

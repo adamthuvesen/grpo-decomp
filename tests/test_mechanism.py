@@ -90,7 +90,7 @@ def test_build_mechanism_rejects_empty_and_mismatched() -> None:
     different = _completion_set_for_mechanism(
         ["7", "7", "7"], {"p0": [_C], "p1": [_C], "p2": [_C]}, n=1
     )
-    with pytest.raises(ValueError, match="same problems"):
+    with pytest.raises(ValueError, match="problem records"):
         build_mechanism(base, [different], task="gsm8k-test", k=1)
 
 

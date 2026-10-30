@@ -180,11 +180,19 @@ def test_sampled_decomp_writes_multiseed_summary(tmp_path: Path) -> None:
     )
     assert "sampled multiseed decomposition" in result.stdout
 
-    summary = json.loads((out / "sampled_multiseed_summary.json").read_text(encoding="utf-8"))
+    summary = json.loads(
+        (out / "sampled_multiseed_summary.corrected.json").read_text(encoding="utf-8")
+    )
+    assert summary["schema_version"] == 1
+    assert summary["inference"]["scope"] == "retrospective exploratory"
+    assert summary["inference"]["confidence_interval_scope"] == "marginal, not simultaneous"
     assert summary["n_seeds"] == 3
     assert summary["preliminary"] is False
     valid = summary["effects"]["valid_rate"]
     assert valid["mean_delta"] == pytest.approx(1.0)
     assert valid["ci_low"] == pytest.approx(1.0)
     assert valid["sign_flip_p"] == pytest.approx(2 / 2**3)
+    assert valid["sign_flip_p_holm"] == pytest.approx(3 * 2 / 2**3)
+    assert len(summary["analysis"]["inputs"]) == 7
+    assert (out / "sampled_decomposition.md").is_file()
     assert summary["arms"]["correct"]["any_exact_rate"] == pytest.approx(1.0)

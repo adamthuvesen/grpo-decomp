@@ -14,18 +14,23 @@ WANDB_API_KEY=...`). CUDA, torch, vLLM, and TRL versions must remain compatible.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import modal
 
 from grpo_decomp.eval.completions import SamplingConfig
+from grpo_decomp.jobs import (
+    CompletionJob,
+    plan_battery,
+    plan_passk,
+    validate_battery_request,
+    validate_passk_request,
+)
 from grpo_decomp.plugins import load_plugins
-from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.provenance import git_commit, git_is_dirty
-from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, EVAL_SETS, get_task_profile
+from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, EVAL_SETS
 from grpo_decomp.schemas import ProblemSet, record_json
-from grpo_decomp.train.provenance import load_run_provenance
+from grpo_decomp.train.provenance import resolve_run_dir
 
 # Populate the harness registries with the study's eval sets and task profiles, both
 # locally (entrypoint arg handling) and inside each Modal container (module import).
@@ -80,24 +85,11 @@ image = (
 runs = modal.Volume.from_name("assay-runs", create_if_missing=True)
 
 
-@dataclass(frozen=True)
-class _CompletionJob:
-    arm: str
-    model_ref: str
-    model_revision: str | None
-    set_name: str
-    config: SamplingConfig
-    problems: ProblemSet | None = None
-    # The prompt strategy this arm trained on; eval MUST match it or the decomposition
-    # compares a model against an off-distribution prompt.
-    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY
-
-
 def _generate_completion_set_to_volume(
     *,
     model_ref: str,
-    problems,
-    config,
+    problems: ProblemSet,
+    config: SamplingConfig,
     out_dir: Path,
     commit: str | None,
     dirty: bool | None,
@@ -123,12 +115,18 @@ def _generate_completion_set_to_volume(
 
 
 def _run_completion_jobs(
-    jobs: list[_CompletionJob],
+    jobs: list[CompletionJob],
     *,
     out_root: Path,
     commit: str | None,
     dirty: bool | None,
 ) -> None:
+    for job in jobs:
+        out = out_root / f"{job.arm}__{job.set_name}"
+        if not out.resolve().is_relative_to(out_root.resolve()):
+            raise ValueError(f"completion output escapes root: {out}")
+        if out.exists():
+            raise ValueError(f"completion output already exists: {out}")
     for job in jobs:
         problems = job.problems if job.problems is not None else EVAL_SETS[job.set_name]()
         out = _generate_completion_set_to_volume(
@@ -161,6 +159,7 @@ def train_arm(
     max_steps: int | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
+    arm_config_json: str | None = None,
 ) -> str:
     """Run one arm on the GPU; persist checkpoints + provenance to the Volume.
 
@@ -169,19 +168,25 @@ def train_arm(
     """
     from pathlib import Path
 
-    from grpo_decomp.train.config import load_arm_config
+    from grpo_decomp.train.config import ArmConfig, load_arm_config
     from grpo_decomp.train.launcher import launch
 
-    arm = load_arm_config(Path(arm_yaml))
-    run_dir = launch(
-        arm,
-        output_root=Path(RUNS_DIR),
-        smoke_problems=smoke_problems,
-        max_steps=max_steps,
-        commit=commit,
-        dirty=dirty,
+    arm = (
+        ArmConfig.model_validate_json(arm_config_json)
+        if arm_config_json is not None
+        else load_arm_config(Path(arm_yaml))
     )
-    runs.commit()
+    try:
+        run_dir = launch(
+            arm,
+            output_root=Path(RUNS_DIR),
+            smoke_problems=smoke_problems,
+            max_steps=max_steps,
+            commit=commit,
+            dirty=dirty,
+        )
+    finally:
+        runs.commit()
     return str(run_dir)
 
 
@@ -199,7 +204,7 @@ def heldout_arm(arm_yaml: str) -> str:
     from grpo_decomp.train.config import load_arm_config
 
     arm = load_arm_config(Path(arm_yaml))
-    run_dir = Path(RUNS_DIR) / f"{arm.name}-seed{arm.seed}"
+    run_dir = resolve_run_dir(Path(RUNS_DIR) / f"{arm.name}-seed{arm.seed}")
     curve = run_heldout_curve(run_dir, backend="vllm")
     out = run_dir / "heldout.json"
     out.write_text(record_json(curve), encoding="utf-8")
@@ -216,7 +221,7 @@ def heldout_arm(arm_yaml: str) -> str:
 def eval_matrix(
     seed: int = 0,
     scope: str = "full",
-    task: str = "gsm8k",
+    task: str | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
 ) -> str:
@@ -233,60 +238,7 @@ def eval_matrix(
     `commit`/`dirty` come from the local entrypoint (no .git in the image) so each
     artifact is traceable to its code.
     """
-    from pathlib import Path
-
-    from grpo_decomp.train.config import load_arm_config
-
-    profile = get_task_profile(task)
-    base = load_arm_config(Path(profile.base_config))
-
-    def trained_checkpoint(role: str) -> tuple[str, str]:
-        run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}{role}-seed{seed}"
-        prov = load_run_provenance(run_dir)
-        return str(run_dir / "checkpoints" / "final"), prov.prompt_strategy
-
-    base_row = ("base", base.base_model, base.base_model_revision, base.prompt_strategy)
-
-    def trained_row(role: str) -> tuple[str, str, None, str]:
-        checkpoint, strategy = trained_checkpoint(role)
-        return role, checkpoint, None, strategy
-
-    if scope == "full":
-        matrix = [
-            (*base_row, [profile.task_set, *profile.control_sets]),
-            (*trained_row("correct"), [profile.task_set, *profile.control_sets]),
-            (*trained_row("random"), [profile.task_set]),
-        ]
-    elif scope == "placebo":
-        matrix = [
-            (*trained_row("correct"), [profile.task_set]),
-            (*trained_row("random"), [profile.task_set]),
-        ]
-    elif scope == "random-vs-base":
-        matrix = [(*trained_row("random"), [profile.task_set])]
-        if seed == 0:
-            matrix.insert(0, (*base_row, [profile.task_set]))
-    elif scope == "controls":
-        if not profile.control_sets:
-            raise ValueError(f"scope 'controls' needs control sets; task {task!r} has none")
-        matrix = [(*trained_row("correct"), list(profile.control_sets))]
-    else:
-        raise ValueError(
-            f"scope must be 'full', 'placebo', 'random-vs-base', or 'controls', got {scope!r}"
-        )
-
-    config = SamplingConfig(
-        temperature=0.0, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=1, seed=0
-    )
-    out_root = Path(RUNS_DIR) / (
-        profile.battery_root if seed == 0 else f"{profile.battery_root}-seed{seed}"
-    )
-
-    jobs = [
-        _CompletionJob(arm, model_ref, revision, set_name, config, prompt_strategy=strategy)
-        for arm, model_ref, revision, strategy, set_names in matrix
-        for set_name in set_names
-    ]
+    out_root, jobs = plan_battery(Path(RUNS_DIR), seed=seed, scope=scope, task=task)
     _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
 
@@ -298,7 +250,7 @@ def eval_matrix(
     timeout=6 * 60 * 60,
 )
 def passk_multiseed(
-    task: str = "gsm8k",
+    task: str | None = None,
     n_base: int = 16,
     n_correct: int = 8,
     correct_seeds: str = "0,1,2,3,4,5",
@@ -322,61 +274,15 @@ def passk_multiseed(
     control can be matched to the task set's size. The set suffix keeps control panels
     disjoint from the task-set cells in one dir.
     """
-    from pathlib import Path
-
-    from grpo_decomp.splits import dev_slice
-    from grpo_decomp.train.config import load_arm_config
-
-    profile = get_task_profile(task)
-    eval_set = set_name or profile.task_set
-    if eval_set not in EVAL_SETS:
-        raise ValueError(f"unknown set {eval_set!r}; known sets are {tuple(sorted(EVAL_SETS))}")
-    if limit is not None and limit < 1:
-        raise ValueError(f"limit must be >= 1, got {limit}")
-    seeds = [int(s) for s in correct_seeds.split(",") if s.strip() != ""]
-    if not seeds:
-        raise ValueError(f"no correct seeds parsed from {correct_seeds!r}")
-    base = load_arm_config(Path(profile.base_config))
-
-    def trained_checkpoint(seed: int) -> tuple[str, str]:
-        run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}correct-seed{seed}"
-        prov = load_run_provenance(run_dir)
-        return str(run_dir / "checkpoints" / "final"), prov.prompt_strategy
-
-    out_root = Path(RUNS_DIR) / profile.passk_multiseed_root
-    problems = EVAL_SETS[eval_set]()
-    if limit is not None:
-        problems = dev_slice(problems, n=limit, seed=0)
-
-    def sampled_config(n: int) -> SamplingConfig:
-        return SamplingConfig(
-            temperature=0.7, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=n, seed=0
-        )
-
-    def correct_job(seed: int) -> _CompletionJob:
-        checkpoint, strategy = trained_checkpoint(seed)
-        return _CompletionJob(
-            f"correct-seed{seed}",
-            checkpoint,
-            None,
-            eval_set,
-            sampled_config(n_correct),
-            problems,
-            prompt_strategy=strategy,
-        )
-
-    jobs = [
-        _CompletionJob(
-            "base",
-            base.base_model,
-            base.base_model_revision,
-            eval_set,
-            sampled_config(n_base),
-            problems,
-            prompt_strategy=base.prompt_strategy,
-        ),
-        *(correct_job(seed) for seed in seeds),
-    ]
+    out_root, jobs = plan_passk(
+        Path(RUNS_DIR),
+        task=task,
+        n_base=n_base,
+        n_correct=n_correct,
+        correct_seeds=correct_seeds,
+        set_name=set_name,
+        limit=limit,
+    )
     _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
 
@@ -389,7 +295,7 @@ def main(
     max_steps: int | None = None,
     seed: int = 0,
     scope: str = "full",
-    task: str = "gsm8k",
+    task: str | None = None,
     n_base: int = 16,
     n_correct: int = 8,
     correct_seeds: str = "0,1,2,3,4,5",
@@ -432,12 +338,26 @@ def main(
     """
     # Computed here (locally) because the image ignores .git, so the container can't
     # read git - pass the real commit/dirty into provenance.
+    from grpo_decomp.train.config import load_arm_config
+    from grpo_decomp.train.launcher import preflight_arm
+
+    if command == "train":
+        configured_arm = preflight_arm(
+            load_arm_config(Path(arm)), smoke_problems=smoke_problems, max_steps=max_steps
+        )
+    elif command == "heldout":
+        load_arm_config(Path(arm))
+    elif command == "battery":
+        validate_battery_request(task, scope, seed)
+    elif command == "passk-multiseed":
+        validate_passk_request(task, n_base, n_correct, correct_seeds, set_name, limit)
     commit, dirty = git_commit(), git_is_dirty()
     if command == "train":
         fn, kwargs = (
             train_arm,
             {
                 "arm_yaml": arm,
+                "arm_config_json": configured_arm.model_dump_json(),
                 "smoke_problems": smoke_problems,
                 "max_steps": max_steps,
                 "commit": commit,

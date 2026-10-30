@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from grpo_decomp.registries import PromptStrategy, register_prompt_strategy
+from grpo_decomp.registries import PromptStrategy, register_prompt_strategy, registration_owner
 
 #: Generation budget for eval and held-out curves — matches ``GRPOSettings.max_completion_length``.
 EVAL_MAX_NEW_TOKENS = 1024
@@ -51,4 +51,5 @@ R1_ZERO = PromptStrategy(
     prepare_tokenizer=_r1_zero_prepare_tokenizer,
 )
 
-register_prompt_strategy(R1_ZERO)
+with registration_owner(__name__, idempotent=True):
+    register_prompt_strategy(R1_ZERO)

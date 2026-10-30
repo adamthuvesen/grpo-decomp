@@ -35,10 +35,11 @@ flowchart LR
 
 ## Study Design
 
-Three workflow stages. Training produces models, generation turns models into
-graded answers, and offline analysis turns graded answers into a defensible claim.
-The boundary between generation and analysis is a self-contained artifact
-(`CompletionSet`), so generation runs on a GPU and all analysis runs offline on a CPU.
+Training produces checkpoints for each GRPO arm. `generate` samples a base model
+or trained checkpoint and writes a self-contained `CompletionSet`. The artifact
+contains sampled completions, problems with gold answers, and generation provenance.
+Grading and analysis read it offline on a CPU. Reports compare arms and aggregate
+results across training seeds to support study claims.
 
 The same pipeline runs two tasks. **GSM8K** (grade-school math on the
 `Qwen2.5-Math-1.5B` base) is the primary decomposition. **Countdown** (a generated
@@ -60,9 +61,9 @@ flowchart LR
         M --> G
         G --> CS["CompletionSet<br/>(problems + samples + provenance)"]
     end
-    subgraph p3["Analyze (CPU, offline)"]
+    subgraph p3["Grade and analyze (CPU, offline)"]
         CS --> B["eval/battery<br/>grade, pass@k, chain checks"]
-        CS --> C["stats/compare<br/>delta, bootstrap CI, McNemar"]
+        B -->|"per-problem grades"| C["stats/compare<br/>delta, bootstrap CI, McNemar"]
         B --> REP["report/<br/>seed aggregation"]
         C --> REP
         REP --> RES["results/<br/>multi-seed JSON + figures"]
@@ -83,11 +84,11 @@ they do.
 - **Never claim from one training run.** Results aggregate over seeds; below three
   seeds a result is labelled preliminary.
 - **Determinism where it matters.** Fixed seeds, pinned dataset revisions, and a
-  recorded model/commit/config/dependency fingerprint on every artifact.
+  recorded model/commit/config/dependency fingerprints where available. Legacy gaps stay explicit.
 - **Reject or report silent failures.** Unparseable completions, skipped records, and
   data-quality exclusions are logged or rejected, never quietly dropped.
 - **Strict schemas.** Result types are frozen Pydantic models that reject unknown
-  fields (`schemas.Record`), so a malformed artifact fails at the boundary.
+  fields and non-finite numbers (`schemas.Record`). Report validators reject contradictory dimensions, rates, and derived values.
 
 ---
 
@@ -145,7 +146,7 @@ Countdown is generated from a fixed seed instead.
 - `gsm8k_platinum`: a relabeled, cleaned GSM8K test (checks label noise).
 - `countdown`: the positive-control task. Procedurally _generated_ (not loaded from
   HuggingFace), so it is uncontaminated by construction. Each problem encodes its
-  `(numbers, target)` key in `gold_answer`, and a restricted AST evaluator (the four
+  `(numbers, target)` key in `gold_answer`, and a bounded iterative AST evaluator (the four
   operators, exact `Fraction` arithmetic, never `eval`) both grades answers and
   guarantees every target is reachable.
 - `splits.py`: `validation_split` (a deterministic held-out subset keyed on seed +
@@ -219,7 +220,19 @@ or the generated Countdown set for the positive control), hold out a validation
 split (GSM8K carves a per-seed split out of train; Countdown ships a dedicated,
 seed-independent one), build the prompt dataset, pick the reward, construct the
 TRL `GRPOTrainer`, train, save the final checkpoint, and tear down the process
-group cleanly. It writes a `RunProvenance` record before training starts.
+group cleanly. Each execution writes a unique `attempts/<id>/` directory beneath the arm/seed directory.
+The attempt owns `provenance.json`, `status.json`, checkpoints, and held-out diagnostics.
+Status transitions from `running` to `completed` or `failed`. Final checkpoint presence
+alone cannot make a new attempt successful. A retry never overwrites another attempt.
+
+`resolve_run_dir` discovers completed attempt records. Exactly one completion resolves
+a run alias. Multiple successful attempts require an explicit attempt path. No shared
+mutable index determines success. This avoids last-write-wins alias corruption on Modal
+Volumes. Readers select an attempt once, then use its immutable identity for all reads.
+Legacy runs remain readable and explicitly lack verified attempt identity.
+
+Validation reconstruction checks the exact recorded problem digest. Legacy curves state
+that the split identity is unverified. Cleanup covers constructor, training, and save failures.
 
 ### How one GRPO step learns
 
@@ -246,7 +259,10 @@ large fraction of each batch, and it is visible in the `frac_reward_zero_std` lo
 ## Evaluation layer
 
 The boundary between generation and analysis is the **`CompletionSet`**: a directory
-holding a `provenance.json` and a `completions.jsonl`. It carries each `Problem`
+holding `provenance.json` and `completions.jsonl`. New directories also carry a versioned
+`manifest.json` with file and dataset digests. The writer stages a complete sibling directory
+and publishes it by rename. Identical retries succeed. Conflicting replacements fail.
+Legacy two-file directories remain readable without fabricated integrity metadata. It carries each `Problem`
 (so the gold answer travels with the answers) plus its sampled completions, so the
 analysis side needs no network and no dataset re-pinning. Generation is the only
 step that loads a model.
@@ -288,11 +304,11 @@ classDiagram
   pass@1, unbiased pass@k, and chain coverage.
 - `passk.py`: the unbiased pass@k estimator.
 - `cot.py` checks whether a chain contains verifiable steps.
-- `cli.py` is the `grpo-decomp` entry point. Seven subcommands: `generate`,
+- `cli.py` is the `grpo-decomp` entry point. Subcommands include: `generate`,
   `battery`, the multi-seed aggregators `report-seeds` (placebo),
   `report-passk-seeds` (pass@k coverage),
   `report-mechanism` (per-problem migration), `report-control-seeds` (the
-  Holm-corrected GSM8K controls), and `heldout` (the held-out curve).
+  Holm-corrected GSM8K controls), `report-arm-vs-base`, and `heldout` (the held-out curve).
 
 The **held-out curve** (`heldout` / `heldout_arm`) scores every saved checkpoint of
 a finished run on its validation split and writes `heldout.json`. It is a diagnostic for
@@ -311,7 +327,11 @@ The committed claims come from five multi-seed aggregators. Each recomputes its 
 training seed and aggregates over seeds, so uncertainty includes run-to-run variance. Where
 per-problem data is available, the interval is a paired seed × problem bootstrap, which also
 covers problem-sampling noise; otherwise it is a seed-level t interval. Compared artifacts must carry identical dataset metadata, problem
-records, and prompt strategies; misalignment is a clear error. Below three seeds a result
+records, prompt strategies, known rendered-prompt digests, verifiers, and decoding settings.
+Sample counts may differ across roles. Generation seeds may differ. Within each role,
+replicate sample counts and known training protocols must match. Duplicate artifact contents,
+training identities, and seed labels fail before statistics. `report/evidence.py` owns this
+contract for CLI, library, and study callers. Below three seeds a result
 stays preliminary. The placebo comparison is confirmatory; the other panels explain the
 gain and test its controls.
 
@@ -335,13 +355,19 @@ decontamination panels reuse the same aggregators over their own `CompletionSet`
 
 ## Provenance and determinism
 
-Every result artifact records what produced it: base model and revision, reward,
-dataset revision, seed, the full GRPO config, the code commit, whether the working
-tree was dirty, the Python version, and pinned dependency versions (TRL's behavior
-moves between versions, so its version is part of the record). `RunProvenance`
-covers training; `GenerationProvenance` covers evaluation. The same fingerprint is
-what lets a held-out curve, a decomposition, and a seed aggregate all be traced
-back to one commit.
+Training provenance records the effective configuration, code identity, dependency versions,
+validation identity, and attempt. Managed checkpoint generation adds training lineage and
+checkpoint, dataset, and rendered-prompt digests. Backends record the realized device and
+resolved model revision when available.
+
+New reports include input content digests, grading identity, method settings, code identity,
+and limitations. Missing legacy lineage stays missing. Historical aggregate-only JSON cannot
+prove input comparability or recover raw samples. It remains readable, with no invented evidence.
+
+Coverage and reliability migration are descriptive. They do not establish causal mechanisms.
+The mechanism report retains old field names for compatibility and adds lost-reliability and
+never-reliable fractions. Esme's three exploratory comparisons now have a separate corrected
+result with Holm-adjusted p-values and marginal intervals. The historical result remains intact.
 
 ---
 
@@ -410,3 +436,15 @@ grpo-decomp/
 7. `grpo_decomp/stats/compare.py`: paired comparisons with uncertainty and significance.
 8. `grpo_decomp/report/seeds.py` and its siblings (`passk_seeds`, `mechanism`,
    `control_seeds`): how claims survive run-to-run variance.
+
+## Enforcement ownership
+
+`report/evidence.py` owns comparison identity. `train/provenance.py` owns execution state.
+`eval/completions.py` owns publication and integrity. Registries own plugin names and defaults.
+Plugin registration is transactional. Conflicting owners fail, and a failed plugin leaves no
+partial registrations. Recorded grading identities must resolve before grading.
+
+`llm_grpo_gains/workflows.py` owns study reproduction routes and missing-input reporting.
+`esme_analysis.py` and `figures.py` own reusable study logic under normal type and test coverage.
+Root scripts only adapt command arguments. See [development.md](development.md) for checks
+and the guarantees that require external execution.

@@ -156,10 +156,10 @@ run volumes or checkpoints. Module map and data flow: [docs/architecture.md](doc
 
 ```bash
 make install   # CPU env: data, rewards, eval, stats, reports, tests
-make check     # Ruff + mypy + unit tests + docs consistency
+make check     # locked offline gate, including types, wheel, results, and docs
 make results   # rebuild committed figures from JSON, then docs <-> JSON check
 make demo      # score two tiny committed CompletionSets; no model load
-make reproduce-esme  # recompute the Esme result from its raw completions; diff vs committed JSON
+make reproduce-esme  # reproduce the historical Esme result without rewriting it
 ```
 
 Generation and training need a model backend; everything else runs on CPU:
@@ -214,3 +214,9 @@ Python 3.13+ · `uv` · Pydantic · TRL GRPO · transformers · vLLM · Modal ·
 ## License
 
 MIT
+
+Developer navigation and verification limits are documented in
+[docs/development.md](docs/development.md). Use `make help` for focused commands.
+Study reproduction routes and missing raw inputs are listed by `uv run grpo-study plan`.
+The historical Esme JSON remains unchanged. Its corrected exploratory analysis is recorded
+separately in `results/esme-countdown/sampled_multiseed_summary.corrected.json`.

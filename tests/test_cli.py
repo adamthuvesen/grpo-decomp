@@ -67,7 +67,7 @@ def test_report_seeds_rejects_non_greedy_artifact(tmp_path, capsys, monkeypatch)
     assert main(["report-seeds", "--battery-dirs", str(battery)]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "greedy pass@1" in captured.err
+    assert "sampling.temperature" in captured.err
 
 
 def test_report_seeds_unknown_task_set_is_clean_error(tmp_path, capsys) -> None:
@@ -211,7 +211,7 @@ def test_generate_missing_backend_dependency_is_clean_error(tmp_path, capsys, mo
     )
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "missing generation backend dependency" in captured.err
+    assert "missing optional dependency" in captured.err
 
 
 def test_unknown_backend_rejected_by_argparse(tmp_path) -> None:
@@ -335,3 +335,17 @@ def test_generate_rejects_nonpositive_limit(tmp_path, capsys) -> None:
     )
     assert code == 1
     assert capsys.readouterr().err.startswith("grpo-decomp:")
+
+
+def test_plugin_startup_failure_is_clean_error(monkeypatch, capsys) -> None:
+    from grpo_decomp.plugins import PluginLoadError
+
+    def broken_plugin():
+        raise PluginLoadError("plugin 'broken' failed: missing plugin dependency")
+
+    monkeypatch.setattr(_CLI_MODULE, "load_plugins", broken_plugin)
+    assert main(["--help"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "plugin 'broken' failed" in captured.err
+    assert "Traceback" not in captured.err

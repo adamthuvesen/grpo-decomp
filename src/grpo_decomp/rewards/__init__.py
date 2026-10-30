@@ -12,7 +12,13 @@ correctness-blind control, and the control the whole decomposition method leans 
 
 from __future__ import annotations
 
-from grpo_decomp.registries import PLACEBO_REWARD, REWARDS, RewardFn, register_reward
+from grpo_decomp.registries import (
+    PLACEBO_REWARD,
+    REWARDS,
+    RewardFn,
+    register_reward,
+    registration_owner,
+)
 from grpo_decomp.rewards.placebo import make_random_reward
 from grpo_decomp.rewards.scoring import score_strict_boxed
 
@@ -34,7 +40,8 @@ def get_reward(name: str, *, seed: int = 0) -> RewardFn:
 
 
 # The placebo is harness-provided (it is the study's confirmatory control).
-register_reward(PLACEBO_REWARD, make_random_reward)
+with registration_owner(__name__, idempotent=True):
+    register_reward(PLACEBO_REWARD, make_random_reward)
 
 
 __all__ = [

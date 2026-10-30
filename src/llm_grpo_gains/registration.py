@@ -15,12 +15,15 @@ from grpo_decomp.registries import (
     EvalTaskProfile,
     TrainDataset,
     register_control_set,
+    register_default_task,
+    register_default_train_dataset,
     register_eval_set,
     register_reward,
     register_task,
     register_train_dataset,
     register_validation_reconstructor,
     register_verifier,
+    registration_owner,
 )
 from grpo_decomp.schemas import ProblemSet
 from grpo_decomp.splits import dev_slice, validation_split
@@ -53,6 +56,7 @@ def _gsm8k_validation(provenance: RunProvenance) -> ProblemSet:
     return validation
 
 
+@registration_owner(__name__, idempotent=True)
 def register() -> None:
     """Register every study dataset, reward, verifier, and task profile (idempotent)."""
     # Named eval sets (`generate --set`, report commands' `--task-set`).
@@ -151,3 +155,6 @@ def register() -> None:
             passk_multiseed_root="passk-multiseed-offpolicy",
         ),
     )
+
+    register_default_task("gsm8k")
+    register_default_train_dataset("gsm8k")

@@ -1,12 +1,8 @@
-"""Aggregate the pass@k coverage panel (base anchor vs correct) across seed replicates.
+"""Measure sampled coverage changes across training seeds.
 
-The decomposition's *interpretive* axis: did RL expand pass@k coverage (new capability)
-or merely elicit it (reliability on what the base could already do)? The single-seed panel
-left that verdict resting on one seed. This aggregates the *correct* arm over training
-seeds (a seed-level t CI capturing run-to-run variance) against the single, seed-independent
-base anchor (its own problem-bootstrap CI), and reports delta = mean correct pass@k - base
-pass@k. The base anchor is not treated as noiseless. Mirrors `report/seeds.py`, which does
-the same seed-level aggregation for the pass@1 placebo comparison.
+Coverage is descriptive. It does not establish a causal mechanism or new reasoning.
+The base anchor contributes problem uncertainty. Trained arms also contribute seed
+uncertainty. Persisted counts preserve recomputation of the paired statistics.
 """
 
 from __future__ import annotations
@@ -15,19 +11,27 @@ from collections.abc import Sequence
 from typing import NamedTuple
 
 import numpy as np
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from grpo_decomp.eval.battery import counts_by_problem
 from grpo_decomp.eval.completions import CompletionSet
 from grpo_decomp.eval.cot import has_verifiable_chain
 from grpo_decomp.eval.passk import estimate_pass_at_k, pass_at_k
+from grpo_decomp.report.evidence import AnalysisProvenance, anchored_inputs
 from grpo_decomp.report.status import MIN_HEADLINE_SEEDS
+from grpo_decomp.report.validation import (
+    Count,
+    Effect,
+    PositiveCount,
+    Rate,
+    interval,
+    mean,
+    require_close,
+    seed_axis,
+)
 from grpo_decomp.schemas import Record
 from grpo_decomp.stats.bootstrap import bootstrap_mean_ci, seed_problem_bootstrap_ci
 from grpo_decomp.stats.seed_aggregate import seed_level_t_half_width
-
-#: pass@k Δ above this (pp) with its headline CI excluding zero reads as expansion, not elicitation.
-EXPANSION_DELTA_THRESHOLD = 0.10
 
 
 class PassKMultiSeed(Record):
@@ -39,24 +43,24 @@ class PassKMultiSeed(Record):
     """
 
     task: str
-    k: int = Field(description="The pass@k coverage level the verdict rests on (e.g. 8).")
-    n_seeds: int
+    k: PositiveCount = Field(description="The pass@k coverage level the verdict rests on (e.g. 8).")
+    n_seeds: PositiveCount
     seeds: tuple[str, ...] = Field(description="Per-seed labels (training seeds), input order.")
-    n_base: int = Field(description="Samples per problem for the base anchor.")
-    n_correct: int = Field(description="Samples per problem for each correct seed.")
+    n_base: PositiveCount = Field(description="Samples per problem for the base anchor.")
+    n_correct: PositiveCount = Field(description="Samples per problem for each correct seed.")
 
-    base_pass1: float
-    base_passk: float = Field(description="Base pass@k anchor (seed-independent).")
+    base_pass1: Rate
+    base_passk: Rate = Field(description="Base pass@k anchor (seed-independent).")
     base_passk_ci_low: float = Field(description="Problem-bootstrap CI low on the base anchor.")
     base_passk_ci_high: float
-    per_seed_correct_pass1: tuple[float, ...]
-    per_seed_correct_passk: tuple[float, ...]
-    mean_correct_pass1: float
-    mean_correct_passk: float
+    per_seed_correct_pass1: tuple[Rate, ...]
+    per_seed_correct_passk: tuple[Rate, ...]
+    mean_correct_pass1: Rate
+    mean_correct_passk: Rate
     correct_passk_ci_low: float = Field(description="Seed-level t CI low on correct pass@k.")
     correct_passk_ci_high: float
 
-    delta: float = Field(description="mean correct pass@k - base pass@k.")
+    delta: Effect = Field(description="mean correct pass@k - base pass@k.")
     delta_ci_low: float = Field(
         description="Seed-level t CI on Δ. Between-seed variance only; base treated as a fixed "
         "anchor. Understates Δ uncertainty when the anchor's own sampling SE is large."
@@ -78,10 +82,10 @@ class PassKMultiSeed(Record):
     problem_ids: tuple[str, ...] | None = Field(
         default=None, description="The shared problem axis the per-problem counts follow."
     )
-    base_counts: tuple[int, ...] | None = Field(
+    base_counts: tuple[Count, ...] | None = Field(
         default=None, description="Correct base samples (of n_base) per problem."
     )
-    per_seed_correct_counts: tuple[tuple[int, ...], ...] | None = Field(
+    per_seed_correct_counts: tuple[tuple[Count, ...], ...] | None = Field(
         default=None,
         description="Correct samples (of n_correct) per problem, one row per seed. With "
         "base_counts, every pass@k statistic here can be recomputed without the completions.",
@@ -90,24 +94,24 @@ class PassKMultiSeed(Record):
     # CoT-gated (valid-chain) twins: pass@k counting a sample only when its answer is correct
     # AND its <<a op b=c>> chain verifies. The CoT-Pass@K critique asks whether RL moves
     # *valid-chain* coverage or only right-answer coverage. Always <= the vanilla twin.
-    base_cot_pass1: float
-    base_cot_passk: float = Field(description="Base CoT-gated pass@k anchor (seed-independent).")
+    base_cot_pass1: Rate
+    base_cot_passk: Rate = Field(description="Base CoT-gated pass@k anchor (seed-independent).")
     base_cot_passk_ci_low: float = Field(description="Problem-bootstrap CI low on the CoT anchor.")
     base_cot_passk_ci_high: float
-    base_chain_coverage: float = Field(
+    base_chain_coverage: Rate = Field(
         description="Fraction of base completions with >=1 parseable <<a op b=c>> step."
     )
-    per_seed_correct_cot_passk: tuple[float, ...]
-    mean_correct_cot_pass1: float
-    mean_correct_cot_passk: float
-    mean_correct_chain_coverage: float = Field(
+    per_seed_correct_cot_passk: tuple[Rate, ...]
+    mean_correct_cot_pass1: Rate
+    mean_correct_cot_passk: Rate
+    mean_correct_chain_coverage: Rate = Field(
         description="Seed-mean fraction of correct completions with a verifiable chain."
     )
     correct_cot_passk_ci_low: float = Field(
         description="Seed-level t CI low on correct CoT pass@k."
     )
     correct_cot_passk_ci_high: float
-    cot_delta: float = Field(description="mean correct CoT pass@k - base CoT pass@k.")
+    cot_delta: Effect = Field(description="mean correct CoT pass@k - base CoT pass@k.")
     cot_delta_ci_low: float = Field(description="Seed-level t CI on the CoT Δ (anchor fixed).")
     cot_delta_ci_high: float
     cot_delta_propagated_ci_low: float = Field(
@@ -119,21 +123,116 @@ class PassKMultiSeed(Record):
     ci_kind: str = Field(description="How the correct/seed-level Δ interval was formed.")
     preliminary: bool = Field(description=f"True below {MIN_HEADLINE_SEEDS} seeds.")
 
-    def headline(self) -> str:
-        """The atomic verdict line: bounded-small (elicitation) vs expansion.
+    analysis: AnalysisProvenance | None = None
 
-        The verdict keys off the paired seed x problem interval when present, else the
-        *propagated* one, so a movement that only clears zero with the base held fixed does not
-        read as expansion.
-        """
+    @model_validator(mode="after")
+    def _consistent(self) -> PassKMultiSeed:
+        seed_axis(
+            self.n_seeds,
+            self.seeds,
+            self.preliminary,
+            self.per_seed_correct_pass1,
+            self.per_seed_correct_passk,
+            self.per_seed_correct_cot_passk,
+        )
+        if self.k > min(self.n_base, self.n_correct):
+            raise ValueError("k exceeds the available sample count")
+        require_close(
+            "mean_correct_pass1", self.mean_correct_pass1, mean(self.per_seed_correct_pass1)
+        )
+        require_close(
+            "mean_correct_passk", self.mean_correct_passk, mean(self.per_seed_correct_passk)
+        )
+        require_close(
+            "mean_correct_cot_passk",
+            self.mean_correct_cot_passk,
+            mean(self.per_seed_correct_cot_passk),
+        )
+        require_close("delta", self.delta, self.mean_correct_passk - self.base_passk)
+        require_close(
+            "cot_delta", self.cot_delta, self.mean_correct_cot_passk - self.base_cot_passk
+        )
+        for name in (
+            "base_passk",
+            "correct_passk",
+            "delta",
+            "delta_propagated",
+            "delta_paired",
+            "base_cot_passk",
+            "correct_cot_passk",
+            "cot_delta",
+            "cot_delta_propagated",
+        ):
+            interval(name, getattr(self, f"{name}_ci_low"), getattr(self, f"{name}_ci_high"))
+        for cot, vanilla in (
+            (self.base_cot_pass1, self.base_pass1),
+            (self.base_cot_passk, self.base_passk),
+            (self.mean_correct_cot_pass1, self.mean_correct_pass1),
+            (self.mean_correct_cot_passk, self.mean_correct_passk),
+            *zip(self.per_seed_correct_cot_passk, self.per_seed_correct_passk, strict=True),
+        ):
+            if cot > vanilla:
+                raise ValueError("CoT-gated coverage cannot exceed answer coverage")
+        supplied = (
+            self.problem_ids is not None,
+            self.base_counts is not None,
+            self.per_seed_correct_counts is not None,
+        )
+        if any(supplied) and not all(supplied):
+            raise ValueError(
+                "problem_ids, base_counts, and per_seed_correct_counts must be supplied together"
+            )
+        if (
+            self.problem_ids is not None
+            and self.base_counts is not None
+            and self.per_seed_correct_counts is not None
+        ):
+            n = len(self.problem_ids)
+            if not n or len(set(self.problem_ids)) != n or len(self.base_counts) != n:
+                raise ValueError("problem_ids must be unique, nonempty, and align with base_counts")
+            if len(self.per_seed_correct_counts) != self.n_seeds:
+                raise ValueError("per_seed_correct_counts must align with seeds")
+            require_close(
+                "base_pass1",
+                self.base_pass1,
+                estimate_pass_at_k(self.base_counts, 1, n=self.n_base),
+            )
+            require_close(
+                "base_passk",
+                self.base_passk,
+                estimate_pass_at_k(self.base_counts, self.k, n=self.n_base),
+            )
+            for row, p1, pk in zip(
+                self.per_seed_correct_counts,
+                self.per_seed_correct_pass1,
+                self.per_seed_correct_passk,
+                strict=True,
+            ):
+                if len(row) != n:
+                    raise ValueError("per_seed_correct_counts must align with problem_ids")
+                require_close(
+                    "per_seed_correct_pass1", p1, estimate_pass_at_k(row, 1, n=self.n_correct)
+                )
+                require_close(
+                    "per_seed_correct_passk", pk, estimate_pass_at_k(row, self.k, n=self.n_correct)
+                )
+        return self
+
+    def headline(self) -> str:
+        """Report coverage movement under the observed sampling protocol."""
         if self.delta_paired_ci_low is not None and self.delta_paired_ci_high is not None:
             ci_low, ci_high = self.delta_paired_ci_low, self.delta_paired_ci_high
             ci_label = "paired"
         else:
             ci_low, ci_high = self.delta_propagated_ci_low, self.delta_propagated_ci_high
             ci_label = "with anchor"
-        expanded = ci_low > 0.0 and self.delta >= EXPANSION_DELTA_THRESHOLD
-        verdict = "expansion" if expanded else "bounded-small (elicitation)"
+        verdict = (
+            "coverage increased"
+            if ci_low > 0
+            else "coverage decreased"
+            if ci_high < 0
+            else "direction uncertain"
+        )
         tag = f"  [PRELIMINARY <{MIN_HEADLINE_SEEDS} seeds]" if self.preliminary else ""
         return (
             f"over {self.n_seeds} seed(s) on {self.task}, correct pass@{self.k} "
@@ -186,33 +285,10 @@ class _CorrectMetrics(NamedTuple):
 class _CoverageStats(NamedTuple):
     mean: float
     ci: tuple[float, float]
-    delta: float
+    delta: Effect
     delta_ci: tuple[float, float]
     delta_propagated_ci: tuple[float, float]
     ci_kind: str
-
-
-def _problem_axis(cs: CompletionSet) -> tuple[object, ...]:
-    return tuple(item.problem for item in cs.items)
-
-
-def _validate_same_axis(
-    base: CompletionSet, correct_by_seed: Sequence[tuple[object, CompletionSet]]
-) -> None:
-    base_axis = _problem_axis(base)
-    for label, cs in correct_by_seed:
-        if cs.provenance.dataset != base.provenance.dataset:
-            raise ValueError(
-                f"correct seed {label}: dataset metadata does not match base "
-                f"{base.provenance.dataset.model_dump()}"
-            )
-        if cs.provenance.prompt_strategy != base.provenance.prompt_strategy:
-            raise ValueError(
-                f"correct seed {label}: prompt strategy {cs.provenance.prompt_strategy!r} "
-                f"does not match base {base.provenance.prompt_strategy!r}"
-            )
-        if _problem_axis(cs) != base_axis:
-            raise ValueError(f"correct seed {label}: problem records do not match base")
 
 
 def _interval(center: float, half_width: float) -> tuple[float, float]:
@@ -239,9 +315,9 @@ def _paired_delta_ci(
     correct_counts: Sequence[Sequence[int]],
     base_counts: Sequence[int],
     *,
-    n_correct: int,
-    n_base: int,
-    k: int,
+    n_correct: PositiveCount,
+    n_base: PositiveCount,
+    k: PositiveCount,
 ) -> tuple[float, float]:
     """Seed x problem bootstrap CI on Δ pass@k, each cell paired to the base on its problem."""
     base_passk = [pass_at_k(n_base, count, k) for count in base_counts]
@@ -332,7 +408,7 @@ def aggregate_passk_seeds(
     correct_by_seed: Sequence[tuple[object, CompletionSet]],
     *,
     task: str,
-    k: int = 8,
+    k: PositiveCount = 8,
 ) -> PassKMultiSeed:
     """Aggregate the base anchor + per-seed correct pass@k into a `PassKMultiSeed` panel.
 
@@ -344,7 +420,7 @@ def aggregate_passk_seeds(
     """
     if not correct_by_seed:
         raise ValueError("no per-seed correct arms to aggregate")
-    _validate_same_axis(base, correct_by_seed)
+    inputs = anchored_inputs(base, correct_by_seed)
 
     base_m = _arm_metrics(base, k)
     n_base = base_m.n
@@ -358,6 +434,9 @@ def aggregate_passk_seeds(
         correct.counts, base_m.counts, n_correct=correct.n, n_base=n_base, k=k
     )
     return PassKMultiSeed(
+        analysis=inputs.provenance(
+            "paired seed x problem bootstrap; seed t and propagated intervals retained"
+        ),
         task=task,
         k=k,
         n_seeds=len(correct.passks),

@@ -12,18 +12,32 @@ so eval measures the model on the distribution it trained on.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass, replace
+from pathlib import Path
 
+from grpo_decomp import registries
 from grpo_decomp.eval.completions import (
     CompletionSet,
     ProblemCompletions,
     SamplingConfig,
     capture_generation_provenance,
 )
+from grpo_decomp.provenance import content_digest, file_digest, problem_set_digest
 from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, PromptStrategy, get_prompt_strategy
 from grpo_decomp.schemas import ProblemSet
+from grpo_decomp.train.provenance import completed_checkpoint, load_run_provenance
 
 #: Prompts per forward pass on the transformers backend (CPU/MPS memory-bound).
 _BATCH_SIZE = 16
+
+
+@dataclass(frozen=True)
+class _GeneratedSamples:
+    groups: list[list[str]]
+    backend: str
+    device: str | None = None
+    resolved_model_revision: str | None = None
+    prompt_digest: str | None = None
 
 
 def resolve_backend(backend: str) -> str:
@@ -53,6 +67,30 @@ def generate(
     backend that returns a different count is an explicit error. `prompt_strategy` MUST
     match the strategy the arm trained on, or eval measures an off-distribution prompt.
     """
+    output = _sample_completions(
+        model,
+        problems,
+        config,
+        backend=backend,
+        model_revision=model_revision,
+        prompt_strategy=prompt_strategy,
+    )
+    return {
+        problem.id: list(samples) for problem, samples in zip(problems, output.groups, strict=True)
+    }
+
+
+def _sample_completions(
+    model: str,
+    problems: ProblemSet,
+    config: SamplingConfig,
+    *,
+    backend: str,
+    model_revision: str | None,
+    prompt_strategy: str,
+) -> _GeneratedSamples:
+    if not problems:
+        raise ValueError("cannot generate an empty problem set")
     if config.temperature == 0.0 and config.n > 1:
         raise ValueError(
             "greedy decoding (temperature=0) yields identical samples; "
@@ -61,26 +99,22 @@ def generate(
     resolved = resolve_backend(backend)
     strategy = get_prompt_strategy(prompt_strategy)
     prompts = [strategy.build_prompt(problem.question) for problem in problems]
-
     if resolved == "transformers":
-        raw = _generate_transformers(
+        output = _generate_transformers(
             model, prompts, config, revision=model_revision, strategy=strategy
         )
     else:
-        raw = _generate_vllm(model, prompts, config, revision=model_revision)
-
-    if len(raw) != len(prompts):
+        output = _generate_vllm(model, prompts, config, revision=model_revision)
+    if len(output.groups) != len(prompts):
         raise ValueError(
-            f"backend returned {len(raw)} completion groups for {len(prompts)} prompts"
+            f"backend returned {len(output.groups)} completion groups for {len(prompts)} prompts"
         )
-    result: dict[str, list[str]] = {}
-    for problem, samples in zip(problems, raw, strict=True):
+    for problem, samples in zip(problems, output.groups, strict=True):
         if len(samples) != config.n:
             raise ValueError(
                 f"problem {problem.id!r} got {len(samples)} samples, expected n={config.n}"
             )
-        result[problem.id] = list(samples)
-    return result
+    return replace(output, prompt_digest=content_digest(prompts))
 
 
 def generate_completion_set(
@@ -93,6 +127,14 @@ def generate_completion_set(
     prompt_strategy: str = DEFAULT_PROMPT_STRATEGY,
     commit: str | None = None,
     dirty: bool | None = None,
+    training_run_id: str | None = None,
+    training_base_model: str | None = None,
+    training_base_model_revision: str | None = None,
+    training_reward: str | None = None,
+    training_protocol_digest: str | None = None,
+    training_seed: int | None = None,
+    training_config_digest: str | None = None,
+    checkpoint_digest: str | None = None,
 ) -> CompletionSet:
     """Sample completions and package them as a provenance-carrying `CompletionSet`.
 
@@ -101,24 +143,103 @@ def generate_completion_set(
     eval function. `commit`/`dirty` override git-derived provenance (Modal images strip
     `.git`).
     """
-    resolved = resolve_backend(backend)
-    samples = generate(
+    model_path = Path(model)
+    run_dir = model_path.parent.parent
+    if (
+        model_path.is_dir()
+        and model_path.parent.name == "checkpoints"
+        and (
+            (run_dir / "provenance.json").is_file()
+            or (run_dir / "status.json").exists()
+            or run_dir.parent.name == "attempts"
+        )
+    ):
+        run = load_run_provenance(run_dir)
+        if run.attempt_id is not None or (run_dir / "status.json").exists():
+            if completed_checkpoint(run_dir).resolve() != model_path.resolve():
+                raise ValueError(
+                    f"{model_path}: generation requires the completed final checkpoint"
+                )
+            protocol = run.model_dump(
+                include={
+                    "base_model",
+                    "base_model_revision",
+                    "prompt_strategy",
+                    "dataset",
+                    "train_size",
+                    "validation_size",
+                    "grpo",
+                }
+            )
+            actual_checkpoint_digest = content_digest(
+                {
+                    path.relative_to(model_path).as_posix(): file_digest(path)
+                    for path in sorted(model_path.rglob("*"))
+                    if path.is_file()
+                }
+            )
+            captured = {
+                "training_run_id": run.attempt_id,
+                "training_base_model": run.base_model,
+                "training_base_model_revision": run.base_model_revision,
+                "training_reward": run.reward,
+                "training_protocol_digest": content_digest(protocol),
+                "training_seed": run.seed,
+                "training_config_digest": run.config_digest,
+                "checkpoint_digest": actual_checkpoint_digest,
+            }
+            supplied = {
+                "training_run_id": training_run_id,
+                "training_base_model": training_base_model,
+                "training_base_model_revision": training_base_model_revision,
+                "training_reward": training_reward,
+                "training_protocol_digest": training_protocol_digest,
+                "training_seed": training_seed,
+                "training_config_digest": training_config_digest,
+                "checkpoint_digest": checkpoint_digest,
+            }
+            for field, value in supplied.items():
+                if value is not None and value != captured[field]:
+                    raise ValueError(f"{model_path}: {field} conflicts with completed run lineage")
+            training_run_id = run.attempt_id
+            training_base_model = run.base_model
+            training_base_model_revision = run.base_model_revision
+            training_reward = run.reward
+            training_protocol_digest = content_digest(protocol)
+            training_seed = run.seed
+            training_config_digest = run.config_digest
+            checkpoint_digest = actual_checkpoint_digest
+    grader_identity = registries.verifier_identity(problems.source)
+    output = _sample_completions(
         model,
         problems,
         config,
-        backend=resolved,
+        backend=backend,
         model_revision=model_revision,
         prompt_strategy=prompt_strategy,
     )
     items = tuple(
-        ProblemCompletions(problem=problem, samples=tuple(samples[problem.id]))
-        for problem in problems
+        ProblemCompletions(problem=problem, samples=tuple(samples))
+        for problem, samples in zip(problems, output.groups, strict=True)
     )
     provenance = capture_generation_provenance(
         model=model,
         dataset=problems.source,
         sampling=config,
-        backend=resolved,
+        backend=output.backend,
+        device=output.device,
+        resolved_model_revision=output.resolved_model_revision,
+        training_run_id=training_run_id,
+        training_base_model=training_base_model,
+        training_base_model_revision=training_base_model_revision,
+        training_reward=training_reward,
+        training_protocol_digest=training_protocol_digest,
+        training_seed=training_seed,
+        training_config_digest=training_config_digest,
+        checkpoint_digest=checkpoint_digest,
+        prompt_digest=output.prompt_digest,
+        dataset_digest=problem_set_digest(problems),
+        grader_identity=grader_identity,
         n_problems=len(problems),
         model_revision=model_revision,
         prompt_strategy=prompt_strategy,
@@ -153,7 +274,7 @@ def _generate_transformers(
     *,
     revision: str | None,
     strategy: PromptStrategy,
-) -> list[list[str]]:
+) -> _GeneratedSamples:
     """CPU/MPS backend: batched `model.generate`, native EOS, left-padded."""
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -188,12 +309,18 @@ def _generate_transformers(
         decoded = tokenizer.batch_decode(generated, skip_special_tokens=True)
         for i in range(len(batch)):
             groups.append(decoded[i * config.n : (i + 1) * config.n])
-    return groups
+    revision = getattr(language_model.config, "_commit_hash", None)
+    return _GeneratedSamples(
+        groups=groups,
+        backend="transformers",
+        device=str(language_model.device),
+        resolved_model_revision=revision if isinstance(revision, str) else None,
+    )
 
 
 def _generate_vllm(
     model: str, prompts: Sequence[str], config: SamplingConfig, *, revision: str | None
-) -> list[list[str]]:
+) -> _GeneratedSamples:
     """CUDA backend: vLLM with `n` samples per prompt; native EOS via generation_config."""
     from vllm import LLM, SamplingParams
 
@@ -206,4 +333,11 @@ def _generate_vllm(
         seed=config.seed,
     )
     outputs = llm.generate(list(prompts), params)
-    return [[choice.text for choice in output.outputs] for output in outputs]
+    model_config = llm.llm_engine.model_config
+    resolved_revision = getattr(model_config.hf_config, "_commit_hash", None)
+    return _GeneratedSamples(
+        groups=[[choice.text for choice in output.outputs] for output in outputs],
+        backend="vllm",
+        device=str(llm.llm_engine.vllm_config.device_config.device),
+        resolved_model_revision=resolved_revision if isinstance(resolved_revision, str) else None,
+    )

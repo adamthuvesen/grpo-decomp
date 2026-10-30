@@ -155,3 +155,11 @@ def test_holm_correction_validates() -> None:
 def test_sign_flip_floor_is_two_over_two_to_the_n() -> None:
     assert sign_flip_p_value([0.9, 0.95, 0.97, 0.96, 0.96, 0.98]) == pytest.approx(2 / 64)
     assert sign_flip_p_value([0.1, -0.1, 0.1, -0.1]) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_sign_flip_rejects_nonfinite_effects(value) -> None:
+    from grpo_decomp.stats.significance import sign_flip_p_value
+
+    with pytest.raises(ValueError, match="finite"):
+        sign_flip_p_value([0.1, value])

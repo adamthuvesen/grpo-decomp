@@ -17,24 +17,41 @@ from __future__ import annotations
 
 from importlib.metadata import entry_points
 
+from grpo_decomp.registries import (
+    registration_owner,
+    registration_transaction,
+    validate_registrations,
+)
+
 ENTRY_POINT_GROUP = "grpo_decomp.plugins"
 
 _loaded = False
 
 
+class PluginLoadError(RuntimeError):
+    """An installed study plugin could not complete registration."""
+
+
 def load_plugins(*, force: bool = False) -> list[str]:
     """Load every registered plugin (idempotent); return the loaded plugin names.
 
-    Registration overwrites registry keys, so a repeated call is harmless; the guard just
-    avoids redundant imports. Pass ``force=True`` to re-run regardless.
+    Each plugin owns its keys. Failed startup restores all registry changes.
+    Pass ``force=True`` to repeat explicitly idempotent registration.
     """
     global _loaded
     if _loaded and not force:
         return []
     names: list[str] = []
-    for entry_point in entry_points(group=ENTRY_POINT_GROUP):
-        register = entry_point.load()
-        register()
-        names.append(entry_point.name)
+    with registration_transaction():
+        for entry_point in entry_points(group=ENTRY_POINT_GROUP):
+            try:
+                owner = entry_point.value.split(":", 1)[0]
+                with registration_owner(owner, idempotent=True):
+                    register = entry_point.load()
+                    register()
+            except Exception as exc:
+                raise PluginLoadError(f"plugin {entry_point.name!r} failed: {exc}") from exc
+            names.append(entry_point.name)
+        validate_registrations()
     _loaded = True
     return names

@@ -20,29 +20,30 @@ from pydantic import ValidationError
 
 from grpo_decomp.eval.battery import run_battery
 from grpo_decomp.eval.completions import (
-    CompletionSet,
     SamplingConfig,
     load_completion_set,
     write_completion_set,
 )
 from grpo_decomp.eval.heldout import run_heldout_curve
-from grpo_decomp.plugins import load_plugins
+from grpo_decomp.plugins import PluginLoadError, load_plugins
 from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.registries import (
     DEFAULT_PROMPT_STRATEGY,
     EVAL_SETS,
     PROBES,
     PROMPT_STRATEGIES,
+    default_task_set,
 )
 from grpo_decomp.report.arm_vs_base import aggregate_arm_vs_base
 from grpo_decomp.report.control_seeds import aggregate_control_rows
+from grpo_decomp.report.evidence import validate_grader
 from grpo_decomp.report.inputs import (
     base_and_correct_seeds,
+    battery_inputs,
     greedy_pass1,
     seed_label,
-    validate_aligned_artifacts,
 )
-from grpo_decomp.report.mechanism import build_mechanism
+from grpo_decomp.report.mechanism import DEFAULT_RELIABILITY_TAU, build_mechanism
 from grpo_decomp.report.passk_seeds import aggregate_passk_seeds
 from grpo_decomp.report.render import (
     render_control_decomposition,
@@ -54,6 +55,7 @@ from grpo_decomp.report.seeds import aggregate_placebo_comparison
 from grpo_decomp.schemas import Record, record_json
 from grpo_decomp.splits import dev_slice
 from grpo_decomp.stats.compare import Comparison, compare
+from grpo_decomp.train.provenance import resolve_run_dir
 
 _BACKEND_CHOICES = ("auto", "transformers", "vllm")
 
@@ -62,15 +64,15 @@ def main(argv: list[str] | None = None) -> int:
     """Entry point for the `grpo-decomp` console script."""
     # Load study plugins first so the registries (eval sets, task profiles) are populated
     # before the parser reads `--set` choices from them.
-    load_plugins()
-    parser = _build_parser()
-    args = parser.parse_args(argv)
     try:
+        load_plugins()
+        parser = _build_parser()
+        args = parser.parse_args(argv)
         return args.func(args)
     except ImportError as exc:
-        print(f"grpo-decomp: missing generation backend dependency: {exc}", file=sys.stderr)
+        print(f"grpo-decomp: missing optional dependency: {exc}", file=sys.stderr)
         return 1
-    except (ValueError, ValidationError, OSError) as exc:
+    except (ValueError, ValidationError, OSError, PluginLoadError) as exc:
         print(f"grpo-decomp: {exc}", file=sys.stderr)
         return 1
 
@@ -134,9 +136,23 @@ def _add_report_seeds_parser(sub: argparse._SubParsersAction) -> None:
         dest="battery_dirs",
         help="one battery dir per seed (each with correct__<set> + random__<set>)",
     )
-    rsd.add_argument("--task-set", default="gsm8k-test", dest="task_set")
     rsd.add_argument(
-        "--out", type=Path, default=None, help="SeedPlaceboComparison JSON path (else stdout)"
+        "--task-set",
+        default=default_task_set(),
+        required=default_task_set() is None,
+        dest="task_set",
+    )
+    rsd.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="SeedPlaceboComparison JSON path (stdout follows --format)",
+    )
+    rsd.add_argument(
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="stdout format (default: markdown)",
     )
     rsd.set_defaults(func=_cmd_report_seeds)
 
@@ -153,10 +169,21 @@ def _add_report_passk_seeds_parser(sub: argparse._SubParsersAction) -> None:
         dest="completions_dir",
         help="dir with base__<set> + correct-seed<N>__<set> sampled CompletionSets",
     )
-    rpk.add_argument("--task-set", default="gsm8k-test", dest="task_set")
+    rpk.add_argument(
+        "--task-set",
+        default=default_task_set(),
+        required=default_task_set() is None,
+        dest="task_set",
+    )
     rpk.add_argument("--k", type=int, default=8, help="pass@k coverage level (default 8)")
     rpk.add_argument(
-        "--out", type=Path, default=None, help="PassKMultiSeed JSON path (else stdout)"
+        "--out", type=Path, default=None, help="PassKMultiSeed JSON path (stdout follows --format)"
+    )
+    rpk.add_argument(
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="stdout format (default: markdown)",
     )
     rpk.set_defaults(func=_cmd_report_passk_seeds)
 
@@ -172,11 +199,27 @@ def _add_report_mechanism_parser(sub: argparse._SubParsersAction) -> None:
         dest="completions_dir",
         help="dir with base__<set> + correct-seed<N>__<set> sampled CompletionSets",
     )
-    rmc.add_argument("--task-set", default="gsm8k-test", dest="task_set")
-    rmc.add_argument("--k", type=int, default=8, help="pass@k envelope level (default 8)")
-    rmc.add_argument("--tau", type=float, default=0.5, help="reliability threshold (default 0.5)")
     rmc.add_argument(
-        "--out", type=Path, default=None, help="MechanismReport JSON path (else stdout)"
+        "--task-set",
+        default=default_task_set(),
+        required=default_task_set() is None,
+        dest="task_set",
+    )
+    rmc.add_argument("--k", type=int, default=8, help="pass@k envelope level (default 8)")
+    rmc.add_argument(
+        "--tau",
+        type=float,
+        default=DEFAULT_RELIABILITY_TAU,
+        help="descriptive reliability threshold (default 0.5)",
+    )
+    rmc.add_argument(
+        "--out", type=Path, default=None, help="MechanismReport JSON path (stdout follows --format)"
+    )
+    rmc.add_argument(
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="stdout format (default: markdown)",
     )
     rmc.set_defaults(func=_cmd_report_mechanism)
 
@@ -194,7 +237,12 @@ def _add_report_control_seeds_parser(sub: argparse._SubParsersAction) -> None:
         dest="battery_dirs",
         help="one battery dir per seed; the first holds base__<control> (seed-independent)",
     )
-    rcs.add_argument("--task-set", default="gsm8k-test", dest="task_set")
+    rcs.add_argument(
+        "--task-set",
+        default=default_task_set(),
+        required=default_task_set() is None,
+        dest="task_set",
+    )
     rcs.add_argument(
         "--control-sets",
         nargs="+",
@@ -202,7 +250,16 @@ def _add_report_control_seeds_parser(sub: argparse._SubParsersAction) -> None:
         dest="control_sets",
     )
     rcs.add_argument(
-        "--out", type=Path, default=None, help="ControlDecomposition JSON path (else stdout)"
+        "--out",
+        type=Path,
+        default=None,
+        help="ControlDecomposition JSON path (stdout follows --format)",
+    )
+    rcs.add_argument(
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="stdout format (default: markdown)",
     )
     rcs.set_defaults(func=_cmd_report_control_seeds)
 
@@ -221,8 +278,21 @@ def _add_report_arm_vs_base_parser(sub: argparse._SubParsersAction) -> None:
         help="one battery dir per seed, each with <arm>__<set>; the first also holds base__<set>",
     )
     rab.add_argument("--arm", required=True, help="the trained arm name, e.g. 'random'")
-    rab.add_argument("--task-set", default="gsm8k-test", dest="task_set")
-    rab.add_argument("--out", type=Path, default=None, help="ArmVsBase JSON path (else stdout)")
+    rab.add_argument(
+        "--task-set",
+        default=default_task_set(),
+        required=default_task_set() is None,
+        dest="task_set",
+    )
+    rab.add_argument(
+        "--out", type=Path, default=None, help="ArmVsBase JSON path (stdout follows --format)"
+    )
+    rab.add_argument(
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="stdout format (default: markdown)",
+    )
     rab.set_defaults(func=_cmd_report_arm_vs_base)
 
 
@@ -267,12 +337,15 @@ def _cmd_generate(args: argparse.Namespace) -> int:
         prompt_strategy=args.prompt_strategy,
     )
     out = write_completion_set(completion_set, args.out)
-    print(f"wrote {len(completion_set.items)} problems x {config.n} samples to {out}")
+    print(
+        f"wrote {len(completion_set.items)} problems x {config.n} samples to {out}", file=sys.stderr
+    )
     return 0
 
 
 def _cmd_battery(args: argparse.Namespace) -> int:
     completion_set = load_completion_set(args.completions)
+    validate_grader(completion_set)
     result = run_battery(
         completion_set.problem_set(), completion_set.completions_by_id(), k_values=args.k
     )
@@ -280,40 +353,36 @@ def _cmd_battery(args: argparse.Namespace) -> int:
     if args.out is not None:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(payload, encoding="utf-8")
-        print(f"wrote battery result to {args.out}")
+        print(f"wrote battery result to {args.out}", file=sys.stderr)
     else:
         sys.stdout.write(payload)
     return 0
 
 
 def _cmd_report_seeds(args: argparse.Namespace) -> int:
-    comparisons = []
-    seeds = []
     if args.task_set not in EVAL_SETS:
         raise ValueError(
             f"unknown report set {args.task_set!r}; known sets are {tuple(sorted(EVAL_SETS))}"
         )
-    artifacts: dict[str, CompletionSet] = {}
-    for battery_dir in args.battery_dirs:
-        battery_dir = Path(battery_dir)
-        correct = load_completion_set(battery_dir / f"correct__{args.task_set}")
-        random_arm = load_completion_set(battery_dir / f"random__{args.task_set}")
-        artifacts[f"{battery_dir.name}:correct"] = correct
-        artifacts[f"{battery_dir.name}:random"] = random_arm
-        comparisons.append(
-            compare(
-                "random",
-                greedy_pass1(random_arm, "lenient"),
-                "correct",
-                greedy_pass1(correct, "lenient"),
-            )
+    inputs = battery_inputs(args.battery_dirs, args.task_set, roles=("correct", "random"))
+    correct = [arm for arm in inputs.arms if arm.role == "correct"]
+    random = [arm for arm in inputs.arms if arm.role == "random"]
+    comparisons = [
+        compare(
+            "random",
+            greedy_pass1(r.completions, "lenient"),
+            "correct",
+            greedy_pass1(c.completions, "lenient"),
         )
-        seeds.append(seed_label(battery_dir))
-    validate_aligned_artifacts(args.task_set, artifacts)
-
-    placebo_comparison = aggregate_placebo_comparison(comparisons, seeds, task=args.task_set)
-    _write_json(placebo_comparison, args.out, "seed-level placebo comparison")
-    sys.stdout.write(render_seed_placebo(placebo_comparison))
+        for c, r in zip(correct, random, strict=True)
+    ]
+    result = aggregate_placebo_comparison(
+        comparisons,
+        [arm.seed for arm in correct],
+        task=args.task_set,
+        analysis=inputs.provenance("paired per-problem comparison; seed-level t interval"),
+    )
+    _emit_report(result, args, render_seed_placebo(result))
     return 0
 
 
@@ -321,8 +390,7 @@ def _cmd_report_passk_seeds(args: argparse.Namespace) -> int:
     base, correct_by_seed = base_and_correct_seeds(args.completions_dir, args.task_set)
 
     panel = aggregate_passk_seeds(base, correct_by_seed, task=args.task_set, k=args.k)
-    _write_json(panel, args.out, f"multi-seed pass@{panel.k} panel")
-    sys.stdout.write(render_passk_multiseed(panel))
+    _emit_report(panel, args, render_passk_multiseed(panel))
     return 0
 
 
@@ -331,37 +399,36 @@ def _cmd_report_mechanism(args: argparse.Namespace) -> int:
     correct = [completion_set for _seed, completion_set in correct_by_seed]
 
     report = build_mechanism(base, correct, task=args.task_set, k=args.k, tau=args.tau)
-    _write_json(report, args.out, "mechanism report")
-    sys.stdout.write(render_mechanism(report))
+    _emit_report(report, args, render_mechanism(report))
     return 0
 
 
 def _cmd_report_control_seeds(args: argparse.Namespace) -> int:
-    battery_dirs = [Path(d) for d in args.battery_dirs]
-    seed0 = battery_dirs[0]  # the seed-0 battery holds the seed-independent base arm
-    seeds = [seed_label(d) for d in battery_dirs]
     rows: list[tuple[str, str, list[Comparison]]] = []
+    analyses = []
+    seeds = [seed_label(path) for path in args.battery_dirs]
+    loaded = []
     for control in args.control_sets:
         if control not in EVAL_SETS:
             raise ValueError(
                 f"unknown control set {control!r}; known sets are {tuple(sorted(EVAL_SETS))}"
             )
-        base = load_completion_set(seed0 / f"base__{control}")
-        artifacts = {"base": base}
-        base_grade = greedy_pass1(base, "lenient")
-        comparisons = []
-        for battery_dir in battery_dirs:
-            correct = load_completion_set(battery_dir / f"correct__{control}")
-            artifacts[f"{battery_dir.name}:correct"] = correct
-            comparisons.append(
-                compare("base", base_grade, "correct", greedy_pass1(correct, "lenient"))
+        loaded.append(
+            (
+                control,
+                battery_inputs(args.battery_dirs, control, roles=("correct",), include_base=True),
             )
-        validate_aligned_artifacts(control, artifacts)
+        )
+    for control, inputs in loaded:
+        base_grade = greedy_pass1(inputs.arms[0].completions, "lenient")
+        comparisons = [
+            compare("base", base_grade, "correct", greedy_pass1(arm.completions, "lenient"))
+            for arm in inputs.arms[1:]
+        ]
         rows.append((control, PROBES.get(control, control), comparisons))
-
-    decomp = aggregate_control_rows(rows, seeds, task=args.task_set)
-    _write_json(decomp, args.out, "multi-seed control decomposition")
-    sys.stdout.write(render_control_decomposition(decomp))
+        analyses.append(inputs.provenance("seed-level t tests; Holm control family"))
+    result = aggregate_control_rows(rows, seeds, task=args.task_set, analyses=tuple(analyses))
+    _emit_report(result, args, render_control_decomposition(result))
     return 0
 
 
@@ -370,22 +437,21 @@ def _cmd_report_arm_vs_base(args: argparse.Namespace) -> int:
         raise ValueError(
             f"unknown report set {args.task_set!r}; known sets are {tuple(sorted(EVAL_SETS))}"
         )
-    battery_dirs = [Path(d) for d in args.battery_dirs]
-    base = load_completion_set(battery_dirs[0] / f"base__{args.task_set}")
-    artifacts: dict[str, CompletionSet] = {"base": base}
-    arm_grades = []
-    for battery_dir in battery_dirs:
-        arm_set = load_completion_set(battery_dir / f"{args.arm}__{args.task_set}")
-        artifacts[f"{battery_dir.name}:{args.arm}"] = arm_set
-        arm_grades.append((seed_label(battery_dir), greedy_pass1(arm_set, "lenient")))
-    validate_aligned_artifacts(args.task_set, artifacts)
-
+    inputs = battery_inputs(args.battery_dirs, args.task_set, roles=(args.arm,), include_base=True)
     result = aggregate_arm_vs_base(
-        greedy_pass1(base, "lenient"), arm_grades, task=args.task_set, arm=args.arm
+        greedy_pass1(inputs.arms[0].completions, "lenient"),
+        [(arm.seed, greedy_pass1(arm.completions, "lenient")) for arm in inputs.arms[1:]],
+        task=args.task_set,
+        arm=args.arm,
+        analysis=inputs.provenance("paired seed x problem bootstrap"),
     )
-    _write_json(result, args.out, f"{args.arm}-vs-base comparison")
-    sys.stdout.write(result.headline() + "\n")
+    _emit_report(result, args, result.headline() + "\n")
     return 0
+
+
+def _emit_report(record: Record, args: argparse.Namespace, markdown: str) -> None:
+    _write_json(record, args.out, args.command)
+    sys.stdout.write(record_json(record) if args.format == "json" else markdown)
 
 
 def _write_json(record: Record, out: Path | None, label: str) -> None:
@@ -395,11 +461,11 @@ def _write_json(record: Record, out: Path | None, label: str) -> None:
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(record_json(record), encoding="utf-8")
-    print(f"wrote {label} to {out}")
+    print(f"wrote {label} to {out}", file=sys.stderr)
 
 
 def _cmd_heldout(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run)
+    run_dir = resolve_run_dir(Path(args.run))
     curve = run_heldout_curve(
         run_dir,
         backend=args.backend,

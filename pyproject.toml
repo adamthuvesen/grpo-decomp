@@ -57,7 +57,7 @@ eval = [
 ]
 dev = [
     "pytest>=8",
-    "ruff>=0.6",
+    "ruff==0.15.16",
     "pre-commit>=3.8",
     # The Modal launcher CLI (`modal run modal_app.py`). A dev/launch tool, not a
     # runtime dep the GPU image installs — the image bakes only the `train` extra.
@@ -65,10 +65,13 @@ dev = [
     "modal==1.5.0",
     "mypy>=2.2,<3",
     "types-pyyaml>=6.0.12.20260518",
+    "import-linter>=2.15",
+    "matplotlib==3.11.0",
 ]
 
 [project.scripts]
 grpo-decomp = "grpo_decomp.eval.cli:main"
+grpo-study = "llm_grpo_gains.workflows:main"
 
 # The reference study registers its datasets/rewards/task profiles into the harness via
 # this entry point; the harness discovers it at runtime (see grpo_decomp.plugins) without
@@ -112,9 +115,10 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
-addopts = "-q -m 'not integration'"
+addopts = "-q -m 'not integration and not gpu'"
 markers = [
     "integration: hits the network / HuggingFace; deselected by default",
+    "gpu: requires explicit local CUDA hardware and generate dependencies",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -123,3 +127,12 @@ packages = ["src/grpo_decomp", "src/llm_grpo_gains"]
 # Required for the eval-audit git dependency (not published to PyPI).
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.importlinter]
+root_packages = ["grpo_decomp", "llm_grpo_gains"]
+
+[[tool.importlinter.contracts]]
+name = "The harness does not import the reference study"
+type = "forbidden"
+source_modules = ["grpo_decomp"]
+forbidden_modules = ["llm_grpo_gains"]

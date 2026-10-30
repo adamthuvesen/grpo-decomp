@@ -11,9 +11,19 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from pydantic import Field
+from pydantic import Field, StrictBool, model_validator
 
+from grpo_decomp.report.evidence import AnalysisProvenance, seed_labels
 from grpo_decomp.report.status import MIN_HEADLINE_SEEDS
+from grpo_decomp.report.validation import (
+    Effect,
+    PositiveCount,
+    Rate,
+    interval,
+    mean,
+    require_close,
+    seed_axis,
+)
 from grpo_decomp.schemas import Record
 from grpo_decomp.stats.bootstrap import seed_problem_bootstrap_ci
 
@@ -23,21 +33,48 @@ class ArmVsBase(Record):
 
     task: str
     arm: str = Field(description="The trained arm compared to base, e.g. 'random'.")
-    n_seeds: int
+    n_seeds: PositiveCount
     seeds: tuple[str, ...] = Field(description="Per-seed labels, in input order.")
     problem_ids: tuple[str, ...] = Field(description="The shared problem axis, in order.")
-    base_correct: tuple[bool, ...] = Field(description="Base greedy grade per problem.")
-    per_seed_arm_correct: tuple[tuple[bool, ...], ...] = Field(
+    base_correct: tuple[StrictBool, ...] = Field(description="Base greedy grade per problem.")
+    per_seed_arm_correct: tuple[tuple[StrictBool, ...], ...] = Field(
         description="Arm greedy grade per problem, one row per seed."
     )
-    base_acc: float
-    per_seed_arm_acc: tuple[float, ...]
-    per_seed_delta: tuple[float, ...] = Field(description="arm(seed) - base, per seed.")
-    mean_delta: float
+    base_acc: Rate
+    per_seed_arm_acc: tuple[Rate, ...]
+    per_seed_delta: tuple[Effect, ...] = Field(description="arm(seed) - base, per seed.")
+    mean_delta: Effect
     ci_low: float = Field(description="Seed x problem bootstrap CI low on the mean delta.")
     ci_high: float
     ci_kind: str
     preliminary: bool = Field(description=f"True below {MIN_HEADLINE_SEEDS} seeds.")
+
+    analysis: AnalysisProvenance | None = None
+
+    @model_validator(mode="after")
+    def _consistent(self) -> ArmVsBase:
+        seed_axis(
+            self.n_seeds,
+            self.seeds,
+            self.preliminary,
+            self.per_seed_arm_correct,
+            self.per_seed_arm_acc,
+            self.per_seed_delta,
+        )
+        n = len(self.problem_ids)
+        if not n or len(set(self.problem_ids)) != n or len(self.base_correct) != n:
+            raise ValueError("problem_ids must be unique, nonempty, and align with base_correct")
+        require_close("base_acc", self.base_acc, sum(self.base_correct) / n)
+        for row, acc, delta in zip(
+            self.per_seed_arm_correct, self.per_seed_arm_acc, self.per_seed_delta, strict=True
+        ):
+            if len(row) != n:
+                raise ValueError("per_seed_arm_correct must align with problem_ids")
+            require_close("per_seed_arm_acc", acc, sum(row) / n)
+            require_close("per_seed_delta", delta, acc - self.base_acc)
+        require_close("mean_delta", self.mean_delta, mean(self.per_seed_delta))
+        interval("arm vs base", self.ci_low, self.ci_high)
+        return self
 
     def headline(self) -> str:
         """The atomic claim: the arm's mean gain over base, with its paired interval."""
@@ -55,10 +92,12 @@ def aggregate_arm_vs_base(
     *,
     task: str,
     arm: str,
+    analysis: AnalysisProvenance | None = None,
 ) -> ArmVsBase:
     """Pair each seed's per-problem grades to the base and aggregate over seeds and problems."""
     if not arm_grades:
         raise ValueError("no per-seed arm grades to aggregate")
+    labels = seed_labels([seed for seed, _ in arm_grades])
     problem_ids = tuple(base_grade)
     for seed, grades in arm_grades:
         if set(grades) != set(problem_ids):
@@ -75,7 +114,8 @@ def aggregate_arm_vs_base(
         task=task,
         arm=arm,
         n_seeds=len(arm_rows),
-        seeds=tuple(str(seed) for seed, _ in arm_grades),
+        seeds=labels,
+        analysis=analysis,
         problem_ids=problem_ids,
         base_correct=base_row,
         per_seed_arm_correct=arm_rows,

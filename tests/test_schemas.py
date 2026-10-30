@@ -40,3 +40,17 @@ def test_problem_set_is_sequence_like() -> None:
     assert len(problem_set) == 3
     assert problem_set[1].id == "1"
     assert [p.id for p in problem_set] == ["0", "1", "2"]
+
+
+def test_problem_set_rejects_duplicate_ids() -> None:
+    problem = Problem(id="same", question="q", gold_answer="1")
+    with pytest.raises(ValidationError, match="duplicate problem ids"):
+        ProblemSet(source=_ref(), problems=(problem, problem))
+
+
+def test_legacy_json_arrays_still_load_as_tuples() -> None:
+    problem_set = ProblemSet.model_validate_json(
+        '{"source":{"name":"d","config":null,"split":"test","revision":"r"},'
+        '"problems":[{"id":"1","question":"q","gold_answer":"1"}]}'
+    )
+    assert isinstance(problem_set.problems, tuple)

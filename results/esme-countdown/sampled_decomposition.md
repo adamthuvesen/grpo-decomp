@@ -1,47 +1,24 @@
 # Esme-214M findings: the reward teaches the sum of the numbers
 
-_Esme-214M-RL (GRPO from Esme-214M-Chat) · 6 real-reward seeds vs 6 random-reward placebo
-seeds, all evaluated at training step 240 · 200 held-out Countdown-Lite tasks · 16 samples
-per task at temperature 1.0, 12 new tokens_
+6 real-reward seeds and 6 random-reward placebo seeds. 200 held-out Countdown-Lite tasks. 16 samples per task at temperature 1, with 12 new tokens.
 
-**Result.** Real reward moves every measure past the placebo. What it teaches is one
-template: add all the numbers. 97.7% of real-reward samples are the sum of the supplied
-numbers, whatever the target. Every real-reward seed solves the 13 held-out tasks whose
-target is the sum. Across all six seeds, it solves one other task, in one seed. The gain is
-a reward hack, not arithmetic.
+The real-reward model writes the sum template in 97.7% of samples. The descriptive pattern supports a sum-template interpretation. The model solves almost only tasks whose target equals the sum of the numbers.
 
-| Measure | Real reward | Placebo | Real − placebo, 95% CI | Sign-flip p |
-| --- | ---: | ---: | --- | ---: |
-| Valid expressions | 97.9% | 1.3% | +96.6 pp, 95% CI [+95.9, +97.3] | 0.031 |
-| Exact solves, per sample | 6.3% | 0.07% | +6.2 pp, 95% CI [+3.2, +9.6] | 0.031 |
-| Tasks solved at least once | 6.6% | 1.2% | +5.4 pp, 95% CI [+2.1, +9.0] | 0.031 |
+The three outcomes form a retrospective exploratory family. No primary endpoint was specified. Raw sign-flip p-values remain visible. Holm correction covers all three outcomes. The 95% confidence intervals are marginal, not simultaneous. These exploratory tests do not establish a confirmatory result.
 
-Valid-expression rates are 97.9% vs 1.3% for real reward vs placebo. With six seeds,
-p = 0.031 is the smallest p that the sign-flip test can give.
+## Results
 
-![Esme-214M-RL: almost every valid real-reward sample is the sum of the numbers, and real reward solves almost only the held-out tasks whose target is the sum](fig-sum-template.svg)
+| Measure | Real reward | Placebo | Real - placebo, marginal 95% CI | Raw p | Holm p |
+| --- | ---: | ---: | --- | ---: | ---: |
+| Valid expressions | 97.9% | 1.29% | +96.6 pp [+95.9, +97.3] | 0.03125 | 0.09375 |
+| Exact solves, per sample | 6.3% | 0.07% | +6.2 pp [+3.2, +9.6] | 0.03125 | 0.09375 |
+| Tasks solved at least once | 6.6% | 1.17% | +5.4 pp [+2.1, +9.0] | 0.03125 | 0.09375 |
 
-## Metrics
-
-- **Valid expression:** the sample is a legal Countdown-Lite expression. It uses each
-  supplied number exactly once, with binary `+ - *` only, whether or not it hits the target.
-- **Sum of the numbers:** a valid expression that uses only `+`. Its value is the sum of the
-  numbers, whatever the target.
-- **Exact solve:** the expression hits the target.
-- **Task solved:** at least one of the 16 samples is an exact solve.
-
-## Where the solves come from
-
-13 of the 200 held-out tasks have a target equal to the sum of their numbers. The sum
-template solves those tasks and no others.
-
-| Arm | Valid | Sum of the numbers | Sum-target tasks solved (of 13) | Other tasks solved (of 187) |
+| Arm | Valid | Sum of the numbers | Sum-target tasks solved | Other tasks solved |
 | --- | ---: | ---: | ---: | ---: |
-| base (Esme-214M-Chat) | 1.4% | 0.8% | 2 | 1 |
-| placebo, mean of 6 seeds | 1.3% | 0.7% | 1.3 | 1.0 |
-| real reward, mean of 6 seeds | 97.9% | 97.7% | 13.0 | 0.2 |
-
-Per seed (solved = sum-target tasks + other tasks):
+| base | 1.4% | 0.8% | 2.0 | 1.0 |
+| placebo | 1.3% | 0.7% | 1.3 | 1.0 |
+| real reward | 97.9% | 97.7% | 13.0 | 0.2 |
 
 | Seed | real valid | real sum of the numbers | real solved | placebo valid | placebo solved |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -52,43 +29,24 @@ Per seed (solved = sum-target tasks + other tasks):
 | 218 | 97.8% | 97.6% | 13 + 0 | 1.4% | 2 + 1 |
 | 219 | 97.5% | 97.2% | 13 + 1 | 1.4% | 1 + 1 |
 
-## Reading
+![Esme sum-template decomposition](fig-sum-template.svg)
 
-- **The reward signal causes the change.** The placebo runs the same recipe and budget with
-  a reward that ignores the answer. It stays at the base model's level on every measure.
-- **The change is a reward hack.** The training reward gives partial credit: 0.05 for a
-  well-formed answer, 0.3 for a valid expression plus up to 0.3 for closeness to the target,
-  and 1.0 for an exact solve. The sum is always a valid expression and often close to the
-  target, so it earns most of that credit on every task.
-- **The validity gain is not a step toward solving.** A model that learned arithmetic would
-  solve tasks whose target is not the sum. The real-reward model solves 0.2 of the 187 such
-  tasks per seed, below the base model's 1.
+## Metrics and method
 
-The [esme-posttrain research report](https://github.com/adamthuvesen/esme-posttrain/blob/main/docs/rlvr-research-report.md)
-tests the mechanism with reward ablations. Closeness credit alone causes the collapse to the
-sum template. Only a binary exact-only reward avoids it. Those ablations are reported there
-and are not recomputed here.
+A valid expression uses every supplied number exactly once with binary `+ - *`. A sum template is a valid expression that uses only `+`. An exact solve reaches the target. A task is solved when any sampled expression reaches it.
 
-## Method
+13 of the 200 held-out tasks have a target equal to the sum of their numbers. The sum template solves that subset. Other solves test whether the behavior extends beyond the template.
 
-- **One fixed checkpoint.** Every arm is evaluated at training step 240. No checkpoint is
-  picked by its training reward.
-- **Paired comparison.** Each seed's real-reward arm is paired with its placebo arm, problem
-  by problem. Each interval resamples seeds and problems together (6 seeds × 200 problems).
-  Each p-value is an exact sign-flip test over the six seed-level effects.
-- **Independent grading.** `scripts/esme_sampled_decomp.py` grades the same CompletionSets as
-  the esme-posttrain study report, with this repo's own verifier. The two graders agree on
-  every sample. Interval bounds can differ by 0.1 pp, because the two bootstraps draw
-  different resamples.
+The real-reward and placebo arms use the same recipe and budget. The committed runs use one fixed checkpoint at training step 240. No checkpoint is selected by training reward. Each comparison pairs seeds and problems. The bootstrap resamples seeds and problems together. The exact sign-flip test uses the seed-level effects. The reported intervals do not adjust for multiplicity.
+
+The training reward gives partial credit for well-formed and valid expressions, plus closeness to the target. The sum template earns that credit on many tasks. The [esme-posttrain research report](https://github.com/adamthuvesen/esme-posttrain/blob/main/docs/rlvr-research-report.md) reports reward ablations. This analysis does not recompute those ablations.
 
 ## Limitations
 
-- **One task, one model size.** The findings describe Countdown-Lite at 214M parameters.
-- **In-distribution held-out set.** The held-out tasks come from the training generator's
-  distribution, and 199 of the 200 have three numbers.
-- **Six seeds.** The sign-flip test cannot give p below 0.031.
-- **Form, not internals.** The sum template is identified from output form. This analysis
-  does not inspect what the model represents.
+The findings cover one task and one model size. The held-out tasks use the training generator's distribution. In the committed set, 199 of 200 tasks have three numbers. Six seeds limit the smallest two-sided sign-flip p-value to 0.03125. Output form identifies the template. It does not reveal internal representations. The retrospective family limits confirmatory claims.
 
-Reproduce: `make reproduce-esme` recomputes `sampled_multiseed_summary.json` from the raw
-completions in `completions/` with `scripts/esme_sampled_decomp.py`.
+- Training identity is unavailable for some inputs. Seed labels are supplied, not verified.
+- Rendered prompt identity is unavailable for some inputs. Only strategy names match.
+- Legacy inputs do not record a verifier; the installed verifier was used.
+
+Reproduce the historical JSON with `make reproduce-esme`. The explicit `--legacy` mode preserves `sampled_multiseed_summary.json`. Default analysis writes `sampled_multiseed_summary.corrected.json` and this report.

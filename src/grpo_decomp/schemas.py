@@ -16,18 +16,18 @@ import json
 from collections.abc import Iterator
 from typing import overload
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Record(BaseModel):
     """Base for all grpo_decomp records: immutable, and unknown fields are an error."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
 
 
 def record_json(record: Record) -> str:
     """Deterministic pretty JSON for committed result/provenance artifacts."""
-    return json.dumps(record.model_dump(), sort_keys=True, indent=2) + "\n"
+    return json.dumps(record.model_dump(), sort_keys=True, indent=2, allow_nan=False) + "\n"
 
 
 class DatasetRef(Record):
@@ -63,6 +63,13 @@ class ProblemSet(Record):
 
     source: DatasetRef
     problems: tuple[Problem, ...]
+
+    @model_validator(mode="after")
+    def _check_unique_ids(self) -> ProblemSet:
+        ids = [problem.id for problem in self.problems]
+        if len(set(ids)) != len(ids):
+            raise ValueError("duplicate problem ids in problem set")
+        return self
 
     def __len__(self) -> int:
         return len(self.problems)
