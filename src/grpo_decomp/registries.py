@@ -14,7 +14,7 @@ owner point this stack at their own model + task without forking it.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -108,7 +108,7 @@ _OWNER: ContextVar[tuple[str, bool]] = ContextVar("registration_owner", default=
 
 
 @contextmanager
-def registration_owner(name: str, *, idempotent: bool = False) -> Iterator[None]:
+def registration_owner(name: str, *, idempotent: bool = False) -> Generator[None]:
     """Attribute registrations to one plugin and explicitly permit repeated registration."""
     token = _OWNER.set((name, idempotent))
     try:
@@ -128,7 +128,7 @@ def _registry_restore[T](registry: dict[str, T]) -> Callable[[], None]:
 
 
 @contextmanager
-def registration_transaction() -> Iterator[None]:
+def registration_transaction() -> Generator[None]:
     """Restore all registries and ownership records if plugin startup fails."""
     restore_registries = (
         _registry_restore(EVAL_SETS),

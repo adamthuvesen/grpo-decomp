@@ -57,13 +57,13 @@ eval = [
 ]
 dev = [
     "pytest>=8",
-    "ruff==0.15.16",
+    "ruff==0.17.4",
     "pre-commit>=3.8",
     # The Modal launcher CLI (`modal run modal_app.py`). A dev/launch tool, not a
     # runtime dep the GPU image installs — the image bakes only the `train` extra.
     # Pinned to the surface modal_app.py targets (modal.App / string GPU / spawn-by-default).
     "modal==1.5.0",
-    "mypy>=2.2,<3",
+    "basedpyright==1.40.2",
     "types-pyyaml>=6.0.12.20260518",
     "import-linter>=2.15",
     "matplotlib==3.11.0",
@@ -89,28 +89,22 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
 [tool.ruff.lint.isort]
 known-first-party = ["grpo_decomp", "llm_grpo_gains"]
 
-[tool.mypy]
-python_version = "3.14"
-files = ["src/grpo_decomp", "src/llm_grpo_gains"]
-check_untyped_defs = true
-disallow_untyped_defs = true
-warn_redundant_casts = true
-warn_unreachable = true
-warn_unused_configs = true
-warn_unused_ignores = true
+[tool.basedpyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.14"
+include = ["src/grpo_decomp", "src/llm_grpo_gains", "scripts", "tests", "modal_app.py", ".agents/skills/verify-grpo-decomp"]
+exclude = ["**/__pycache__", ".venv", ".verify"]
+venvPath = "."
+venv = ".venv"
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportUnknownLambdaType = false
 
-[[tool.mypy.overrides]]
-module = [
-    "datasets",
-    "eval_audit.*",
-    "math_verify",
-    "scipy.*",
-    "torch.*",
-    "transformers.*",
-    "trl.*",
-    "vllm.*",
-]
-ignore_missing_imports = true
+[[tool.basedpyright.executionEnvironments]]
+root = "tests"
+reportMissingParameterType = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

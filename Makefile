@@ -24,8 +24,9 @@ lint:  ## Lint and format-check with the locked formatter version
 imports:  ## Enforce the one-way harness and study import boundary
 	$(RUN) lint-imports --no-cache --no-logo
 
-typecheck:  ## Check source-package type annotations
-	$(RUN) mypy
+typecheck:  ## Check source, scripts, tests, and the verify helper (basedpyright strict)
+	$(RUN) basedpyright
+	$(RUN) python scripts/check_basedpyright_ratchet.py
 
 test:  ## Run the fast offline CPU tests
 	$(RUN) pytest
