@@ -126,7 +126,7 @@ def test_seed_problem_bootstrap_keeps_problem_variance_that_seed_level_t_drops()
 
 def test_seed_problem_bootstrap_rejects_a_flat_vector() -> None:
     with pytest.raises(ValueError, match="matrix"):
-        seed_problem_bootstrap_ci([0.1, 0.2])  # type: ignore[list-item]
+        seed_problem_bootstrap_ci([0.1, 0.2])  # pyright: ignore[reportArgumentType]
 
 
 def test_holm_correction_hand_example_and_order() -> None:

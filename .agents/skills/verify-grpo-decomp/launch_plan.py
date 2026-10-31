@@ -38,7 +38,7 @@ for name in ["train_arm", "heldout_arm"]:
         refusals[name] = str(exc)
 
 plan = {
-    "entrypoint_is_modal": isinstance(m.main, modal.app.LocalEntrypoint),
+    "entrypoint_is_modal": isinstance(m.main, modal.app.LocalEntrypoint),  # pyright: ignore[reportUnnecessaryIsInstance]  # runtime proof modal wrapped main
     "image": m.CUDA_IMAGE,
     "gpus": {name: getattr(m, name).spec.gpus for name in FUNCTIONS},
     "arm": {

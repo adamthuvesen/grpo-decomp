@@ -40,7 +40,7 @@ Prove changes with `make verify` (`verify-grpo-decomp` skill at `.agents/skills/
 | Documented numbers match committed results | `tests/test_docs_consistency.py` | 2026-07-01 |
 | The installed wheel discovers the plugin | `tests/test_packaging.py::test_installed_wheel_discovers_plugin_grades_and_loads_packaged_fixture` | 2026-11-05 |
 | `make verify` reports a pass only when its control observes FAIL | `.agents/skills/verify-grpo-decomp/drives.py::control_battery`, `Makefile::verify` | 2026-11-06 |
-| Source, scripts, tests, and Modal app pass basedpyright strict; the baseline only shrinks | `pyproject.toml::tool.basedpyright`, `scripts/check_basedpyright_ratchet.py::main`, `Makefile::typecheck` | 2026-11-06 |
+| Source, scripts, tests, and Modal app pass basedpyright strict with no baseline | `pyproject.toml::tool.basedpyright`, `Makefile::typecheck` | 2026-11-06 |
 | This table cites only real enforcers | `tests/test_agents_rules.py::test_enforced_rules_cite_existing_definitions` | 2026-11-06 |
 
 Ruff, basedpyright, and the Python version are configured in `pyproject.toml`. Approved runtime

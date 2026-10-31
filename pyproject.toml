@@ -86,7 +86,7 @@ line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF", "PGH003"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
@@ -94,8 +94,9 @@ known-first-party = ["grpo_decomp", "llm_grpo_gains"]
 
 [tool.basedpyright]
 typeCheckingMode = "strict"
+enableTypeIgnoreComments = false
 pythonVersion = "3.13"
-include = ["src/grpo_decomp", "src/llm_grpo_gains", "scripts", "tests", "modal_app.py", ".agents/skills/verify-grpo-decomp"]
+include = ["src/grpo_decomp", "src/llm_grpo_gains", "scripts", "tests", "modal_app.py"]
 exclude = ["**/__pycache__", ".venv", ".verify"]
 venvPath = "."
 venv = ".venv"

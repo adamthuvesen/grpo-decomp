@@ -26,7 +26,7 @@ imports:  ## Enforce the one-way harness and study import boundary
 
 typecheck:  ## Check source, scripts, tests, and the verify helper (basedpyright strict)
 	$(RUN) basedpyright
-	$(RUN) python scripts/check_basedpyright_ratchet.py
+	$(RUN) basedpyright --project .agents/skills/verify-grpo-decomp
 
 test:  ## Run the fast offline CPU tests
 	$(RUN) pytest

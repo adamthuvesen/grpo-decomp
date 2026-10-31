@@ -14,18 +14,18 @@ def _ref() -> DatasetRef:
 
 def test_problem_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError):
-        Problem(id="x", question="q", gold_answer="1", surprise="nope")  # type: ignore[call-arg]
+        Problem(id="x", question="q", gold_answer="1", surprise="nope")  # pyright: ignore[reportCallIssue]
 
 
 def test_problem_is_frozen() -> None:
     problem = Problem(id="x", question="q", gold_answer="1")
     with pytest.raises(ValidationError):
-        problem.gold_answer = "2"  # type: ignore[misc]
+        problem.gold_answer = "2"
 
 
 def test_dataset_ref_requires_all_fields() -> None:
     with pytest.raises(ValidationError):
-        DatasetRef(name="openai/gsm8k", split="test", revision="abc123")  # type: ignore[call-arg]
+        DatasetRef(name="openai/gsm8k", split="test", revision="abc123")  # pyright: ignore[reportCallIssue]
 
 
 def test_dataset_ref_allows_null_config() -> None:

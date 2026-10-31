@@ -37,12 +37,12 @@ class DriveError(Exception):
 class Drive:
     proves: str
     paths: list[str]
-    run: Callable[[Path, dict], str]
+    run: Callable[[Path, dict[str, str]], str]
 
 
 def run(
-    evidence: Path, env: dict, name: str, argv: list[str], timeout: float = 30
-) -> subprocess.CompletedProcess:
+    evidence: Path, env: dict[str, str], name: str, argv: list[str], timeout: float = 30
+) -> subprocess.CompletedProcess[str]:
     proc = subprocess.Popen(
         argv,
         cwd=ROOT,
@@ -77,7 +77,7 @@ def expect(condition: bool, message: str) -> None:
         raise DriveError(message)
 
 
-def drive_battery(evidence: Path, env: dict, expected: float = 4 / 12) -> str:
+def drive_battery(evidence: Path, env: dict[str, str], expected: float = 4 / 12) -> str:
     out = evidence / "base.battery.json"
     result = run(
         evidence,
@@ -114,11 +114,11 @@ def drive_battery(evidence: Path, env: dict, expected: float = 4 / 12) -> str:
     return f"graded 12 problems x 4 samples, strict accuracy {battery['strict_accuracy']:.3f}"
 
 
-def control_battery(evidence: Path, env: dict) -> str:
+def control_battery(evidence: Path, env: dict[str, str]) -> str:
     return drive_battery(evidence, env, expected=0.9)
 
 
-def drive_passk_report(evidence: Path, env: dict) -> str:
+def drive_passk_report(evidence: Path, env: dict[str, str]) -> str:
     sets = Path(tempfile.mkdtemp(dir=env["HOME"]))
     for arm in ["base", "correct-seed0", "correct-seed1"]:
         shutil.copytree(FIXTURES / f"{arm}__mini", sets / f"{arm}__dev")
@@ -169,7 +169,7 @@ APPROVED = {
 }
 
 
-def drive_launch_plan(evidence: Path, env: dict) -> str:
+def drive_launch_plan(evidence: Path, env: dict[str, str]) -> str:
     probe = [str(PYTHON), "-W", "ignore", str(HERE / "launch_plan.py")]
     result = run(evidence, env | {"PYTHONPATH": str(ROOT)}, "launch-plan", probe)
     expect(
