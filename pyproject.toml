@@ -95,6 +95,7 @@ known-first-party = ["grpo_decomp", "llm_grpo_gains"]
 [tool.basedpyright]
 typeCheckingMode = "strict"
 enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = "error"
 pythonVersion = "3.13"
 include = ["src/grpo_decomp", "src/llm_grpo_gains", "scripts", "tests", "modal_app.py"]
 exclude = ["**/__pycache__", ".venv", ".verify"]

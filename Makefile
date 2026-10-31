@@ -14,12 +14,12 @@ sync-check:  ## Verify the locked CPU environment without network access
 	uv sync --locked --offline --extra dev --extra eval
 
 fix:  ## Auto-format and apply safe lint fixes
-	$(RUN) ruff check --fix .
-	$(RUN) ruff format .
+	$(RUN) ruff check --fix . .agents/skills/verify-grpo-decomp/verify
+	$(RUN) ruff format . .agents/skills/verify-grpo-decomp/verify
 
 lint:  ## Lint and format-check with the locked formatter version
-	$(RUN) ruff check .
-	$(RUN) ruff format --check .
+	$(RUN) ruff check . .agents/skills/verify-grpo-decomp/verify
+	$(RUN) ruff format --check . .agents/skills/verify-grpo-decomp/verify
 
 imports:  ## Enforce the one-way harness and study import boundary
 	$(RUN) lint-imports --no-cache --no-logo

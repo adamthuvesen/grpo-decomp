@@ -42,6 +42,7 @@ Prove changes with `make verify` (`verify-grpo-decomp` skill at `.agents/skills/
 | `make verify` reports a pass only when its control observes FAIL | `.agents/skills/verify-grpo-decomp/drives.py::control_battery`, `Makefile::verify` | 2026-11-06 |
 | Source, scripts, tests, and Modal app pass basedpyright strict with no baseline | `pyproject.toml::tool.basedpyright`, `Makefile::typecheck` | 2026-11-06 |
 | This table cites only real enforcers | `tests/test_agents_rules.py::test_enforced_rules_cite_existing_definitions` | 2026-11-06 |
+| No file downgrades strict type checking with a `# pyright:` mode comment | `tests/test_strict_mode.py::test_no_file_downgrades_type_checking_mode` | 2026-11-07 |
 
 Ruff, basedpyright, and the Python version are configured in `pyproject.toml`. Approved runtime
 dependencies are listed in `tests/test_packaging.py`; dev-only tools go in the `dev` extra.

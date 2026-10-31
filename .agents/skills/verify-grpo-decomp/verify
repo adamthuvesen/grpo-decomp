@@ -7,6 +7,7 @@ The drive table, the control, and the repo's paths live in drives.py beside this
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import json
 import os
 import shutil
@@ -58,6 +59,27 @@ def git(*args: str) -> str:
     return result.stdout.strip()
 
 
+def repo_writes(since_ns: int, run_dir: Path) -> list[str]:
+    """Paths in the checkout or its git dir written since `since_ns`, plus a changed git config."""
+    git_dir = Path(git("rev-parse", "--absolute-git-dir"))
+    written: list[str] = []
+    for top in (ROOT, git_dir):
+        for parent, dirs, files in os.walk(top):
+            here = Path(parent)
+            dirs[:] = [d for d in dirs if here / d not in (run_dir, git_dir)]
+            for name in [*dirs, *files]:
+                path = here / name
+                if path.lstat().st_mtime_ns >= since_ns:
+                    written.append(str(path.relative_to(top.parent)))
+    return written
+
+
+def git_config_digest() -> str:
+    common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir"))
+    configs = sorted(common.glob("config*")) + sorted(common.glob("worktrees/*/config*"))
+    return hashlib.sha256(b"".join(path.read_bytes() for path in configs)).hexdigest()
+
+
 def changed_drives() -> list[str]:
     base = git("merge-base", "HEAD", "main") or git("merge-base", "HEAD", "origin/main")
     files = set(git("diff", "--name-only", base).splitlines())
@@ -94,10 +116,12 @@ def run_drives(names: list[str], run_dir: Path, control: bool) -> list[dict[str,
     try:
         preflight(scratch)
         env = child_env(scratch)
+        config = git_config_digest()
         for name in names:
             evidence = run_dir / name
             evidence.mkdir()
             start = time.monotonic()
+            since_ns = time.time_ns()
             drive = drives.CONTROL[1] if control else DRIVES[name].run
             try:
                 note, status = drive(evidence, env), "PASS"
@@ -106,6 +130,11 @@ def run_drives(names: list[str], run_dir: Path, control: bool) -> list[dict[str,
             log = scratch / "tripwire.log"
             if log.exists() and log.read_text():
                 status, note = "FAIL", f"tripwire fired: {log.read_text().strip()}"
+            written = repo_writes(since_ns, run_dir)
+            if written:
+                status, note = "FAIL", f"drive wrote to the checkout: {', '.join(written[:5])}"
+            if git_config_digest() != config:
+                status, note = "FAIL", "drive changed the git config"
             seconds = round(time.monotonic() - start, 1)
             results.append({"drive": name, "result": status, "seconds": seconds, "note": note})
             print(f"{status} {name} {seconds}s {note}", flush=True)
@@ -144,9 +173,18 @@ def main(argv: list[str]) -> int:
         print(f"evidence: {run_dir}")
     failed = any(r["result"] == "FAIL" for r in results)
     if control:
-        verdict = "control: FAIL observed" if failed else "control: expected FAIL, drive passed"
-        print(verdict, file=sys.stderr)
-        return 0 if failed else 1
+        failures = [str(r["note"]) for r in results if r["result"] == "FAIL"]
+        if len(failures) == 1 and failures[0].startswith(drives.CONTROL_FAILURE):
+            print("control: FAIL observed", file=sys.stderr)
+            return 0
+        if failures:
+            print(
+                f"control: failed for another reason; expected {drives.CONTROL_FAILURE!r}",
+                file=sys.stderr,
+            )
+        else:
+            print("control: expected FAIL, drive passed", file=sys.stderr)
+        return 1
     return 1 if failed else 0
 
 
