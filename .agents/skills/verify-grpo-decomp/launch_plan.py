@@ -30,9 +30,15 @@ for name, kwargs in CALLS.items():
         refusals[name] = str(exc)
     except Exception as exc:
         refusals[name] = f"CRASH {type(exc).__name__}: {exc}"
-for name in ["train_arm", "heldout_arm"]:
+DIRECT_CALLS = {
+    "train_arm": ("configs/correct.yaml",),
+    "heldout_arm": ("configs/correct.yaml",),
+    "eval_matrix": (),
+    "passk_multiseed": (),
+}
+for name, args in DIRECT_CALLS.items():
     try:
-        getattr(m, name).local("configs/correct.yaml")
+        getattr(m, name).local(*args)
         refusals[name] = "RAN"
     except SystemExit as exc:
         refusals[name] = str(exc)

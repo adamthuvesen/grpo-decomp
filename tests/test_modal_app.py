@@ -241,6 +241,12 @@ def test_heldout_output_stays_with_the_scored_attempt(monkeypatch, tmp_path) -> 
     assert not (attempt_b / "heldout.json").exists()
 
 
+def test_unknown_command_fails_before_the_approval_prompt(monkeypatch) -> None:
+    modal_app = _modal_app(monkeypatch)
+    with pytest.raises(ValueError, match="command must be"):
+        modal_app.main(command="bogus")
+
+
 def test_unapproved_launch_refuses_with_the_exact_approved_command(monkeypatch) -> None:
     from types import SimpleNamespace
 
@@ -301,6 +307,15 @@ def test_every_modal_entry_point_requires_approval(source: Path) -> None:
         assert "approved" in [arg.arg for arg in fn.args.args] and gates, (
             f"{source.name}:{fn.name} reaches paid Modal hardware: add `approved: bool = False` "
             "and call `_require_approval(approved, ...)` before any Modal call."
+        )
+        defaults = {
+            arg.arg: default
+            for arg, default in zip(
+                reversed(fn.args.args), reversed(fn.args.defaults), strict=False
+            )
+        }
+        assert ast.unparse(defaults["approved"]) == "False", (
+            f"{source.name}:{fn.name}: `approved` must default to False."
         )
         assert first_call is None or min(gates) < first_call, (
             f"{source.name}:{fn.name} calls Modal before `_require_approval`."

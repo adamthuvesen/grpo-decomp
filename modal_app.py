@@ -81,7 +81,7 @@ _IGNORE = [
 image = (
     modal.Image.from_registry(CUDA_IMAGE, add_python=LOCAL_PYTHON)
     .apt_install("git")
-    .pip_install("uv")
+    .pip_install("uv==0.13.5")
     .add_local_file(
         Path(__file__).parent / "pyproject.toml", f"{REMOTE_ROOT}/pyproject.toml", copy=True
     )
@@ -402,6 +402,10 @@ def main(
         validate_battery_request(task, scope, seed)
     elif command == "passk-multiseed":
         validate_passk_request(task, n_base, n_correct, correct_seeds, set_name, limit)
+    else:
+        raise ValueError(
+            f"command must be 'train', 'heldout', 'battery', or 'passk-multiseed', got {command!r}"
+        )
     _require_approval(approved, _approved_command(launch_args))
     commit, dirty = git_commit(), git_is_dirty()
     if command == "train":
@@ -442,10 +446,6 @@ def main(
                 "commit": commit,
                 "dirty": dirty,
             },
-        )
-    else:
-        raise ValueError(
-            f"command must be 'train', 'heldout', 'battery', or 'passk-multiseed', got {command!r}"
         )
 
     kwargs["approved"] = True

@@ -32,9 +32,9 @@ make verify ARGS="launch-plan"    # named drives
 ## Limits
 
 - No drive trains. The locked CPU environment has no torch, TRL, or vLLM, and every
-  real arm needs a Hugging Face model download. Training proof is a paid Modal run:
-  `modal run modal_app.py --no-spawn --arm configs/correct.yaml --smoke-problems 8 --max-steps 5 --approved`,
-  and only after Adam approves it.
+  real arm needs a Hugging Face model download. Training proof is a paid Modal run of
+  `modal_app.py` with `--no-spawn --arm configs/correct.yaml --smoke-problems 8 --max-steps 5`.
+  Run it only after Adam approves it. The refusal message prints the exact command.
 - `generate` and `heldout` load a model. No drive covers them.
 
 ## Gotchas

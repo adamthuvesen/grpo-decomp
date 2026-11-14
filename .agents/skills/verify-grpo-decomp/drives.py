@@ -166,6 +166,8 @@ APPROVED = {
     ),
     "train_arm": "modal run --detach modal_app.py <same arguments> --approved",
     "heldout_arm": "modal run --detach modal_app.py <same arguments> --approved",
+    "eval_matrix": "modal run --detach modal_app.py <same arguments> --approved",
+    "passk_multiseed": "modal run --detach modal_app.py <same arguments> --approved",
 }
 
 
@@ -193,7 +195,7 @@ def drive_launch_plan(evidence: Path, env: dict[str, str]) -> str:
             refusal.startswith("Refusing to launch") and refusal.endswith(f"run: {command}"),
             f"{name}: expected refusal ending 'run: {command}', got {refusal!r}",
         )
-    return "A100-80GB plan for a 5-step Qwen2.5-Math-1.5B arm; 6 launch paths refuse unapproved"
+    return f"A100-80GB plan for a 5-step Qwen2.5-Math-1.5B arm; {len(APPROVED)} launch paths refuse unapproved"
 
 
 DRIVES = {
