@@ -46,3 +46,16 @@ def test_defaults_are_study_owned_and_optional_without_a_study(monkeypatch) -> N
     monkeypatch.setattr(registries, "DEFAULTS", {})
     assert registries.default_task_set() is None
     assert registries.default_train_dataset() is None
+
+
+def test_a_study_cannot_replace_the_placebo_or_a_registered_name() -> None:
+    import pytest
+
+    from grpo_decomp.registries import add_new
+
+    placebo = REWARDS["random"]
+    with pytest.raises(ValueError, match=r"already registered: \['random'\]"):
+        add_new(REWARDS, {"random": lambda seed: lambda **kwargs: []})
+    assert REWARDS["random"] is placebo
+    with pytest.raises(ValueError, match="gsm8k-test"):
+        add_new(EVAL_SETS, {"gsm8k-test": EVAL_SETS["gsm8k-test"]})

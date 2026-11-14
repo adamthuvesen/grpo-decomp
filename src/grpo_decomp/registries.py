@@ -93,6 +93,14 @@ PROBES: dict[str, str] = {}
 DEFAULTS: dict[str, str] = {}
 
 
+def add_new[T](registry: dict[str, T], entries: dict[str, T]) -> None:
+    """Add `entries`, refusing any name already registered (the placebo `random` included)."""
+    taken = sorted(entries.keys() & registry.keys())
+    if taken:
+        raise ValueError(f"already registered: {taken}")
+    registry.update(entries)
+
+
 def default_task() -> str | None:
     """Return the study's explicitly selected task, or None without a study default."""
     return DEFAULTS.get("task")

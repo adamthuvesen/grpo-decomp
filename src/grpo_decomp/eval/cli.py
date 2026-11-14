@@ -485,4 +485,8 @@ def _cmd_heldout(args: argparse.Namespace) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # This module has no study registered; running it would grade against empty registries.
+    sys.exit(
+        "grpo-decomp: run the `grpo-decomp` console script or `python -m llm_grpo_gains.cli`; "
+        "`python -m grpo_decomp.eval.cli` has no study registered"
+    )

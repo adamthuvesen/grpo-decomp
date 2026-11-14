@@ -22,7 +22,7 @@ from llm_grpo_gains.data.countdown import parse_countdown_key
 from llm_grpo_gains.esme_countdown import (
     ESME_COUNTDOWN_SOURCE,
     esme_countdown_is_correct,
-    esme_countdown_is_wellformed,
+    is_wellformed_esme_countdown,
     load_esme_countdown,
 )
 
@@ -111,18 +111,18 @@ def test_esme_wellformed_rules() -> None:
     are still rejected.
     """
     gold = "target=10;numbers=1,9"
+    numbers = (1, 9)
     # Hits the target: well-formed AND correct.
-    assert esme_countdown_is_wellformed("1 + 9", gold) is True
+    assert is_wellformed_esme_countdown("1 + 9", numbers) is True
     assert esme_countdown_is_correct("1 + 9", gold) is True
     # Legal expression, wrong value: well-formed but NOT correct — the axis separation.
-    assert esme_countdown_is_wellformed("9 * 1", gold) is True
+    assert is_wellformed_esme_countdown("9 * 1", numbers) is True
     assert esme_countdown_is_correct("9 * 1", gold) is False
     # Grammar violations are rejected on both axes.
-    assert esme_countdown_is_wellformed("9 / 1 + 1", gold) is False  # division illegal
-    assert esme_countdown_is_wellformed("9", gold) is False  # not all numbers used
-    assert esme_countdown_is_wellformed("1 + 1", gold) is False  # number reuse / omission
-    assert esme_countdown_is_wellformed("1 + + 9", gold) is False  # Esme has no unary ops
-    assert esme_countdown_is_wellformed(None, gold) is False
+    assert is_wellformed_esme_countdown("9 / 1 + 1", numbers) is False  # division illegal
+    assert is_wellformed_esme_countdown("9", numbers) is False  # not all numbers used
+    assert is_wellformed_esme_countdown("1 + 1", numbers) is False  # number reuse / omission
+    assert is_wellformed_esme_countdown("1 + + 9", numbers) is False  # Esme has no unary ops
 
 
 @pytest.mark.slow

@@ -92,18 +92,6 @@ def is_wellformed_esme_countdown(text: str, numbers: tuple[int, ...]) -> bool:
     return Counter(leaves) == Counter(numbers)
 
 
-def esme_countdown_is_wellformed(extracted: str | None, gold: str) -> bool:
-    """`is_wellformed_esme_countdown` on an extracted expression + Esme key (verifier signature).
-
-    Mirrors `esme_countdown_is_correct` but grades well-formedness rather than exact solve,
-    so the same extraction path feeds both the exact-solve and valid-expression axes.
-    """
-    if extracted is None:
-        return False
-    numbers, _target = parse_countdown_key(gold)
-    return is_wellformed_esme_countdown(extracted, numbers)
-
-
 def esme_countdown_is_correct(extracted: str | None, gold: str) -> bool:
     """Grade an extracted expression against an Esme Countdown key (the eval-layer verifier).
 

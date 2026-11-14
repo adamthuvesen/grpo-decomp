@@ -50,23 +50,6 @@ def seed_label(battery_dir: Path) -> int | str:
     return int(tail) if head and tail.isdigit() else name
 
 
-def validate_aligned_artifacts(slug: str, arms: dict[str, CompletionSet]) -> None:
-    """Require compared artifacts to carry identical data and prompt provenance."""
-    ComparisonInputs(tuple(ArmInput(arm, None, cs) for arm, cs in arms.items()))
-
-
-def validate_same_prompt_strategy(slug: str, arms: dict[str, CompletionSet]) -> None:
-    """Require compared artifacts to share one prompt strategy."""
-    strategies = {
-        arm: completion_set.provenance.prompt_strategy for arm, completion_set in arms.items()
-    }
-    if len(set(strategies.values())) > 1:
-        raise ValueError(
-            f"{slug}: arms were generated with different prompt strategies {strategies}; "
-            "a decomposition must compare arms on the same prompt distribution"
-        )
-
-
 def validate_seed_artifacts(
     slug: str, base: CompletionSet, correct_by_seed: list[tuple[int | str, CompletionSet]]
 ) -> None:

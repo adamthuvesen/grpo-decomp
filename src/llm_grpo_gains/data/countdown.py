@@ -15,7 +15,7 @@ This module is the task's single source of truth, shared by three callers:
   output.
 
 Solvability is guaranteed because a target is only chosen if it is reachable from the numbers
-(`reachable_targets`), which also gives `solve_countdown` a witness for tests.
+(`reachable_targets`).
 """
 
 from __future__ import annotations
@@ -240,11 +240,6 @@ def _reachable_integers(numbers: tuple[int, ...]) -> frozenset[int]:
 def reachable_targets(numbers: Sequence[int], *, lo: int, hi: int) -> list[int]:
     """Sorted integer targets in ``[lo, hi]`` reachable from `numbers` (guarantees a solution)."""
     return sorted(t for t in _reachable_integers(tuple(sorted(numbers))) if lo <= t <= hi)
-
-
-def solve_countdown(numbers: Sequence[int], target: int) -> bool:
-    """True iff some legal expression over `numbers` reaches `target` — for tests/guards."""
-    return target in _reachable_integers(tuple(sorted(numbers)))
 
 
 class CountdownConfig(Record):

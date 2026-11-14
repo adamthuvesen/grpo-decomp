@@ -10,6 +10,8 @@ A new RL task is a sibling of this file (in its own package).
 
 from __future__ import annotations
 
+from functools import cache
+
 from grpo_decomp.registries import (
     DEFAULTS,
     EVAL_SETS,
@@ -21,6 +23,7 @@ from grpo_decomp.registries import (
     VERIFIERS,
     EvalTaskProfile,
     TrainDataset,
+    add_new,
 )
 from grpo_decomp.schemas import ProblemSet
 from grpo_decomp.splits import dev_slice, validation_split
@@ -53,10 +56,12 @@ def _gsm8k_validation(provenance: RunProvenance) -> ProblemSet:
     return validation
 
 
+@cache
 def register() -> None:
-    """Fill the harness registries with the study (safe to repeat)."""
+    """Fill the harness registries with the study once; later calls are no-ops."""
     # Named eval sets (`generate --set`, report commands' `--task-set`).
-    EVAL_SETS.update(
+    add_new(
+        EVAL_SETS,
         {
             "gsm8k-test": lambda: load_gsm8k("test"),
             "dev": lambda: dev_slice(load_gsm8k("test")),
@@ -67,12 +72,13 @@ def register() -> None:
             # Esme-214M-RL decomposition: the held-out Countdown-Lite set the esme-posttrain
             # emitter samples over. The completions arrive as artifacts; the harness only grades.
             "esme-countdown": lambda: load_esme_countdown("heldout_large"),
-        }
+        },
     )
 
     # Training datasets (ArmConfig.dataset). GSM8K carves a per-seed validation split from
     # train; Countdown ships a fixed, seed-independent one.
-    TRAIN_DATASETS.update(
+    add_new(
+        TRAIN_DATASETS,
         {
             "gsm8k": TrainDataset(
                 name="gsm8k",
@@ -82,41 +88,45 @@ def register() -> None:
                 name="countdown",
                 load=lambda seed: (load_countdown("train"), load_countdown("validation")),
             ),
-        }
+        },
     )
 
     # Verifiable rewards (ArmConfig.reward); the placebo `random` is harness-provided.
-    REWARDS.update({"correct": lambda seed: correct, "countdown": lambda seed: countdown})
+    add_new(REWARDS, {"correct": lambda seed: correct, "countdown": lambda seed: countdown})
 
     # Grading: GSM8K family uses the harness default (math-verify); Countdown overrides.
     # Esme Countdown-Lite is stricter than the general Countdown control (each supplied
     # number used exactly once, + - * only), so it has its own verifier.
-    VERIFIERS.update(
+    add_new(
+        VERIFIERS,
         {
             _COUNTDOWN_SOURCE: countdown_is_correct,
             ESME_COUNTDOWN_SOURCE: esme_countdown_is_correct,
-        }
+        },
     )
 
     # Held-out reconstruction for `grpo-decomp heldout`.
-    VALIDATION_RECONSTRUCTORS.update(
+    add_new(
+        VALIDATION_RECONSTRUCTORS,
         {
             _GSM8K_SOURCE: _gsm8k_validation,
             _COUNTDOWN_SOURCE: lambda provenance: load_countdown("validation"),
-        }
+        },
     )
 
     # Control eval sets + their probe labels (the §3 controlled rows; GSM8K only).
-    PROBES.update(
+    add_new(
+        PROBES,
         {
             "gsm-symbolic": "memorization (templated renumbering)",
             "gsm8k-platinum": "label noise (cleaned labels)",
             "gsm-plus": "robustness (adversarial perturbation)",
-        }
+        },
     )
 
     # Eval/Modal task profiles.
-    TASKS.update(
+    add_new(
+        TASKS,
         {
             "gsm8k": EvalTaskProfile(
                 base_config="configs/correct.yaml",
@@ -154,7 +164,7 @@ def register() -> None:
                 battery_root="battery-offpolicy",
                 passk_multiseed_root="passk-multiseed-offpolicy",
             ),
-        }
+        },
     )
 
-    DEFAULTS.update({"task": "gsm8k", "training dataset": "gsm8k"})
+    add_new(DEFAULTS, {"task": "gsm8k", "training dataset": "gsm8k"})
