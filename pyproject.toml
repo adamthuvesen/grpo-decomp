@@ -86,8 +86,58 @@ line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF", "PGH003"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF", "PGH003", "PGH004", "TID251"]
 ignore = ["E501"]
+
+# Whole-module bans. A per-file TID251 ignore lifts every ban for that file, so
+# tests/test_banned_modules.py holds each owner to the modules it owns.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"subprocess".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"pty".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.system".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.popen".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.execv".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.execve".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.execl".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.execlp".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.execvp".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.spawnv".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.spawnve".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.spawnl".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.spawnlp".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"os.spawnvp".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"asyncio.subprocess".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"asyncio.create_subprocess_exec".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"asyncio.create_subprocess_shell".msg = "Process calls belong to a named owner file; see tests/test_banned_modules.py."
+"socket".msg = "Network clients belong to a named owner file; see tests/test_banned_modules.py."
+"http.client".msg = "Network clients belong to a named owner file; see tests/test_banned_modules.py."
+"urllib.request".msg = "Network clients belong to a named owner file; see tests/test_banned_modules.py."
+"requests".msg = "Network clients belong to a named owner file; see tests/test_banned_modules.py."
+"httpx".msg = "Network clients belong to a named owner file; see tests/test_banned_modules.py."
+"huggingface_hub".msg = "Hub downloads belong to a named owner file; see tests/test_banned_modules.py."
+"datasets".msg = "Dataset downloads belong to a named owner file; see tests/test_banned_modules.py."
+"modal".msg = "Paid compute belongs to a named owner file; see tests/test_banned_modules.py."
+"openai".msg = "Paid APIs belong to a named owner file; see tests/test_banned_modules.py."
+"anthropic".msg = "Paid APIs belong to a named owner file; see tests/test_banned_modules.py."
+"snowflake".msg = "Warehouse drivers belong to a named owner file; see tests/test_banned_modules.py."
+
+# Owners of a banned module (see tests/test_banned_modules.py::OWNERS).
+[tool.ruff.lint.per-file-ignores]
+"src/grpo_decomp/provenance.py" = ["TID251"]
+"src/grpo_decomp/train/launcher.py" = ["TID251"]
+"src/llm_grpo_gains/data/gsm8k.py" = ["TID251"]
+"src/llm_grpo_gains/data/gsm8k_platinum.py" = ["TID251"]
+"src/llm_grpo_gains/data/gsm_plus.py" = ["TID251"]
+"src/llm_grpo_gains/data/gsm_symbolic.py" = ["TID251"]
+"src/llm_grpo_gains/workflows.py" = ["TID251"]
+"modal_app.py" = ["TID251"]
+"tests/test_architecture.py" = ["TID251"]
+"tests/test_esme_countdown_decomp.py" = ["TID251"]
+"tests/test_packaging.py" = ["TID251"]
+"tests/test_strict_mode.py" = ["TID251"]
+".agents/skills/verify-grpo-decomp/drives.py" = ["TID251"]
+".agents/skills/verify-grpo-decomp/launch_plan.py" = ["TID251"]
+".agents/skills/verify-grpo-decomp/verify" = ["TID251"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["grpo_decomp", "llm_grpo_gains"]

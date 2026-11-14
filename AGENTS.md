@@ -46,6 +46,8 @@ dependencies are listed in `tests/test_packaging.py`; dev-only tools go in the `
 | Source, scripts, tests, and Modal app pass basedpyright strict with no baseline | `pyproject.toml::tool.basedpyright`, `Makefile::typecheck` | 2026-11-06 |
 | This table cites only real enforcers | `tests/test_agents_rules.py::test_enforced_rules_cite_existing_definitions` | 2026-11-06 |
 | Pyright suppressions are inline ignores that name a rule and give a reason; no file-level directive | `tests/test_strict_mode.py::test_pyright_comments_are_inline_ignores_with_a_rule_and_a_reason` | 2026-11-07 |
+| Process, network, paid SDK, and Modal modules are imported only by named owner files, each held to its own modules | `pyproject.toml::tool.ruff.lint.flake8-tidy-imports.banned-api`, `tests/test_banned_modules.py::test_every_file_uses_only_the_banned_modules_it_owns`, `tests/test_banned_modules.py::test_only_named_owners_hold_a_tid251_ignore` | 2026-11-07 |
+| No blanket `noqa`, no `noqa` on a module ban, no file-wide `# ruff: noqa` | `pyproject.toml::tool.ruff.lint`, `tests/test_strict_mode.py::test_no_noqa_lifts_a_ban_or_a_whole_file` | 2026-11-09 |
 
 ## Judgment calls
 

@@ -1,4 +1,4 @@
-"""Pyright suppressions are inline only: each ignore names its rule and gives a reason."""
+"""Suppressions are narrow: pyright ignores name a rule and a reason, and no noqa lifts a ban."""
 
 import io
 import os
@@ -50,6 +50,22 @@ def pyright_comment_problems(source: str) -> list[tuple[int, str]]:
     return problems
 
 
+FILE_WIDE_NOQA = re.compile(r"#\s*ruff:\s*noqa", re.IGNORECASE)
+NOQA_ON_BAN = re.compile(r"#\s*noqa\b.*\bTID251", re.IGNORECASE)
+
+
+def noqa_problems(source: str) -> list[tuple[int, str]]:
+    problems: list[tuple[int, str]] = []
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type != tokenize.COMMENT:
+            continue
+        if FILE_WIDE_NOQA.search(token.string):
+            problems.append((token.start[0], "file-wide `# ruff: noqa`; fix the cause"))
+        elif NOQA_ON_BAN.search(token.string):
+            problems.append((token.start[0], "`noqa` on a module ban; add an owner in pyproject"))
+    return problems
+
+
 def test_pyright_comments_are_inline_ignores_with_a_rule_and_a_reason() -> None:
     problems = [
         f"{path.relative_to(ROOT)}:{line}: {message}"
@@ -71,3 +87,23 @@ def test_pyright_comment_detector_finds_known_cases() -> None:
     assert lines("x = 1  # pyright: ignore[reportAny]  # runtime proof\n") == []
     assert lines("x = 1  # pyright: ignore[reportAny, reportCallIssue]  # why\n") == []
     assert lines("x = '# pyright: basic'\n") == []
+
+
+def test_no_noqa_lifts_a_ban_or_a_whole_file() -> None:
+    problems = [
+        f"{path.relative_to(ROOT)}:{line}: {message}"
+        for path in checkout_python_files()
+        for line, message in noqa_problems(path.read_text(errors="replace"))
+    ]
+    assert not problems, "\n".join(problems)
+
+
+def test_noqa_detector_finds_known_cases() -> None:
+    def lines(source: str) -> list[int]:
+        return [line for line, _ in noqa_problems(source)]
+
+    assert lines("# ruff: noqa\n") == [1]
+    assert lines("# ruff: noqa: F401\n") == [1]
+    assert lines("import subprocess  # noqa: TID251\n") == [1]
+    assert lines("import os  # noqa: F401\n") == []
+    assert lines("x = '# noqa: TID251'\n") == []

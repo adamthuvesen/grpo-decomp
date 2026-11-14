@@ -235,5 +235,5 @@ DRIVES = {
 }
 SMOKE = "battery"
 # The control passes only when its drive fails on exactly this planted expectation.
-CONTROL_FAILURE = "expected strict accuracy 0.9000, got "
+CONTROL_FAILURE = "expected strict accuracy 0.9000, got 0.3333"
 CONTROL = ("battery", control_battery)
