@@ -26,28 +26,24 @@ Prove changes with `make verify` (`verify-grpo-decomp` skill at `.agents/skills/
 Ruff, basedpyright, and the Python version are configured in `pyproject.toml`. Approved runtime
 dependencies are listed in `tests/test_packaging.py`; dev-only tools go in the `dev` extra.
 
-| Rule | Enforced by | Added |
-| --- | --- | --- |
-| The harness never imports the study | `pyproject.toml::tool.importlinter`, `tests/test_architecture.py::test_harness_imports_without_a_study_or_gpu_stack` | 2026-11-05 |
-| A paid Modal launch refuses to run without `--approved` | `modal_app.py::_require_approval`, `tests/test_modal_app.py::test_every_modal_entry_point_requires_approval`, `tests/test_modal_app.py::test_unapproved_launch_refuses_with_the_exact_approved_command` | 2026-11-06 |
-| No new runtime dependency without asking Adam | `tests/test_packaging.py::test_runtime_dependencies_are_the_approved_stack` | 2026-11-06 |
-| TRL and vLLM stay exact `==` pins | `tests/test_packaging.py::test_trl_and_vllm_are_exact_pins`, `uv.lock` | 2026-11-06 |
-| Fewer than three seeds is labeled preliminary | `src/grpo_decomp/report/status.py::MIN_HEADLINE_SEEDS`, `tests/test_passk_seeds.py::test_below_min_seeds_is_preliminary` | 2026-07-01 |
-| Result schemas reject unknown fields | `tests/test_schemas.py::test_problem_rejects_unknown_fields` | 2026-07-01 |
-| Artifacts record version and content hashes | `tests/test_completions.py::test_manifest_records_version_and_content_hashes` | 2026-11-05 |
-| Publication is atomic and never replaces a conflicting artifact | `tests/test_completions.py::test_conflicting_existing_artifact_is_never_replaced`, `tests/test_completions.py::test_failed_staged_write_cleans_up_and_does_not_publish` | 2026-11-05 |
-| Legacy CompletionSets stay readable | `tests/test_completions.py::test_legacy_artifact_load_and_retry_preserve_all_bytes` | 2026-11-05 |
-| A retry is never a new training seed | `tests/test_comparison_contracts.py::test_retry_is_not_a_new_training_seed` | 2026-11-05 |
-| Multiple completed attempts need explicit selection | `tests/test_provenance.py::test_multiple_successful_attempts_require_explicit_selection` | 2026-11-05 |
-| Historical result JSON stays byte-identical | `tests/test_esme_analysis.py::test_committed_legacy_summary_is_byte_identical`, `Makefile::reproduce-esme` | 2026-10-24 |
-| Documented numbers match committed results | `tests/test_docs_consistency.py` | 2026-07-01 |
-| The installed wheel discovers the plugin | `tests/test_packaging.py::test_installed_wheel_discovers_plugin_grades_and_loads_packaged_fixture` | 2026-11-05 |
-| `make verify` reports a pass only when its control observes FAIL | `.agents/skills/verify-grpo-decomp/drives.py::control_battery`, `Makefile::verify` | 2026-11-06 |
-| Source, scripts, tests, and Modal app pass basedpyright strict with no baseline | `pyproject.toml::tool.basedpyright`, `Makefile::typecheck` | 2026-11-06 |
-| This table cites only real enforcers | `tests/test_agents_rules.py::test_enforced_rules_cite_existing_definitions` | 2026-11-06 |
-| Pyright suppressions are inline ignores that name a rule and give a reason; no file-level directive | `tests/test_strict_mode.py::test_pyright_comments_are_inline_ignores_with_a_rule_and_a_reason` | 2026-11-07 |
-| Process, network, paid SDK, and Modal modules are imported only by named owner files, each held to its own modules | `pyproject.toml::tool.ruff.lint.flake8-tidy-imports.banned-api`, `tests/test_banned_modules.py::test_every_file_uses_only_the_banned_modules_it_owns`, `tests/test_banned_modules.py::test_only_named_owners_hold_a_tid251_ignore` | 2026-11-07 |
-| No blanket `noqa`, no `noqa` on a module ban, no file-wide `# ruff: noqa` | `pyproject.toml::tool.ruff.lint`, `tests/test_strict_mode.py::test_no_noqa_lifts_a_ban_or_a_whole_file` | 2026-11-09 |
+| Rule | Enforced by |
+| --- | --- |
+| The harness never imports the study | `pyproject.toml::tool.importlinter`, `tests/test_architecture.py::test_harness_imports_without_a_study_or_gpu_stack` |
+| A paid Modal launch refuses to run without `--approved` | `modal_app.py::_require_approval`, `tests/test_modal_app.py::test_every_modal_entry_point_requires_approval`, `tests/test_modal_app.py::test_unapproved_launch_refuses_with_the_exact_approved_command` |
+| No new runtime dependency without asking Adam | `tests/test_packaging.py::test_runtime_dependencies_are_the_approved_stack` |
+| TRL and vLLM stay exact `==` pins | `tests/test_packaging.py::test_trl_and_vllm_are_exact_pins`, `uv.lock` |
+| Fewer than three seeds is labeled preliminary | `src/grpo_decomp/report/status.py::MIN_HEADLINE_SEEDS`, `tests/test_passk_seeds.py::test_below_min_seeds_is_preliminary` |
+| Result schemas reject unknown fields | `tests/test_schemas.py::test_problem_rejects_unknown_fields` |
+| Artifacts record version and content hashes | `tests/test_completions.py::test_manifest_records_version_and_content_hashes` |
+| Publication is atomic and never replaces a conflicting artifact | `tests/test_completions.py::test_conflicting_existing_artifact_is_never_replaced`, `tests/test_completions.py::test_failed_staged_write_cleans_up_and_does_not_publish` |
+| Legacy CompletionSets stay readable | `tests/test_completions.py::test_legacy_artifact_load_and_retry_preserve_all_bytes` |
+| A retry is never a new training seed | `tests/test_comparison_contracts.py::test_retry_is_not_a_new_training_seed` |
+| Multiple completed attempts need explicit selection | `tests/test_provenance.py::test_multiple_successful_attempts_require_explicit_selection` |
+| Historical result JSON stays byte-identical | `tests/test_esme_analysis.py::test_committed_legacy_summary_is_byte_identical`, `Makefile::reproduce-esme` |
+| Documented numbers match committed results | `tests/test_docs_consistency.py` |
+| The installed wheel registers the study and grades a fixture | `tests/test_packaging.py::test_installed_wheel_registers_study_grades_and_loads_packaged_fixture` |
+| `make verify` reports a pass only when its control observes FAIL | `.agents/skills/verify-grpo-decomp/drives.py::control_battery`, `Makefile::verify` |
+| Process, network, paid SDK, and Modal modules are imported only by named owner files, each held to its own modules | `pyproject.toml::tool.ruff.lint.flake8-tidy-imports.banned-api`, `tests/test_banned_modules.py::test_every_file_uses_only_the_banned_modules_it_owns`, `tests/test_banned_modules.py::test_only_named_owners_hold_a_tid251_ignore` |
 
 ## Judgment calls
 

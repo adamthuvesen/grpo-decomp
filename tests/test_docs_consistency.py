@@ -50,7 +50,6 @@ def _pct(x: float, *, sign: bool = False, dp: int = 1) -> str:
     return f"{x * 100:+.{dp}f}" if sign else f"{x * 100:.{dp}f}"
 
 
-# --- committed artifacts: the single source of truth ------------------------
 _GP = _load("results/pass8-multiseed.json")  # GSM8K pass@8 panel (6 seeds)
 _CP8 = _load("results/countdown/pass8-multiseed.json")  # Countdown pass@8 (3 seeds)
 _GPL = _load("results/seed-placebo-comparison.json")  # GSM8K placebo (6 seeds)

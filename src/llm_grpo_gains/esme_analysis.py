@@ -11,7 +11,6 @@ from pydantic import Field, StrictFloat, StrictInt, model_validator
 
 from grpo_decomp.eval.completions import CompletionSet, load_completion_set
 from grpo_decomp.grading import extract_lenient
-from grpo_decomp.plugins import PluginLoadError, load_plugins
 from grpo_decomp.report.evidence import (
     AnalysisProvenance,
     ArmInput,
@@ -29,6 +28,7 @@ from llm_grpo_gains.esme_countdown import (
     esme_countdown_is_correct,
     is_wellformed_esme_countdown,
 )
+from llm_grpo_gains.registration import register
 
 EffectMetric = Literal["valid_rate", "exact_rate", "any_exact"]
 ArmRole = Literal["base", "correct", "random"]
@@ -244,7 +244,7 @@ def analyze(
     """Validate every input before grading and compute the three exploratory effects."""
     labels = seed_labels([label for label, _ in seeds])
     unique_input_paths([directory for _, directory in seeds])
-    load_plugins()
+    register()
     base = load_completion_set(base_completions_dir)
     arms = [ArmInput("base", None, base)]
     for label, (_, directory) in zip(labels, seeds, strict=True):
@@ -484,7 +484,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 (args.out / "sampled_decomposition.md").write_text(
                     render_report(result), encoding="utf-8"
                 )
-    except (OSError, ValueError, PluginLoadError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"esme sampled decomposition: {exc}", file=sys.stderr)
         return 2
     print(f"Esme-214M-RL sampled multiseed decomposition ({result.n_seeds} seeds)")

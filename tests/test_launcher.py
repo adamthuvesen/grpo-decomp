@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from grpo_decomp.registries import TrainDataset, get_prompt_strategy, register_train_dataset
+from grpo_decomp.registries import TRAIN_DATASETS, TrainDataset, get_prompt_strategy
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from grpo_decomp.train.config import ArmConfig
 from grpo_decomp.train.launcher import (
@@ -73,7 +73,7 @@ def test_smoke_overrides_is_a_noop_without_max_steps() -> None:
     assert smoke_overrides(arm, None) is arm
 
 
-def test_load_train_and_validation_uses_registered_dataset() -> None:
+def test_load_train_and_validation_uses_registered_dataset(monkeypatch) -> None:
     # The launcher dispatches on ArmConfig.dataset via the train-dataset registry; how the
     # (train, validation) split is derived is the registered dataset's concern.
     train_ref = DatasetRef(name="dummy", config="x", split="train", revision="r")
@@ -90,7 +90,9 @@ def test_load_train_and_validation_uses_registered_dataset() -> None:
         seen.append(seed)
         return train_set, val_set
 
-    register_train_dataset(TrainDataset(name="__launcher_test__", load=_load))
+    monkeypatch.setitem(
+        TRAIN_DATASETS, "__launcher_test__", TrainDataset(name="__launcher_test__", load=_load)
+    )
     arm = ArmConfig(
         name="cd", base_model="m", reward="correct", dataset="__launcher_test__", seed=7
     )

@@ -70,7 +70,7 @@ class GRPOSettings(Record):
 def _default_dataset() -> str:
     dataset = default_train_dataset()
     if dataset is None:
-        raise ValueError("dataset is required when no plugin registers a default training dataset")
+        raise ValueError("dataset is required when no study registers a default training dataset")
     return dataset
 
 

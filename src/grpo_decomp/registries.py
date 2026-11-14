@@ -1,22 +1,17 @@
 """The plug-in surface between the harness and a study.
 
 ``grpo_decomp`` is task-agnostic: it knows how to train a GRPO arm, sample a
-``CompletionSet``, grade it, and decompose the gain — but it does not know what GSM8K
-or Countdown are. A *study* (e.g. ``llm_grpo_gains``) or a new RL task fills these
-registries with its concrete datasets, rewards, verifiers, prompt strategies, and task
-profiles. Registration happens either by importing this module and calling the
-``register_*`` functions directly, or — for the CLI and Modal entrypoints — via a
-``grpo_decomp.plugins`` entry point loaded at startup (see :mod:`grpo_decomp.plugins`).
+``CompletionSet``, grade it, and decompose the gain, but it does not know what GSM8K
+or Countdown are. A study (e.g. ``llm_grpo_gains``) fills these mappings with its
+datasets, rewards, verifiers, prompt strategies, and task profiles when its registration
+module is imported (see :mod:`llm_grpo_gains.registration`).
 
-The dependency is one-way: the harness never imports a study. That is what lets the
-owner point this stack at their own model + task without forking it.
+The dependency is one-way: the harness never imports a study.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
-from contextvars import ContextVar
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -31,8 +26,6 @@ PLACEBO_REWARD = "random"
 #: The harness's default prompt strategy (registered in :mod:`grpo_decomp.prompts`).
 DEFAULT_PROMPT_STRATEGY = "r1_zero"
 
-
-# --- types ---------------------------------------------------------------------------
 
 #: A reward: generated ``completions`` + forwarded dataset columns -> one score each.
 RewardFn = Callable[..., list[float]]
@@ -87,8 +80,6 @@ class EvalTaskProfile:
     passk_multiseed_root: str
 
 
-# --- the registries ------------------------------------------------------------------
-
 EVAL_SETS: dict[str, EvalSetLoader] = {}
 TRAIN_DATASETS: dict[str, TrainDataset] = {}
 REWARDS: dict[str, RewardFactory] = {}
@@ -98,159 +89,24 @@ PROMPT_STRATEGIES: dict[str, PromptStrategy] = {}
 TASKS: dict[str, EvalTaskProfile] = {}
 #: ``eval-set slug -> human label`` for the controlled report rows.
 PROBES: dict[str, str] = {}
-_DEFAULTS: dict[str, str] = {}
-
-
-# --- registration --------------------------------------------------------------------
-
-_OWNERS: dict[tuple[str, str], str] = {}
-_OWNER: ContextVar[tuple[str, bool]] = ContextVar("registration_owner", default=("direct", False))
-
-
-@contextmanager
-def registration_owner(name: str, *, idempotent: bool = False) -> Generator[None]:
-    """Attribute registrations to one plugin and explicitly permit repeated registration."""
-    token = _OWNER.set((name, idempotent))
-    try:
-        yield
-    finally:
-        _OWNER.reset(token)
-
-
-def _registry_restore[T](registry: dict[str, T]) -> Callable[[], None]:
-    snapshot = registry.copy()
-
-    def restore() -> None:
-        registry.clear()
-        registry.update(snapshot)
-
-    return restore
-
-
-@contextmanager
-def registration_transaction() -> Generator[None]:
-    """Restore all registries and ownership records if plugin startup fails."""
-    restore_registries = (
-        _registry_restore(EVAL_SETS),
-        _registry_restore(TRAIN_DATASETS),
-        _registry_restore(REWARDS),
-        _registry_restore(VERIFIERS),
-        _registry_restore(VALIDATION_RECONSTRUCTORS),
-        _registry_restore(PROMPT_STRATEGIES),
-        _registry_restore(TASKS),
-        _registry_restore(PROBES),
-        _registry_restore(_DEFAULTS),
-    )
-    owners = _OWNERS.copy()
-    try:
-        yield
-    except BaseException:
-        for restore in restore_registries:
-            restore()
-        _OWNERS.clear()
-        _OWNERS.update(owners)
-        raise
-
-
-def _register[T](registry: dict[str, T], kind: str, name: str, value: T) -> None:
-    owner, idempotent = _OWNER.get()
-    key = (kind, name)
-    if kind == "reward" and name == PLACEBO_REWARD and owner != "grpo_decomp.rewards":
-        raise ValueError(f"reward {name!r} is reserved for grpo_decomp.rewards, got {owner!r}")
-    if name in registry:
-        previous = _OWNERS.get(key, "unowned")
-        if owner == previous and idempotent:
-            return
-        raise ValueError(f"{kind} {name!r} already belongs to {previous!r}, rejected {owner!r}")
-    registry[name] = value
-    _OWNERS[key] = owner
-
-
-def register_eval_set(name: str, loader: EvalSetLoader) -> None:
-    """Register a named eval set (a ``generate --set`` target)."""
-    _register(EVAL_SETS, "eval set", name, loader)
-
-
-def register_train_dataset(dataset: TrainDataset) -> None:
-    """Register a training dataset (an ``ArmConfig.dataset`` value)."""
-    _register(TRAIN_DATASETS, "training dataset", dataset.name, dataset)
-
-
-def register_reward(name: str, factory: RewardFactory) -> None:
-    """Register a reward factory (an ``ArmConfig.reward`` value)."""
-    _register(REWARDS, "reward", name, factory)
-
-
-def register_verifier(source_name: str, verifier: Verifier) -> None:
-    """Register a grading verifier, keyed on ``DatasetRef.name`` or an explicit grader name."""
-    _register(VERIFIERS, "verifier", source_name, verifier)
-
-
-def register_validation_reconstructor(source_name: str, fn: ValidationReconstructor) -> None:
-    """Register how to rebuild a run's held-out split, keyed on ``DatasetRef.name``."""
-    _register(VALIDATION_RECONSTRUCTORS, "validation reconstructor", source_name, fn)
-
-
-def register_prompt_strategy(strategy: PromptStrategy) -> None:
-    """Register a prompt strategy (an ``ArmConfig.prompt_strategy`` / ``--prompt-strategy``)."""
-    _register(PROMPT_STRATEGIES, "prompt strategy", strategy.name, strategy)
-
-
-def register_task(name: str, profile: EvalTaskProfile) -> None:
-    """Register an eval/Modal task profile."""
-    _register(TASKS, "task", name, profile)
-
-
-def register_control_set(slug: str, probe: str) -> None:
-    """Register a control eval set and its human-readable probe label."""
-    _register(PROBES, "control set", slug, probe)
-
-
-def register_default_task(name: str) -> None:
-    """Choose the study's default eval task explicitly."""
-    _register(_DEFAULTS, "default", "task", name)
-
-
-def register_default_train_dataset(name: str) -> None:
-    """Choose the study's default training dataset explicitly."""
-    _register(_DEFAULTS, "default", "training dataset", name)
+#: The study's default ``"task"`` and ``"training dataset"`` names.
+DEFAULTS: dict[str, str] = {}
 
 
 def default_task() -> str | None:
     """Return the study's explicitly selected task, or None without a study default."""
-    return _DEFAULTS.get("task")
+    return DEFAULTS.get("task")
 
 
 def default_task_set() -> str | None:
     """Return the study's default eval set, or None without a registered default."""
-    name = _DEFAULTS.get("task")
+    name = DEFAULTS.get("task")
     return get_task_profile(name).task_set if name is not None else None
 
 
 def default_train_dataset() -> str | None:
     """Return the study's default training dataset, or None without a registered default."""
-    return _DEFAULTS.get("training dataset")
-
-
-def validate_registrations() -> None:
-    """Check task and control references after every plugin has registered."""
-    for kind, registry in (("task", TASKS), ("training dataset", TRAIN_DATASETS)):
-        if kind in _DEFAULTS and _DEFAULTS[kind] not in registry:
-            raise ValueError(f"default {kind} {_DEFAULTS[kind]!r} is not registered")
-    for name, profile in TASKS.items():
-        for slug in (profile.task_set, *profile.control_sets):
-            if slug not in EVAL_SETS:
-                owner = _OWNERS.get(("task", name), "unowned")
-                raise ValueError(
-                    f"task {name!r} from {owner!r} references unknown eval set {slug!r}"
-                )
-    for slug in PROBES:
-        if slug not in EVAL_SETS:
-            owner = _OWNERS.get(("control set", slug), "unowned")
-            raise ValueError(f"control set {slug!r} from {owner!r} has no registered eval set")
-
-
-# --- lookup --------------------------------------------------------------------------
+    return DEFAULTS.get("training dataset")
 
 
 def get_prompt_strategy(name: str) -> PromptStrategy:

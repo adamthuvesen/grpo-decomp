@@ -17,7 +17,6 @@ from grpo_decomp.eval.completions import (
     SamplingConfig,
     write_completion_set,
 )
-from grpo_decomp.plugins import load_plugins
 from grpo_decomp.registries import EVAL_SETS, verifier_for
 from llm_grpo_gains.data.countdown import parse_countdown_key
 from llm_grpo_gains.esme_countdown import (
@@ -26,11 +25,6 @@ from llm_grpo_gains.esme_countdown import (
     esme_countdown_is_wellformed,
     load_esme_countdown,
 )
-
-
-@pytest.fixture(autouse=True)
-def _plugins() -> None:
-    load_plugins(force=True)
 
 
 def _solve(numbers: tuple[int, ...], target: int) -> str:
@@ -78,7 +72,6 @@ def _write_arm(path: Path, *, model: str, samples_for: dict[str, str]) -> None:
 
 
 def test_esme_countdown_registered() -> None:
-    load_plugins(force=True)
     assert "esme-countdown" in EVAL_SETS
     problems = load_esme_countdown()
     assert problems.source.name == ESME_COUNTDOWN_SOURCE

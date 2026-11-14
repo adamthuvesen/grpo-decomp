@@ -1,29 +1,26 @@
 """Wire the GSM8K + Countdown reference study into the grpo-decomp harness registries.
 
-:func:`register` is the ``grpo_decomp.plugins`` entry point (declared in pyproject): the
-harness CLI and Modal entrypoints call it at startup so the study's eval sets, training
-datasets, rewards, verifiers, held-out reconstructors, and task profiles are available.
-Registration is idempotent — safe to call more than once.
+:func:`register` fills the harness mappings in :mod:`grpo_decomp.registries` with the
+study's eval sets, training datasets, rewards, verifiers, held-out reconstructors, and task
+profiles. Every study entry point (:mod:`llm_grpo_gains.cli`, ``modal_app.py``) calls it.
 
 This module is the study-specific coupling that the harness does not carry.
-A new RL task is a sibling of this file (in its own package) with its own ``register``.
+A new RL task is a sibling of this file (in its own package).
 """
 
 from __future__ import annotations
 
 from grpo_decomp.registries import (
+    DEFAULTS,
+    EVAL_SETS,
+    PROBES,
+    REWARDS,
+    TASKS,
+    TRAIN_DATASETS,
+    VALIDATION_RECONSTRUCTORS,
+    VERIFIERS,
     EvalTaskProfile,
     TrainDataset,
-    register_control_set,
-    register_default_task,
-    register_default_train_dataset,
-    register_eval_set,
-    register_reward,
-    register_task,
-    register_train_dataset,
-    register_validation_reconstructor,
-    register_verifier,
-    registration_owner,
 )
 from grpo_decomp.schemas import ProblemSet
 from grpo_decomp.splits import dev_slice, validation_split
@@ -56,105 +53,108 @@ def _gsm8k_validation(provenance: RunProvenance) -> ProblemSet:
     return validation
 
 
-@registration_owner(__name__, idempotent=True)
 def register() -> None:
-    """Register every study dataset, reward, verifier, and task profile (idempotent)."""
+    """Fill the harness registries with the study (safe to repeat)."""
     # Named eval sets (`generate --set`, report commands' `--task-set`).
-    register_eval_set("gsm8k-test", lambda: load_gsm8k("test"))
-    register_eval_set("dev", lambda: dev_slice(load_gsm8k("test")))
-    register_eval_set("gsm-symbolic", lambda: load_gsm_symbolic("main"))
-    register_eval_set("gsm-plus", lambda: load_gsm_plus("test"))
-    register_eval_set("gsm8k-platinum", load_gsm8k_platinum)
-    register_eval_set("countdown-test", lambda: load_countdown("test"))
-    # Esme-214M-RL decomposition: the held-out Countdown-Lite set the esme-posttrain
-    # emitter samples over. The completions arrive as artifacts; the harness only grades.
-    register_eval_set("esme-countdown", lambda: load_esme_countdown("heldout_large"))
+    EVAL_SETS.update(
+        {
+            "gsm8k-test": lambda: load_gsm8k("test"),
+            "dev": lambda: dev_slice(load_gsm8k("test")),
+            "gsm-symbolic": lambda: load_gsm_symbolic("main"),
+            "gsm-plus": lambda: load_gsm_plus("test"),
+            "gsm8k-platinum": load_gsm8k_platinum,
+            "countdown-test": lambda: load_countdown("test"),
+            # Esme-214M-RL decomposition: the held-out Countdown-Lite set the esme-posttrain
+            # emitter samples over. The completions arrive as artifacts; the harness only grades.
+            "esme-countdown": lambda: load_esme_countdown("heldout_large"),
+        }
+    )
 
     # Training datasets (ArmConfig.dataset). GSM8K carves a per-seed validation split from
     # train; Countdown ships a fixed, seed-independent one.
-    register_train_dataset(
-        TrainDataset(
-            name="gsm8k",
-            load=lambda seed: validation_split(load_gsm8k("train"), seed=seed),
-        )
-    )
-    register_train_dataset(
-        TrainDataset(
-            name="countdown",
-            load=lambda seed: (load_countdown("train"), load_countdown("validation")),
-        )
+    TRAIN_DATASETS.update(
+        {
+            "gsm8k": TrainDataset(
+                name="gsm8k",
+                load=lambda seed: validation_split(load_gsm8k("train"), seed=seed),
+            ),
+            "countdown": TrainDataset(
+                name="countdown",
+                load=lambda seed: (load_countdown("train"), load_countdown("validation")),
+            ),
+        }
     )
 
     # Verifiable rewards (ArmConfig.reward); the placebo `random` is harness-provided.
-    register_reward("correct", lambda seed: correct)
-    register_reward("countdown", lambda seed: countdown)
+    REWARDS.update({"correct": lambda seed: correct, "countdown": lambda seed: countdown})
 
     # Grading: GSM8K family uses the harness default (math-verify); Countdown overrides.
-    register_verifier(_COUNTDOWN_SOURCE, countdown_is_correct)
     # Esme Countdown-Lite is stricter than the general Countdown control (each supplied
-    # number used exactly once, + - * only), so it registers its own verifier.
-    register_verifier(ESME_COUNTDOWN_SOURCE, esme_countdown_is_correct)
+    # number used exactly once, + - * only), so it has its own verifier.
+    VERIFIERS.update(
+        {
+            _COUNTDOWN_SOURCE: countdown_is_correct,
+            ESME_COUNTDOWN_SOURCE: esme_countdown_is_correct,
+        }
+    )
 
     # Held-out reconstruction for `grpo-decomp heldout`.
-    register_validation_reconstructor(_GSM8K_SOURCE, _gsm8k_validation)
-    register_validation_reconstructor(
-        _COUNTDOWN_SOURCE, lambda provenance: load_countdown("validation")
+    VALIDATION_RECONSTRUCTORS.update(
+        {
+            _GSM8K_SOURCE: _gsm8k_validation,
+            _COUNTDOWN_SOURCE: lambda provenance: load_countdown("validation"),
+        }
     )
 
     # Control eval sets + their probe labels (the §3 controlled rows; GSM8K only).
-    register_control_set("gsm-symbolic", "memorization (templated renumbering)")
-    register_control_set("gsm8k-platinum", "label noise (cleaned labels)")
-    register_control_set("gsm-plus", "robustness (adversarial perturbation)")
+    PROBES.update(
+        {
+            "gsm-symbolic": "memorization (templated renumbering)",
+            "gsm8k-platinum": "label noise (cleaned labels)",
+            "gsm-plus": "robustness (adversarial perturbation)",
+        }
+    )
 
     # Eval/Modal task profiles.
-    register_task(
-        "gsm8k",
-        EvalTaskProfile(
-            base_config="configs/correct.yaml",
-            task_set="gsm8k-test",
-            control_sets=("gsm-symbolic", "gsm-plus", "gsm8k-platinum"),
-            run_prefix="",
-            battery_root="battery",
-            passk_multiseed_root="passk-multiseed",
-        ),
-    )
-    register_task(
-        "countdown",
-        EvalTaskProfile(
-            base_config="configs/countdown-correct.yaml",
-            task_set="countdown-test",
-            control_sets=(),
-            run_prefix="countdown-",
-            battery_root="battery-countdown",
-            passk_multiseed_root="passk-multiseed-countdown",
-        ),
-    )
-    # Same-base positive control: Qwen2.5-Math-1.5B (the GSM8K base) trained on Countdown,
-    # so the GSM8K/Countdown contrast no longer changes the base model too.
-    register_task(
-        "countdown-math",
-        EvalTaskProfile(
-            base_config="configs/countdown-math-correct.yaml",
-            task_set="countdown-test",
-            control_sets=(),
-            run_prefix="countdown-math-",
-            battery_root="battery-countdown-math",
-            passk_multiseed_root="passk-multiseed-countdown-math",
-        ),
-    )
-    # Off-policy placebo: the GSM8K random arm with steps_per_generation > 1, so the PPO
-    # clip can bind (the Spurious Rewards mechanism). Evaluated against the GSM8K base.
-    register_task(
-        "gsm8k-offpolicy",
-        EvalTaskProfile(
-            base_config="configs/correct.yaml",
-            task_set="gsm8k-test",
-            control_sets=(),
-            run_prefix="offpolicy-",
-            battery_root="battery-offpolicy",
-            passk_multiseed_root="passk-multiseed-offpolicy",
-        ),
+    TASKS.update(
+        {
+            "gsm8k": EvalTaskProfile(
+                base_config="configs/correct.yaml",
+                task_set="gsm8k-test",
+                control_sets=("gsm-symbolic", "gsm-plus", "gsm8k-platinum"),
+                run_prefix="",
+                battery_root="battery",
+                passk_multiseed_root="passk-multiseed",
+            ),
+            "countdown": EvalTaskProfile(
+                base_config="configs/countdown-correct.yaml",
+                task_set="countdown-test",
+                control_sets=(),
+                run_prefix="countdown-",
+                battery_root="battery-countdown",
+                passk_multiseed_root="passk-multiseed-countdown",
+            ),
+            # Same-base positive control: Qwen2.5-Math-1.5B (the GSM8K base) trained on
+            # Countdown, so the GSM8K/Countdown contrast no longer changes the base model too.
+            "countdown-math": EvalTaskProfile(
+                base_config="configs/countdown-math-correct.yaml",
+                task_set="countdown-test",
+                control_sets=(),
+                run_prefix="countdown-math-",
+                battery_root="battery-countdown-math",
+                passk_multiseed_root="passk-multiseed-countdown-math",
+            ),
+            # Off-policy placebo: the GSM8K random arm with steps_per_generation > 1, so the PPO
+            # clip can bind (the Spurious Rewards mechanism). Evaluated against the GSM8K base.
+            "gsm8k-offpolicy": EvalTaskProfile(
+                base_config="configs/correct.yaml",
+                task_set="gsm8k-test",
+                control_sets=(),
+                run_prefix="offpolicy-",
+                battery_root="battery-offpolicy",
+                passk_multiseed_root="passk-multiseed-offpolicy",
+            ),
+        }
     )
 
-    register_default_task("gsm8k")
-    register_default_train_dataset("gsm8k")
+    DEFAULTS.update({"task": "gsm8k", "training dataset": "gsm8k"})

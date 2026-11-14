@@ -5,54 +5,18 @@ from __future__ import annotations
 from grpo_decomp.registries import EVAL_SETS, PROBES, REWARDS, TASKS
 
 
-def test_sets_include_task_and_controls() -> None:
+def test_task_profiles_and_controls_name_registered_sets() -> None:
     assert "gsm8k-test" in EVAL_SETS
     assert "countdown-test" in EVAL_SETS
     for slug in PROBES:
         assert slug in EVAL_SETS
+    for profile in TASKS.values():
+        assert {profile.task_set, *profile.control_sets} <= set(EVAL_SETS)
 
 
 def test_study_registered_rewards_and_tasks() -> None:
     assert {"correct", "countdown", "random"} <= set(REWARDS)
     assert {"gsm8k", "countdown"} <= set(TASKS)
-
-
-def test_registration_rejects_other_owners_and_requires_explicit_idempotence() -> None:
-    import pytest
-
-    from grpo_decomp.registries import (
-        register_eval_set,
-        registration_owner,
-    )
-    from llm_grpo_gains.registration import register
-
-    original = EVAL_SETS["gsm8k-test"]
-    register()
-    assert EVAL_SETS["gsm8k-test"] is original
-    with (
-        registration_owner("another-study", idempotent=True),
-        pytest.raises(ValueError, match=r"already belongs to 'llm_grpo_gains\.registration'"),
-    ):
-        register_eval_set("gsm8k-test", original)
-    with (
-        registration_owner("llm_grpo_gains.registration"),
-        pytest.raises(ValueError, match="already belongs"),
-    ):
-        register_eval_set("gsm8k-test", original)
-
-
-def test_placebo_cannot_be_replaced_even_before_its_first_registration(monkeypatch) -> None:
-    import pytest
-
-    from grpo_decomp import registries
-
-    monkeypatch.setattr(registries, "REWARDS", {})
-    with (
-        registries.registration_owner("study", idempotent=True),
-        pytest.raises(ValueError, match=r"reserved for grpo_decomp\.rewards"),
-    ):
-        registries.register_reward("random", lambda seed: lambda **kwargs: [])
-    assert registries.REWARDS == {}
 
 
 def test_explicit_unknown_verifier_fails_and_legacy_boxed_math_keeps_working() -> None:
@@ -79,6 +43,6 @@ def test_defaults_are_study_owned_and_optional_without_a_study(monkeypatch) -> N
 
     assert registries.default_task_set() == "gsm8k-test"
     assert registries.default_train_dataset() == "gsm8k"
-    monkeypatch.setattr(registries, "_DEFAULTS", {})
+    monkeypatch.setattr(registries, "DEFAULTS", {})
     assert registries.default_task_set() is None
     assert registries.default_train_dataset() is None

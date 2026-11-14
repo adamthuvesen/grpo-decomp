@@ -40,7 +40,7 @@ class CompletionJob:
 def _task_profile(task: str | None) -> EvalTaskProfile:
     name = task if task is not None else default_task()
     if name is None:
-        raise ValueError("task is required when no plugin registers a default task")
+        raise ValueError("task is required when no study registers a default task")
     return get_task_profile(name)
 
 

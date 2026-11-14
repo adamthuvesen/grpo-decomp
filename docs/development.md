@@ -15,7 +15,7 @@ Python 3.13.
 | Run attempts, config, validation split | `grpo_decomp/train/`, `eval/heldout.py` | `uv run pytest tests/test_launcher.py tests/test_provenance.py tests/test_heldout.py` |
 | Comparison and replicate identity | `grpo_decomp/report/evidence.py` | `uv run pytest tests/test_comparison_contracts.py` |
 | Report measurements and persisted invariants | `grpo_decomp/report/`, `stats/` | `uv run pytest tests/test_passk_seeds.py tests/test_control_seeds.py tests/test_seeds.py` |
-| Plugin ownership and rollback | `grpo_decomp/registries.py`, `plugins.py` | `uv run pytest tests/test_registry.py tests/test_plugins.py` |
+| Registries and study registration | `grpo_decomp/registries.py`, `llm_grpo_gains/registration.py` | `uv run pytest tests/test_registry.py` |
 | Countdown arithmetic | `llm_grpo_gains/data/countdown.py` | `uv run pytest tests/test_countdown_grammar.py tests/test_rewards.py` |
 | Study inventory and reproduction | `llm_grpo_gains/workflows.py` | `make study-plan`, `make results-check` |
 | Esme analysis and figures | `llm_grpo_gains/esme_analysis.py`, `figures.py` | `make reproduce-esme`, `make results-check` |

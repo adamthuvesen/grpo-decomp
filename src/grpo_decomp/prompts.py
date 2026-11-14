@@ -7,14 +7,14 @@ selected by name (``ArmConfig.prompt_strategy`` for training, ``--prompt-strateg
 
 The harness ships one built-in, ``r1_zero`` (the R1-Zero-style raw boxed prompt for a base
 model with no chat template). A study or a new RL task registers its own — e.g. a
-chat-template strategy for an instruct model — via ``register_prompt_strategy``.
+chat-template strategy for an instruct model — in ``PROMPT_STRATEGIES``.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from grpo_decomp.registries import PromptStrategy, register_prompt_strategy, registration_owner
+from grpo_decomp.registries import PROMPT_STRATEGIES, PromptStrategy
 
 #: Generation budget for eval and held-out curves — matches ``GRPOSettings.max_completion_length``.
 EVAL_MAX_NEW_TOKENS = 1024
@@ -51,5 +51,4 @@ R1_ZERO = PromptStrategy(
     prepare_tokenizer=_r1_zero_prepare_tokenizer,
 )
 
-with registration_owner(__name__, idempotent=True):
-    register_prompt_strategy(R1_ZERO)
+PROMPT_STRATEGIES[R1_ZERO.name] = R1_ZERO

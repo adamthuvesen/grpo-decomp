@@ -165,20 +165,3 @@ def test_corrected_summary_rejects_inconsistent_persisted_evidence(tmp_path, fie
         payload["arms"]["correct"]["valid_rate"] = 0.5
     with pytest.raises(ValueError):
         esme_analysis.SampledDecomposition.model_validate(payload)
-
-
-def test_plugin_failure_is_a_clean_cli_error(monkeypatch, capsys, tmp_path) -> None:
-    from grpo_decomp.plugins import PluginLoadError
-
-    def broken():
-        raise PluginLoadError("plugin 'broken' failed")
-
-    monkeypatch.setattr(esme_analysis, "load_plugins", broken)
-    seeds, base = _inputs(tmp_path)
-    args = ["--base-completions-dir", str(base), "--out", str(tmp_path / "out")]
-    for seed, path in seeds:
-        args.extend(["--seed", f"{seed}={path}"])
-    assert esme_analysis.main(args) == 2
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "plugin 'broken' failed" in captured.err

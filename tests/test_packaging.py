@@ -52,7 +52,7 @@ def _run(command: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.Co
 
 
 @pytest.mark.slow
-def test_installed_wheel_discovers_plugin_grades_and_loads_packaged_fixture(tmp_path) -> None:
+def test_installed_wheel_registers_study_grades_and_loads_packaged_fixture(tmp_path) -> None:
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
     env.update(HF_HUB_OFFLINE="1", HF_DATASETS_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
@@ -95,12 +95,12 @@ def test_installed_wheel_discovers_plugin_grades_and_loads_packaged_fixture(tmp_
 from pathlib import Path
 import sys
 import grpo_decomp
-from grpo_decomp.plugins import load_plugins
 from grpo_decomp.registries import EVAL_SETS
 
 assert Path(grpo_decomp.__file__).is_relative_to(sys.prefix)
 assert not EVAL_SETS
-assert 'gsm8k' in load_plugins()
+from llm_grpo_gains.registration import register
+register()
 assert 'gsm8k-test' in EVAL_SETS
 from llm_grpo_gains.esme_countdown import load_esme_countdown
 assert len(load_esme_countdown()) == 200

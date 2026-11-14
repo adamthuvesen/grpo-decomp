@@ -72,14 +72,8 @@ dev = [
 ]
 
 [project.scripts]
-grpo-decomp = "grpo_decomp.eval.cli:main"
+grpo-decomp = "llm_grpo_gains.cli:main"
 grpo-study = "llm_grpo_gains.workflows:main"
-
-# The reference study registers its datasets/rewards/task profiles into the harness via
-# this entry point; the harness discovers it at runtime (see grpo_decomp.plugins) without
-# importing the study, keeping the dependency one-way.
-[project.entry-points."grpo_decomp.plugins"]
-gsm8k = "llm_grpo_gains.registration:register"
 
 [tool.ruff]
 line-length = 100

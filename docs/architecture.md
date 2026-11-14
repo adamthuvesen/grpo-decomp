@@ -12,8 +12,9 @@ The codebase has **two packages with a one-way boundary**:
 
 The controls are the product; a headline number without its controls is treated as
 worthless. The harness never imports the study. A study, or a new RL task, injects its
-concrete pieces through the registries in `grpo_decomp/registries.py`, discovered at
-startup via a `grpo_decomp.plugins` entry point (`grpo_decomp/plugins.py`). That seam is
+concrete pieces through the mappings in `grpo_decomp/registries.py`. The study's entry
+points (`llm_grpo_gains/cli.py`, `modal_app.py`) call `llm_grpo_gains.registration.register()`,
+which fills them. That seam is
 what lets the harness point at your own model and task without a fork.
 
 Put generic measurement machinery in `grpo_decomp` and anything GSM8K/Countdown-specific in
@@ -24,7 +25,9 @@ points, not a framework.
 ```mermaid
 flowchart LR
     subgraph study["llm_grpo_gains (study)"]
+        CLI["cli.py · modal_app.py"]
         REG["registration.py<br/>register()"]
+        CLI --> REG
         DATA["data/ + rewards/<br/>GSM8K · Countdown"]
         DATA --> REG
     end
@@ -33,7 +36,7 @@ flowchart LR
         ENG["train · generate · battery<br/>stats · report"]
         RG --> ENG
     end
-    REG -->|"grpo_decomp.plugins entry point"| RG
+    REG -->|"fills"| RG
 ```
 
 ---
@@ -105,7 +108,6 @@ Harness: `src/grpo_decomp/`
 | ---------------- | ----------------------------------------------------------------------------------------------------------- |
 | `schemas.py`     | The shared frozen types: `DatasetRef`, `Problem`, `ProblemSet`.                                             |
 | `registries.py`  | The plug-in surface: eval sets, train datasets, rewards, verifiers, validation reconstructors, prompt strategies, and task profiles. |
-| `plugins.py`     | Loads study `register()`s from the `grpo_decomp.plugins` entry-point group.                                 |
 | `prompts.py`     | Prompt strategies (`PromptStrategy`); ships the built-in `r1_zero`. Train and eval use the _same_ strategy. |
 | `grading.py`     | Answer extraction policies and math correctness checks.                                                     |
 | `splits.py`      | Deterministic `dev_slice` / `validation_split` over a `ProblemSet`.                                         |
@@ -407,11 +409,12 @@ problem ids across compared arms.
 The harness takes any model (`base_model` / `--model` is a free HF id or path) and any task
 through registries. No fork is required:
 
-1. Write a `register()` that calls `register_eval_set`, `register_train_dataset`,
-   `register_reward`, `register_verifier` (if not boxed-math), and
-   `register_validation_reconstructor` (for held-out diagnostics). Optionally
-   `register_prompt_strategy` for a chat-template model; the harness default is `r1_zero`.
-2. Declare it under the `grpo_decomp.plugins` entry-point group so the CLI/Modal discover it.
+1. Write a `register()` that adds entries to `EVAL_SETS`, `TRAIN_DATASETS`,
+   `REWARDS`, `VERIFIERS` (if not boxed-math), and `VALIDATION_RECONSTRUCTORS` (for
+   held-out diagnostics). Optionally add to `PROMPT_STRATEGIES` for a chat-template model;
+   the harness default is `r1_zero`.
+2. Write an entry point that calls it and then `grpo_decomp.eval.cli.main`, as
+   `llm_grpo_gains/cli.py` does.
 3. Point an `ArmConfig` at your `base_model` + your registered `reward`/`dataset`/`prompt_strategy`.
 
 [`llm_grpo_gains/registration.py`](../src/llm_grpo_gains/registration.py) is the worked example.
@@ -425,7 +428,6 @@ grpo-decomp/
 ├── src/grpo_decomp/             # the harness (task-agnostic)
 │   ├── schemas.py               # frozen shared types
 │   ├── registries.py            # the plug-in surface (datasets, rewards, verifiers, ...)
-│   ├── plugins.py               # entry-point loader for study register()s
 │   ├── prompts.py               # PromptStrategy + the built-in r1_zero
 │   ├── grading.py               # answer extraction + math correctness checks
 │   ├── splits.py                # dev_slice, validation_split
@@ -438,7 +440,8 @@ grpo-decomp/
 ├── src/llm_grpo_gains/          # the reference study (depends on grpo_decomp)
 │   ├── data/                    # GSM8K + control-set loaders (pinned) + generated Countdown
 │   ├── rewards/                 # correct, countdown (verifiable graders)
-│   └── registration.py          # wires the study into the harness registries
+│   ├── registration.py          # wires the study into the harness registries
+│   └── cli.py                   # the grpo-decomp console script, study registered
 ├── configs/                     # one YAML per (arm, seed)
 ├── results/                     # committed multi-seed JSON, figures, and findings
 ├── modal_app.py                 # cloud runner used for the published GPU jobs
@@ -461,9 +464,8 @@ grpo-decomp/
 ## Enforcement ownership
 
 `report/evidence.py` owns comparison identity. `train/provenance.py` owns execution state.
-`eval/completions.py` owns publication and integrity. Registries own plugin names and defaults.
-Plugin registration is transactional. Conflicting owners fail, and a failed plugin leaves no
-partial registrations. Recorded grading identities must resolve before grading.
+`eval/completions.py` owns publication and integrity. Registries own study names and defaults.
+Recorded grading identities must resolve before grading.
 
 `llm_grpo_gains/workflows.py` owns study reproduction routes and missing-input reporting.
 `esme_analysis.py` and `figures.py` own reusable study logic under normal type and test coverage.

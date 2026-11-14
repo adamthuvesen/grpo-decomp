@@ -46,7 +46,7 @@ def validate_grader(artifact: CompletionSet) -> str:
     if expected is not None and expected != actual:
         raise ValueError(
             f"grader mismatch for {artifact.provenance.dataset.name}: expected {expected!r}, "
-            f"resolved {actual!r}; install the recorded study plugin before grading"
+            f"resolved {actual!r}; register the recorded study before grading"
         )
     return actual
 

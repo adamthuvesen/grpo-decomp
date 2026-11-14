@@ -335,17 +335,3 @@ def test_generate_rejects_nonpositive_limit(tmp_path, capsys) -> None:
     )
     assert code == 1
     assert capsys.readouterr().err.startswith("grpo-decomp:")
-
-
-def test_plugin_startup_failure_is_clean_error(monkeypatch, capsys) -> None:
-    from grpo_decomp.plugins import PluginLoadError
-
-    def broken_plugin():
-        raise PluginLoadError("plugin 'broken' failed: missing plugin dependency")
-
-    monkeypatch.setattr(_CLI_MODULE, "load_plugins", broken_plugin)
-    assert main(["--help"]) == 1
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "plugin 'broken' failed" in captured.err
-    assert "Traceback" not in captured.err

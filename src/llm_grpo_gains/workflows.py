@@ -59,7 +59,7 @@ def _sampled(
         seeds=seeds,
         output=Path(output),
         reproduction="external-completions",
-        module="grpo_decomp.eval.cli",
+        module="llm_grpo_gains.cli",
         arguments=(command, "--completions-dir", root, "--task-set", task),
         completion_sets=paths,
     )
@@ -107,7 +107,7 @@ def _battery(
         seeds=seeds,
         output=Path(output),
         reproduction="external-completions",
-        module="grpo_decomp.eval.cli",
+        module="llm_grpo_gains.cli",
         arguments=arguments,
         completion_sets=paths,
     )

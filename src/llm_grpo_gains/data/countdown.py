@@ -34,8 +34,6 @@ from pydantic import Field
 
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet, Record
 
-# --- The canonical answer key (encoded in Problem.gold_answer) --------------------------
-
 #: LaTeX / unicode operators a boxed answer may use, normalized to ASCII before parsing.
 _OPERATOR_ALIASES = {
     "\\times": "*",
@@ -75,9 +73,6 @@ def parse_countdown_key(key: str) -> tuple[tuple[int, ...], int]:
     except ValueError as exc:
         raise CountdownKeyError(f"not a Countdown key: {key!r}") from exc
     return numbers, target
-
-
-# --- The restricted verifier (used on untrusted model output) ---------------------------
 
 
 @dataclass(frozen=True)
@@ -205,9 +200,6 @@ def countdown_is_correct(extracted: str | None, gold: str) -> bool:
     return is_valid_countdown_solution(extracted, numbers, target)
 
 
-# --- Reachability (guarantees solvability + provides witnesses) -------------------------
-
-
 def _combine(a: Fraction, b: Fraction) -> Iterator[Fraction]:
     """The values reachable by applying one operator to an ordered pair ``(a, b)``."""
     yield a + b
@@ -253,9 +245,6 @@ def reachable_targets(numbers: Sequence[int], *, lo: int, hi: int) -> list[int]:
 def solve_countdown(numbers: Sequence[int], target: int) -> bool:
     """True iff some legal expression over `numbers` reaches `target` — for tests/guards."""
     return target in _reachable_integers(tuple(sorted(numbers)))
-
-
-# --- The generator ----------------------------------------------------------------------
 
 
 class CountdownConfig(Record):

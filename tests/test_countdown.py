@@ -29,7 +29,6 @@ from llm_grpo_gains.data.countdown import (
 
 #: Tiny config so generator tests stay fast.
 _SMALL = CountdownConfig(sizes={"train": 8, "validation": 4, "test": 6, "dev": 3})
-# --- the answer-key codec ---------------------------------------------------------------
 
 
 def test_key_round_trips_with_sorted_numbers() -> None:
@@ -42,9 +41,6 @@ def test_parse_rejects_a_malformed_key() -> None:
     for key in ("not a key", "target=30;numbers=", "answer=30;numbers=4,5"):
         with pytest.raises(CountdownKeyError):
             parse_countdown_key(key)
-
-
-# --- the restricted, eval-free evaluator ------------------------------------------------
 
 
 def _evaluate(text: str) -> tuple[Fraction, list[int]]:
@@ -73,9 +69,6 @@ def test_evaluate_normalizes_latex_operators() -> None:
 @pytest.mark.parametrize("text", ["2 ** 3", "pow(2, 3)", "x + 1", "4 +", "__import__('os')"])
 def test_evaluate_rejects_anything_outside_the_grammar(text: str) -> None:
     assert evaluate_expression(text) is None
-
-
-# --- solution validity ------------------------------------------------------------------
 
 
 def test_valid_solution_each_number_once_hits_target() -> None:
@@ -110,9 +103,6 @@ def test_countdown_is_correct_grades_against_a_key() -> None:
     assert not countdown_is_correct(None, key)
 
 
-# --- reachability guarantees solvability ------------------------------------------------
-
-
 def test_reachable_targets_are_all_solvable() -> None:
     numbers = [3, 5, 7]
     targets = reachable_targets(numbers, lo=1, hi=100)
@@ -122,9 +112,6 @@ def test_reachable_targets_are_all_solvable() -> None:
 
 def test_unreachable_target_has_no_solution() -> None:
     assert not solve_countdown([3, 5], 100)
-
-
-# --- the generator ----------------------------------------------------------------------
 
 
 def test_load_countdown_rejects_unknown_split() -> None:
@@ -180,9 +167,6 @@ def test_impossible_target_range_fails_loud_not_infinite_loop() -> None:
     impossible = CountdownConfig(target_lo=10_000, target_hi=10_001, sizes=_SMALL.sizes)
     with pytest.raises(ValueError, match="no reachable targets"):
         load_countdown("train", config=impossible)
-
-
-# --- task-routed grading ----------------------------------------------------------------
 
 
 def _countdown_problems() -> ProblemSet:

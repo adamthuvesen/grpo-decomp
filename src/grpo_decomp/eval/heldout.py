@@ -43,8 +43,8 @@ class HeldoutCurve(Record):
 def validation_for_run(provenance: RunProvenance) -> ProblemSet:
     """Reconstruct the exact held-out split a run used (deterministic from the source).
 
-    Dispatches on ``DatasetRef.name`` to the reconstructor a study registered with
-    :func:`grpo_decomp.registries.register_validation_reconstructor`.
+    Dispatches on ``DatasetRef.name`` to the reconstructor a study added to
+    ``grpo_decomp.registries.VALIDATION_RECONSTRUCTORS``.
     """
     name = provenance.dataset.name
     try:

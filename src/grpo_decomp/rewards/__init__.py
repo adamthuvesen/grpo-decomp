@@ -3,7 +3,7 @@
 Rewards share one signature: they take the generated ``completions`` plus forwarded
 dataset columns (e.g. ``gold_answer``) and return one score per completion. A study
 registers its verifiable rewards (e.g. ``correct``) via
-:func:`grpo_decomp.registries.register_reward`; switching arms is then a one-word config
+``grpo_decomp.registries.REWARDS``; switching arms is then a one-word config
 change.
 
 The harness itself provides exactly one reward, the **placebo** (``random``) — a
@@ -12,13 +12,7 @@ correctness-blind control, and the control the whole decomposition method leans 
 
 from __future__ import annotations
 
-from grpo_decomp.registries import (
-    PLACEBO_REWARD,
-    REWARDS,
-    RewardFn,
-    register_reward,
-    registration_owner,
-)
+from grpo_decomp.registries import PLACEBO_REWARD, REWARDS, RewardFn
 from grpo_decomp.rewards.placebo import make_random_reward
 from grpo_decomp.rewards.scoring import score_strict_boxed
 
@@ -40,8 +34,7 @@ def get_reward(name: str, *, seed: int = 0) -> RewardFn:
 
 
 # The placebo is harness-provided (it is the study's confirmatory control).
-with registration_owner(__name__, idempotent=True):
-    register_reward(PLACEBO_REWARD, make_random_reward)
+REWARDS[PLACEBO_REWARD] = make_random_reward
 
 
 __all__ = [
@@ -49,6 +42,5 @@ __all__ = [
     "RewardFn",
     "get_reward",
     "make_random_reward",
-    "register_reward",
     "score_strict_boxed",
 ]

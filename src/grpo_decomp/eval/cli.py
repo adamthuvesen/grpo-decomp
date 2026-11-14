@@ -25,7 +25,6 @@ from grpo_decomp.eval.completions import (
     write_completion_set,
 )
 from grpo_decomp.eval.heldout import run_heldout_curve
-from grpo_decomp.plugins import PluginLoadError, load_plugins
 from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.registries import (
     DEFAULT_PROMPT_STRATEGY,
@@ -66,17 +65,14 @@ type SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]  # pyright
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the `grpo-decomp` console script."""
-    # Load study plugins first so the registries (eval sets, task profiles) are populated
-    # before the parser reads `--set` choices from them.
     try:
-        load_plugins()
         parser = _build_parser()
         args = parser.parse_args(argv)
         return args.func(args)
     except ImportError as exc:
         print(f"grpo-decomp: missing optional dependency: {exc}", file=sys.stderr)
         return 1
-    except (ValueError, ValidationError, OSError, PluginLoadError) as exc:
+    except (ValueError, ValidationError, OSError) as exc:
         print(f"grpo-decomp: {exc}", file=sys.stderr)
         return 1
 

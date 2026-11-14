@@ -147,8 +147,8 @@ Only training and generation need a model backend. Once a `CompletionSet` exists
 analysis is deterministic: no GPU, network, or Hugging Face access.
 
 The harness stays task-agnostic through registries in `grpo_decomp/registries.py`. The
-study registers its datasets, rewards, verifiers, and prompt strategies through the
-`grpo_decomp.plugins` entry point. Published runs used Modal for training/generation
+study fills them with its datasets, rewards, verifiers, and task profiles when its
+entry points call `llm_grpo_gains.registration.register()`. Published runs used Modal for training/generation
 and W&B for curves. The public repo ships the derived result JSON and figures, not the
 run volumes or checkpoints. Module map and data flow: [docs/architecture.md](docs/architecture.md).
 
@@ -175,9 +175,9 @@ reproduce the published runs, see [docs/runbook.md](docs/runbook.md).
 ## Plug In Your Own Model And Task
 
 `--model` / `ArmConfig.base_model` takes any Hugging Face id or local checkpoint path.
-To add a task, write a `register()` that registers your eval set, train dataset, and
-reward (plus a verifier and validation reconstructor for non-boxed-math tasks), then
-declare it under the `grpo_decomp.plugins` entry point.
+To add a task, write a `register()` that adds your eval set, train dataset, and reward to the
+registries (plus a verifier and validation reconstructor for non-boxed-math tasks), and an
+entry point that calls it before `grpo_decomp.eval.cli.main`.
 [src/llm_grpo_gains/registration.py](src/llm_grpo_gains/registration.py) is the worked
 example. Step-by-step: [docs/architecture.md](docs/architecture.md#plug-in-your-own-model-and-task).
 
