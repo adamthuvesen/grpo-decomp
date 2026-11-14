@@ -269,7 +269,18 @@ _MODAL_CALLS = {"spawn", "remote", "map", "starmap", "spawn_map"}
 def _modal_sources() -> list[Path]:
     root = Path(__file__).parents[1]
     candidates = [*root.glob("*.py"), *root.glob("src/**/*.py"), *root.glob("scripts/**/*.py")]
-    return [path for path in candidates if "import modal" in path.read_text()]
+    return [path for path in candidates if _imports_modal(path)]
+
+
+def _imports_modal(path: Path) -> bool:
+    for node in ast.walk(ast.parse(path.read_text())):
+        if isinstance(node, ast.Import) and any(
+            a.name.split(".")[0] == "modal" for a in node.names
+        ):
+            return True
+        if isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "modal":
+            return True
+    return False
 
 
 def _modal_calls(node: ast.AST) -> list[ast.Call]:
@@ -282,52 +293,95 @@ def _modal_calls(node: ast.AST) -> list[ast.Call]:
     ]
 
 
-def _first_statement(fn: ast.FunctionDef) -> str:
+def _first_statement(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     body = fn.body
     if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
         body = body[1:]
     return ast.unparse(body[0]) if body else ""
 
 
-@pytest.mark.parametrize("source", _modal_sources(), ids=lambda path: path.name)
-def test_every_modal_entry_point_requires_approval(source: Path) -> None:
-    """Structural: a new entry point, or a Modal call outside one, fails without the gate."""
-    tree = ast.parse(source.read_text())
+_ENTRY_DECORATORS = {"function", "local_entrypoint"}
+# Methods of an `@app.cls` class that Modal exposes as remote calls or web endpoints.
+_METHOD_ENTRY_DECORATORS = {
+    "method",
+    "web_endpoint",
+    "fastapi_endpoint",
+    "asgi_app",
+    "wsgi_app",
+    "web_server",
+}
+
+
+def _decorator_names(fn: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> set[str]:
+    return {ast.unparse(d).split("(")[0].rsplit(".", 1)[-1] for d in fn.decorator_list}
+
+
+def _entry_points(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Top-level Modal functions and entrypoints, plus the remote methods of `@app.cls` classes."""
+    entries: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            if _decorator_names(node) & _ENTRY_DECORATORS:
+                entries.append(node)
+        elif isinstance(node, ast.ClassDef) and "cls" in _decorator_names(node):
+            entries.extend(
+                method
+                for method in node.body
+                if isinstance(method, ast.FunctionDef | ast.AsyncFunctionDef)
+                and _decorator_names(method) & _METHOD_ENTRY_DECORATORS
+            )
+    return entries
+
+
+def _ungated(source: str, name: str) -> list[str]:
+    """Why each Modal entry point in `source` lacks the approval gate; empty when all are gated."""
+    tree = ast.parse(source)
+    problems: list[str] = []
     gated: set[ast.AST] = set()
-    for fn in (node for node in tree.body if isinstance(node, ast.FunctionDef)):
-        decorators = {ast.unparse(d).split("(")[0].rsplit(".", 1)[-1] for d in fn.decorator_list}
-        if not decorators & {"function", "local_entrypoint"}:
-            continue
+    for fn in _entry_points(tree):
+        decorators = _decorator_names(fn)
         gates = [
             n.lineno
             for n in ast.walk(fn)
             if isinstance(n, ast.Call) and ast.unparse(n.func) == "_require_approval"
         ]
         first_call = min((call.lineno for call in _modal_calls(fn)), default=None)
-        assert "approved" in [arg.arg for arg in fn.args.args] and gates, (
-            f"{source.name}:{fn.name} reaches paid Modal hardware: add `approved: bool = False` "
-            "and call `_require_approval(approved, ...)` before any Modal call."
-        )
+        if "approved" not in [arg.arg for arg in fn.args.args] or not gates:
+            problems.append(
+                f"{name}:{fn.name} reaches paid Modal hardware: add `approved: bool = False` "
+                "and call `_require_approval(approved, ...)` before any Modal call."
+            )
+            continue
         defaults = {
             arg.arg: default
             for arg, default in zip(
                 reversed(fn.args.args), reversed(fn.args.defaults), strict=False
             )
         }
-        assert ast.unparse(defaults["approved"]) == "False", (
-            f"{source.name}:{fn.name}: `approved` must default to False."
-        )
-        assert first_call is None or min(gates) < first_call, (
-            f"{source.name}:{fn.name} calls Modal before `_require_approval`."
-        )
-        if "function" in decorators:
-            assert _first_statement(fn) == "_require_approval(approved, _DIRECT_CALL_COMMAND)", (
-                f"{source.name}:{fn.name} runs on paid hardware: `_require_approval` must be its "
+        if "approved" not in defaults or ast.unparse(defaults["approved"]) != "False":
+            problems.append(f"{name}:{fn.name}: `approved` must default to False.")
+        if first_call is not None and min(gates) > first_call:
+            problems.append(f"{name}:{fn.name} calls Modal before `_require_approval`.")
+        runs_on_hardware = bool(decorators & ({"function"} | _METHOD_ENTRY_DECORATORS))
+        if (
+            runs_on_hardware
+            and _first_statement(fn) != "_require_approval(approved, _DIRECT_CALL_COMMAND)"
+        ):
+            problems.append(
+                f"{name}:{fn.name} runs on paid hardware: `_require_approval` must be its "
                 "first statement, before any plan, write, or volume commit."
             )
         gated.update(ast.walk(fn))
     stray = [ast.unparse(call) for call in _modal_calls(tree) if call not in gated]
-    assert not stray, f"{source.name}: Modal calls outside a gated entry point: {stray}"
+    if stray:
+        problems.append(f"{name}: Modal calls outside a gated entry point: {stray}")
+    return problems
+
+
+@pytest.mark.parametrize("source", _modal_sources(), ids=lambda path: path.name)
+def test_every_modal_entry_point_requires_approval(source: Path) -> None:
+    """Structural: a new entry point, or a Modal call outside one, fails without the gate."""
+    assert not _ungated(source.read_text(), source.name)
 
 
 def test_approval_scan_finds_the_known_entry_points() -> None:
@@ -337,6 +391,26 @@ def test_approval_scan_finds_the_known_entry_points() -> None:
     ).body[0]
     assert isinstance(late_gate, ast.FunctionDef)
     assert _first_statement(late_gate) == "write()"
+
+
+_GATE = "_require_approval(approved, _DIRECT_CALL_COMMAND)"
+
+
+def test_approval_scan_covers_app_cls_classes_and_methods() -> None:
+    gated = f"@app.cls(gpu='A100')\nclass Job:\n    @modal.method()\n    def run(self, approved: bool = False):\n        {_GATE}\n        other.remote()\n"
+    assert _ungated(gated, "m.py") == []
+    ungated = (
+        "@app.cls()\nclass Job:\n    @modal.method()\n    def run(self):\n        other.remote()\n"
+    )
+    assert any("Job" not in p and "run reaches paid" in p for p in _ungated(ungated, "m.py"))
+    late = f"@app.cls()\nclass Job:\n    @modal.method()\n    def run(self, approved: bool = False):\n        write()\n        {_GATE}\n"
+    assert any("first statement" in p for p in _ungated(late, "m.py"))
+    unsafe = f"@app.cls()\nclass Job:\n    @modal.method()\n    def run(self, approved: bool = True):\n        {_GATE}\n"
+    assert any("default to False" in p for p in _ungated(unsafe, "m.py"))
+    web = "@app.cls()\nclass Job:\n    @modal.fastapi_endpoint()\n    def hit(self):\n        return 1\n"
+    assert any("hit reaches paid" in p for p in _ungated(web, "m.py"))
+    stray = "@app.cls()\nclass Job:\n    def helper(self):\n        other.spawn()\n"
+    assert any("outside a gated entry point" in p for p in _ungated(stray, "m.py"))
 
 
 @pytest.mark.parametrize(

@@ -14,7 +14,7 @@ def _ref() -> DatasetRef:
 
 def test_problem_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError):
-        Problem(id="x", question="q", gold_answer="1", surprise="nope")  # pyright: ignore[reportCallIssue]
+        Problem(id="x", question="q", gold_answer="1", surprise="nope")  # pyright: ignore[reportCallIssue]  # unknown field on purpose
 
 
 def test_problem_is_frozen() -> None:
@@ -25,7 +25,7 @@ def test_problem_is_frozen() -> None:
 
 def test_dataset_ref_requires_all_fields() -> None:
     with pytest.raises(ValidationError):
-        DatasetRef(name="openai/gsm8k", split="test", revision="abc123")  # pyright: ignore[reportCallIssue]
+        DatasetRef(name="openai/gsm8k", split="test", revision="abc123")  # pyright: ignore[reportCallIssue]  # missing field on purpose
 
 
 def test_dataset_ref_allows_null_config() -> None:

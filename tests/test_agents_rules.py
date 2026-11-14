@@ -18,6 +18,12 @@ def _rows() -> list[tuple[str, list[str]]]:
     return [(cell[1].strip(), re.findall(r"`([^`]+)`", cell[2])) for cell in cells]
 
 
+def _lines_after_table(section: str) -> list[str]:
+    lines = section.splitlines()
+    last_row = max((i for i, line in enumerate(lines) if line.startswith("|")), default=-1)
+    return [line for line in lines[last_row + 1 :] if line.strip()]
+
+
 def _defines(path: Path, name: str) -> bool:
     if path.suffix == ".toml":
         node: object = tomllib.loads(path.read_text())
@@ -58,3 +64,14 @@ def test_defines_finds_a_known_definition_and_rejects_a_missing_one() -> None:
     assert _defines(_REPO / "pyproject.toml", "tool.basedpyright")
     assert not _defines(_REPO / "modal_app.py", "_require_approval_missing")
     assert _defines(_REPO / "modal_app.py", "_require_approval")
+
+
+def test_no_prose_follows_the_rules_table() -> None:
+    text = (_REPO / "AGENTS.md").read_text()
+    section = text.split("\n## Enforced Rules\n", 1)[1].split("\n## ", 1)[0]
+    assert not _lines_after_table(section), (
+        "AGENTS.md: prose in `## Enforced Rules` goes above the table, not after it"
+    )
+    assert _lines_after_table("intro\n\n| a | b |\n| - | - |\n\nafter the table\n") == [
+        "after the table"
+    ]

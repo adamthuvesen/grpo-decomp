@@ -1,8 +1,5 @@
 """Explicit local GPU smoke. This test never provisions hardware or downloads a model."""
 
-# The CPU environment has no GPU libraries (torch, transformers, trl, vllm).
-# pyright: reportMissingImports=false
-
 from __future__ import annotations
 
 import os
@@ -18,9 +15,9 @@ def test_real_vllm_generation_and_grading() -> None:
     if not model or not Path(model).is_dir():
         pytest.fail("set GRPO_GPU_MODEL to a local model directory before make verify-gpu")
     try:
-        import torch
-        import trl
-        import vllm
+        import torch  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
+        import trl  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
+        import vllm  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
     except ImportError as exc:
         pytest.fail(f"GPU smoke requires the locked train extra: {exc}")
     assert torch.cuda.is_available(), "GPU smoke requires visible CUDA hardware"

@@ -1,8 +1,5 @@
 """Integration: the real transformers backend on a tiny model (needs `generate` extra + net)."""
 
-# The CPU environment has no GPU libraries (torch, transformers, trl, vllm).
-# pyright: reportMissingImports=false
-
 from __future__ import annotations
 
 import pytest
@@ -11,8 +8,8 @@ pytestmark = pytest.mark.integration
 
 
 def test_transformers_backend_end_to_end(tmp_path) -> None:
-    import torch
-    import transformers
+    import torch  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
+    import transformers  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
 
     assert torch.__version__
     assert transformers.__version__

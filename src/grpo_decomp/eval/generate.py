@@ -9,9 +9,6 @@ Both backends draw on the shared training prompt and stop on the model's native 
 so eval measures the model on the distribution it trained on.
 """
 
-# The CPU environment has no GPU libraries (torch, transformers, trl, vllm).
-# pyright: reportMissingImports=false
-
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -254,14 +251,14 @@ def generate_completion_set(
 
 def _cuda_available() -> bool:
     try:
-        import torch
+        import torch  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
     except ImportError:
         return False
     return bool(torch.cuda.is_available())
 
 
 def _transformers_device() -> str:
-    import torch
+    import torch  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
 
     if torch.cuda.is_available():
         return "cuda"
@@ -279,8 +276,8 @@ def _generate_transformers(
     strategy: PromptStrategy,
 ) -> _GeneratedSamples:
     """CPU/MPS backend: batched `model.generate`, native EOS, left-padded."""
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    import torch  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
+    from transformers import AutoModelForCausalLM, AutoTokenizer  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
 
     tokenizer = AutoTokenizer.from_pretrained(model, revision=revision)
     strategy.prepare_tokenizer(tokenizer)
@@ -325,7 +322,7 @@ def _generate_vllm(
     model: str, prompts: Sequence[str], config: SamplingConfig, *, revision: str | None
 ) -> _GeneratedSamples:
     """CUDA backend: vLLM with `n` samples per prompt; native EOS via generation_config."""
-    from vllm import LLM, SamplingParams
+    from vllm import LLM, SamplingParams  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
 
     llm = LLM(model=model, revision=revision)
     params = SamplingParams(

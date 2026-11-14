@@ -32,7 +32,7 @@ def _control_p_value(deltas: Sequence[float]) -> float:
         return 1.0
     if np.allclose(values, values[0]):
         return 0.0
-    return float(ttest_1samp(values, 0.0).pvalue)  # pyright: ignore[reportAttributeAccessIssue]
+    return float(ttest_1samp(values, 0.0).pvalue)  # pyright: ignore[reportAttributeAccessIssue]  # scipy ttest result types its pvalue loosely
 
 
 class ControlRow(Record):

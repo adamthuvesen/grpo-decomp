@@ -61,7 +61,7 @@ from grpo_decomp.train.provenance import resolve_run_dir
 _BACKEND_CHOICES = ("auto", "transformers", "vllm")
 
 
-type SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]  # pyright: ignore[reportPrivateUsage]
+type SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]  # pyright: ignore[reportPrivateUsage]  # argparse exposes no public name for the subparsers action
 
 
 def main(argv: list[str] | None = None) -> int:

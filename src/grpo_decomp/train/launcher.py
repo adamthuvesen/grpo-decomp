@@ -12,9 +12,6 @@ trainer's EOS and vLLM's stop token disagree).
 The per-step unparseable rate is already logged by the `correct` reward.
 """
 
-# The CPU environment has no GPU libraries (torch, transformers, trl, vllm).
-# pyright: reportMissingImports=false
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -179,8 +176,8 @@ def launch(
     try:
         try:
             # Lazy GPU imports stay inside the cleanup scope, including trainer construction.
-            from transformers import AutoTokenizer
-            from trl import GRPOConfig, GRPOTrainer
+            from transformers import AutoTokenizer  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
+            from trl import GRPOConfig, GRPOTrainer  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
 
             config = GRPOConfig(
                 output_dir=str(run_dir / "checkpoints"),
@@ -224,7 +221,7 @@ def _shutdown_distributed() -> None:
     box without torch, and is a no-op when no group was initialized.
     """
     try:
-        import torch.distributed as dist
+        import torch.distributed as dist  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
     except ImportError:
         return
 

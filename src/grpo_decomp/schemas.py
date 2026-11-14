@@ -76,7 +76,7 @@ class ProblemSet(Record):
 
     # Yields Problems, not Pydantic field pairs. This shadows
     # BaseModel.__iter__, so use .model_dump() (not dict(...)) for the field map.
-    def __iter__(self) -> Iterator[Problem]:  # pyright: ignore[reportIncompatibleMethodOverride]
+    def __iter__(self) -> Iterator[Problem]:  # pyright: ignore[reportIncompatibleMethodOverride]  # deliberately yields Problems, not field pairs
         return iter(self.problems)
 
     @overload
