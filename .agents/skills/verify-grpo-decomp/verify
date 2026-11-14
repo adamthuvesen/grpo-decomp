@@ -160,17 +160,29 @@ def main(argv: list[str]) -> int:
         print(f"unknown drive(s): {', '.join(unknown)}; see `verify list`", file=sys.stderr)
         return 2
     sha, dirty = git("rev-parse", "HEAD"), bool(git("status", "--porcelain"))
-    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     suffix = ("-dirty" if dirty else "") + ("-control" if control else "")
     run_dir = ROOT / ".verify" / "runs" / f"{stamp}-{sha[:7]}{suffix}"
     run_dir.mkdir(parents=True)
     results: list[dict[str, object]] = []
+    exit_code = 1
     try:
         results = run_drives(names, run_dir, control)
+        exit_code = verdict(results, control)
     finally:
-        summary = {"sha": sha, "dirty": dirty, "control": control, "drives": results}
+        summary = {
+            "result": "PASS" if exit_code == 0 else "FAIL",
+            "sha": sha,
+            "dirty": dirty,
+            "control": control,
+            "drives": results,
+        }
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
         print(f"evidence: {run_dir}")
+    return exit_code
+
+
+def verdict(results: list[dict[str, object]], control: bool) -> int:
     failed = any(r["result"] == "FAIL" for r in results)
     if control:
         failures = [str(r["note"]) for r in results if r["result"] == "FAIL"]

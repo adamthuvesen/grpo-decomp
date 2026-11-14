@@ -50,3 +50,11 @@ def test_enforced_rules_cite_existing_definitions() -> None:
         f"AGENTS.md Enforced Rules cites missing enforcers {missing}. Cite `path` or "
         "`path::name` where the file defines name (def, class, assignment, make target, toml key)."
     )
+
+
+def test_defines_finds_a_known_definition_and_rejects_a_missing_one() -> None:
+    assert _defines(_REPO / "Makefile", "check")
+    assert not _defines(_REPO / "Makefile", "chec")
+    assert _defines(_REPO / "pyproject.toml", "tool.basedpyright")
+    assert not _defines(_REPO / "modal_app.py", "_require_approval_missing")
+    assert _defines(_REPO / "modal_app.py", "_require_approval")

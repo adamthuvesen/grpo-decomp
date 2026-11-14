@@ -276,6 +276,13 @@ def _modal_calls(node: ast.AST) -> list[ast.Call]:
     ]
 
 
+def _first_statement(fn: ast.FunctionDef) -> str:
+    body = fn.body
+    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+        body = body[1:]
+    return ast.unparse(body[0]) if body else ""
+
+
 @pytest.mark.parametrize("source", _modal_sources(), ids=lambda path: path.name)
 def test_every_modal_entry_point_requires_approval(source: Path) -> None:
     """Structural: a new entry point, or a Modal call outside one, fails without the gate."""
@@ -298,9 +305,23 @@ def test_every_modal_entry_point_requires_approval(source: Path) -> None:
         assert first_call is None or min(gates) < first_call, (
             f"{source.name}:{fn.name} calls Modal before `_require_approval`."
         )
+        if "function" in decorators:
+            assert _first_statement(fn) == "_require_approval(approved, _DIRECT_CALL_COMMAND)", (
+                f"{source.name}:{fn.name} runs on paid hardware: `_require_approval` must be its "
+                "first statement, before any plan, write, or volume commit."
+            )
         gated.update(ast.walk(fn))
     stray = [ast.unparse(call) for call in _modal_calls(tree) if call not in gated]
     assert not stray, f"{source.name}: Modal calls outside a gated entry point: {stray}"
+
+
+def test_approval_scan_finds_the_known_entry_points() -> None:
+    assert "modal_app.py" in [path.name for path in _modal_sources()]
+    late_gate = ast.parse(
+        "def f(approved=False):\n    write()\n    _require_approval(approved, _DIRECT_CALL_COMMAND)\n"
+    ).body[0]
+    assert isinstance(late_gate, ast.FunctionDef)
+    assert _first_statement(late_gate) == "write()"
 
 
 @pytest.mark.parametrize(
