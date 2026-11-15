@@ -99,6 +99,8 @@ def _battery(
         "--task-set",
         task,
     )
+    if controls:
+        arguments += ("--control-sets", *controls)
     if arm is not None:
         arguments += ("--arm", arm)
     return StudyWorkflow(
@@ -278,14 +280,34 @@ def _scientific_payload(value: JsonValue) -> JsonValue:
     return value
 
 
+def _keeps_published(expected: JsonValue, actual: JsonValue) -> bool:
+    if isinstance(expected, dict):
+        return isinstance(actual, dict) and all(
+            key in actual and _keeps_published(value, actual[key])
+            for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return (
+            isinstance(actual, list)
+            and len(actual) == len(expected)
+            and all(_keeps_published(a, b) for a, b in zip(expected, actual, strict=True))
+        )
+    return expected == actual
+
+
 def compare_outputs(expected: Path, actual: Path, comparison: str) -> bool:
-    """Compare bytes, or scientific JSON fields while allowing new analysis provenance."""
+    """Compare bytes, or require every published scientific field to survive unchanged.
+
+    Semantic mode ignores analysis provenance and allows fields a newer report adds,
+    so a published result that predates a field still reproduces.
+    """
     if comparison == "exact":
         return expected.read_bytes() == actual.read_bytes()
     if comparison != "semantic":
         raise ValueError(f"unknown comparison {comparison!r}")
-    return _scientific_payload(_JSON.validate_json(expected.read_text())) == _scientific_payload(
-        _JSON.validate_json(actual.read_text())
+    return _keeps_published(
+        _scientific_payload(_JSON.validate_json(expected.read_text())),
+        _scientific_payload(_JSON.validate_json(actual.read_text())),
     )
 
 

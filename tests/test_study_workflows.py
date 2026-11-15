@@ -82,6 +82,31 @@ def test_semantic_comparison_allows_analysis_provenance_but_rejects_metric_chang
     assert not compare_outputs(original, generated, "semantic")
 
 
+def test_semantic_comparison_allows_additive_fields_but_not_missing_or_changed_ones(
+    tmp_path,
+) -> None:
+    original, generated = tmp_path / "old.json", tmp_path / "new.json"
+    original.write_text('{"k": 8, "rows": [{"gain": 0.1}]}')
+    generated.write_text(
+        '{"k": 8, "frac_lost_reliability": 0.2, "rows": [{"gain": 0.1, "ci": [0, 1]}]}'
+    )
+    assert compare_outputs(original, generated, "semantic")
+    generated.write_text('{"frac_lost_reliability": 0.2, "rows": [{"gain": 0.1}]}')
+    assert not compare_outputs(original, generated, "semantic")
+    generated.write_text('{"k": 8, "rows": [{"gain": 0.1}, {"gain": 0.2}]}')
+    assert not compare_outputs(original, generated, "semantic")
+    generated.write_text('{"k": 8, "rows": {"gain": 0.1}}')
+    assert not compare_outputs(original, generated, "semantic")
+
+
+def test_controls_workflow_forwards_its_control_order_to_the_report() -> None:
+    workflow = next(item for item in study_workflows() if item.name == "gsm8k-controls")
+    published = json.loads((_ROOT / workflow.output).read_text())
+    start = workflow.arguments.index("--control-sets") + 1
+    forwarded = workflow.arguments[start : start + len(published["rows"])]
+    assert forwarded == tuple(row["control"] for row in published["rows"])
+
+
 def test_plan_is_machine_readable_and_validation_reports_missing_prerequisites(
     tmp_path, capsys
 ) -> None:
