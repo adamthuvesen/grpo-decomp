@@ -7,10 +7,10 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from grpo_decomp.provenance import package_versions
+from grpo_decomp.provenance import load_run_provenance, package_versions
 from grpo_decomp.schemas import DatasetRef
 from grpo_decomp.train.config import ArmConfig
-from grpo_decomp.train.provenance import capture_provenance, load_run_provenance
+from grpo_decomp.train.provenance import capture_provenance
 
 
 def _arm() -> ArmConfig:
@@ -91,9 +91,10 @@ def test_load_still_rejects_other_unknown_fields(tmp_path) -> None:
 
 
 def test_legacy_checkpoint_stays_unverified_after_failed_retry(tmp_path) -> None:
+    from grpo_decomp.provenance import completed_checkpoint
     from grpo_decomp.schemas import Problem, ProblemSet
     from grpo_decomp.train.launcher import prepare_run
-    from grpo_decomp.train.provenance import completed_checkpoint, finish_run
+    from grpo_decomp.train.provenance import finish_run
 
     arm = _arm()
     alias = tmp_path / f"{arm.name}-seed{arm.seed}"
@@ -113,9 +114,10 @@ def test_legacy_checkpoint_stays_unverified_after_failed_retry(tmp_path) -> None
 
 
 def test_completed_attempt_survives_stale_alias_and_failed_concurrent_attempt(tmp_path) -> None:
+    from grpo_decomp.provenance import completed_checkpoint
     from grpo_decomp.schemas import Problem, ProblemSet
     from grpo_decomp.train.launcher import prepare_run
-    from grpo_decomp.train.provenance import completed_checkpoint, finish_run
+    from grpo_decomp.train.provenance import finish_run
 
     problems = ProblemSet(
         source=_dataset(), problems=(Problem(id="p", question="q", gold_answer="4"),)
@@ -132,9 +134,10 @@ def test_completed_attempt_survives_stale_alias_and_failed_concurrent_attempt(tm
 
 
 def test_multiple_successful_attempts_require_explicit_selection(tmp_path) -> None:
+    from grpo_decomp.provenance import completed_checkpoint
     from grpo_decomp.schemas import Problem, ProblemSet
     from grpo_decomp.train.launcher import prepare_run
-    from grpo_decomp.train.provenance import completed_checkpoint, finish_run
+    from grpo_decomp.train.provenance import finish_run
 
     problems = ProblemSet(
         source=_dataset(), problems=(Problem(id="p", question="q", gold_answer="4"),)

@@ -197,9 +197,8 @@ def _local_checkpoint(
     state: Literal["running", "completed", "failed"] = "completed",
     seed=42,
 ):
-    from grpo_decomp.schemas import record_json
-    from grpo_decomp.train.config import GRPOSettings
-    from grpo_decomp.train.provenance import RunProvenance, RunStatus
+    from grpo_decomp.provenance import RunProvenance, RunStatus
+    from grpo_decomp.schemas import GRPOSettings, record_json
 
     run_dir = tmp_path / "arm-seed42" / "attempts" / attempt_id
     checkpoint = run_dir / "checkpoints" / "final"

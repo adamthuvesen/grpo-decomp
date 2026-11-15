@@ -130,9 +130,10 @@ Study: `src/llm_grpo_gains/` plus repo-root `configs/`, `results/`, `modal_app.p
 | `modal_app.py`     | The cloud runner used for the published GPU jobs.                                           |
 
 The dependency direction is one-way: the study depends on the harness, never the reverse
-(a standalone-import check enforces it). Within the harness, `schemas`/`registries` sit at
-the bottom, `eval`/`train` depend on them, `stats` depends on nothing GPU, and `report`
-sits on top of `stats` and `eval`. Heavy GPU imports (`trl`, `vllm`, `torch`) are lazy:
+(a standalone-import check enforces it). Within the harness, an import-linter layers
+contract holds each module to the layers below it, from top to bottom: `cli` and `jobs`,
+`report`, `eval` and `train`, `rewards` and `prompts`, `registries`, then `stats`,
+`splits`, `provenance`, and `grading`, and `schemas` at the bottom. Heavy GPU imports (`trl`, `vllm`, `torch`) are lazy:
 imported inside the function that needs them, so the analysis path imports on a
 laptop with no CUDA.
 
@@ -311,7 +312,7 @@ classDiagram
   pass@1, unbiased pass@k, and chain coverage.
 - `passk.py`: the unbiased pass@k estimator.
 - `cot.py` checks whether a chain contains verifiable steps.
-- `cli.py` is the `grpo-decomp` entry point. Subcommands include: `generate`,
+- `grpo_decomp/cli.py`, above `eval` and `report`, is the `grpo-decomp` entry point. Subcommands include: `generate`,
   `battery`, the multi-seed aggregators `report-seeds` (placebo),
   `report-passk-seeds` (pass@k coverage),
   `report-mechanism` (per-problem migration), `report-control-seeds` (the
@@ -413,7 +414,7 @@ through registries. No fork is required:
    `REWARDS`, `VERIFIERS` (if not boxed-math), and `VALIDATION_RECONSTRUCTORS` (for
    held-out diagnostics). Optionally add to `PROMPT_STRATEGIES` for a chat-template model;
    the harness default is `r1_zero`.
-2. Write an entry point that calls it and then `grpo_decomp.eval.cli.main`, as
+2. Write an entry point that calls it and then `grpo_decomp.cli.main`, as
    `llm_grpo_gains/cli.py` does.
 3. Point an `ArmConfig` at your `base_model` + your registered `reward`/`dataset`/`prompt_strategy`.
 
@@ -431,12 +432,13 @@ grpo-decomp/
 │   ├── prompts.py               # PromptStrategy + the built-in r1_zero
 │   ├── grading.py               # answer extraction + math correctness checks
 │   ├── splits.py                # dev_slice, validation_split
-│   ├── provenance.py            # git + dependency fingerprint
+│   ├── provenance.py            # git + dependency fingerprint, run records and attempts
 │   ├── rewards/                 # get_reward + the random placebo control
-│   ├── train/                   # config, launcher, run provenance
-│   ├── eval/                    # generate, completions, battery, passk, cot, cli
+│   ├── train/                   # config, launcher, run provenance capture
+│   ├── eval/                    # generate, completions, battery, passk, cot
 │   ├── stats/                   # compare, bootstrap, significance (McNemar + Holm)
-│   └── report/                  # render, seeds, passk_seeds, mechanism, control_seeds
+│   ├── report/                  # render, seeds, passk_seeds, mechanism, control_seeds
+│   └── cli.py                   # generate, battery, report and heldout subcommands
 ├── src/llm_grpo_gains/          # the reference study (depends on grpo_decomp)
 │   ├── data/                    # GSM8K + control-set loaders (pinned) + generated Countdown
 │   ├── rewards/                 # correct, countdown (verifiable graders)
@@ -456,14 +458,15 @@ grpo-decomp/
    `grpo_decomp/rewards/placebo.py`: extraction, the real reward, and the placebo.
 4. `grpo_decomp/train/config.py` and `grpo_decomp/train/launcher.py`: how an arm is configured and run.
 5. `grpo_decomp/eval/completions.py`: the artifact that separates generation from analysis.
-6. `grpo_decomp/eval/cli.py`: how generation, grading, and reports are driven.
+6. `grpo_decomp/cli.py`: how generation, grading, and reports are driven.
 7. `grpo_decomp/stats/compare.py`: paired comparisons with uncertainty and significance.
 8. `grpo_decomp/report/seeds.py` and its siblings (`passk_seeds`, `mechanism`,
    `control_seeds`): how claims survive run-to-run variance.
 
 ## Enforcement ownership
 
-`report/evidence.py` owns comparison identity. `train/provenance.py` owns execution state.
+`report/evidence.py` owns comparison identity. `provenance.py` owns the run record and
+attempt lookup; `train/provenance.py` writes execution state.
 `eval/completions.py` owns publication and integrity. Registries own study names and defaults.
 Recorded grading identities must resolve before grading.
 

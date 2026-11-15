@@ -26,6 +26,7 @@ from grpo_decomp.eval.completions import (
 )
 from grpo_decomp.eval.heldout import run_heldout_curve
 from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
+from grpo_decomp.provenance import resolve_run_dir
 from grpo_decomp.registries import (
     DEFAULT_PROMPT_STRATEGY,
     EVAL_SETS,
@@ -55,7 +56,6 @@ from grpo_decomp.report.seeds import aggregate_placebo_comparison
 from grpo_decomp.schemas import Record, record_json
 from grpo_decomp.splits import dev_slice
 from grpo_decomp.stats.compare import Comparison, compare
-from grpo_decomp.train.provenance import resolve_run_dir
 
 _BACKEND_CHOICES = ("auto", "transformers", "vllm")
 
@@ -488,5 +488,5 @@ if __name__ == "__main__":
     # This module has no study registered; running it would grade against empty registries.
     sys.exit(
         "grpo-decomp: run the `grpo-decomp` console script or `python -m llm_grpo_gains.cli`; "
-        "`python -m grpo_decomp.eval.cli` has no study registered"
+        "`python -m grpo_decomp.cli` has no study registered"
     )

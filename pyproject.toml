@@ -183,3 +183,18 @@ name = "The harness does not import the reference study"
 type = "forbidden"
 source_modules = ["grpo_decomp"]
 forbidden_modules = ["llm_grpo_gains"]
+
+[[tool.importlinter.contracts]]
+name = "Harness modules import only lower layers"
+type = "layers"
+containers = ["grpo_decomp"]
+exhaustive = true
+layers = [
+    "cli | jobs",
+    "report",
+    "eval | train",
+    "rewards | prompts",
+    "registries",
+    "stats | splits | provenance | grading",
+    "schemas",
+]

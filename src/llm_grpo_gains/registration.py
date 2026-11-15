@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from functools import cache
 
+from grpo_decomp.provenance import RunProvenance
 from grpo_decomp.registries import (
     DEFAULTS,
     EVAL_SETS,
@@ -27,7 +28,6 @@ from grpo_decomp.registries import (
 )
 from grpo_decomp.schemas import ProblemSet
 from grpo_decomp.splits import dev_slice, validation_split
-from grpo_decomp.train.provenance import RunProvenance
 from llm_grpo_gains.data import (
     countdown_is_correct,
     load_countdown,

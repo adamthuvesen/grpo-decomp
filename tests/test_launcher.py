@@ -130,7 +130,8 @@ def test_prepare_run_rejects_symlink_escape(tmp_path) -> None:
 
 
 def test_repeated_attempt_preserves_completed_checkpoint(tmp_path) -> None:
-    from grpo_decomp.train.provenance import completed_checkpoint, finish_run, load_run_provenance
+    from grpo_decomp.provenance import completed_checkpoint, load_run_provenance
+    from grpo_decomp.train.provenance import finish_run
 
     arm = ArmConfig(name="correct", base_model="m", reward="correct", seed=0)
     first = prepare_run(arm, _problems(), validation_size=1, output_root=tmp_path)
@@ -159,7 +160,7 @@ def test_launch_tracks_setup_and_training_failures(tmp_path, monkeypatch, failur
     from types import SimpleNamespace
 
     import grpo_decomp.train.launcher as launcher
-    from grpo_decomp.train.provenance import completed_checkpoint, load_run_provenance
+    from grpo_decomp.provenance import completed_checkpoint, load_run_provenance
 
     cleanup = []
     monkeypatch.setattr(launcher, "_shutdown_distributed", lambda: cleanup.append(True))

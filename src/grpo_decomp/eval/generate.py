@@ -22,10 +22,15 @@ from grpo_decomp.eval.completions import (
     SamplingConfig,
     capture_generation_provenance,
 )
-from grpo_decomp.provenance import content_digest, file_digest, problem_set_digest
+from grpo_decomp.provenance import (
+    completed_checkpoint,
+    content_digest,
+    file_digest,
+    load_run_provenance,
+    problem_set_digest,
+)
 from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, PromptStrategy, get_prompt_strategy
 from grpo_decomp.schemas import ProblemSet
-from grpo_decomp.train.provenance import completed_checkpoint, load_run_provenance
 
 #: Prompts per forward pass on the transformers backend (CPU/MPS memory-bound).
 _BATCH_SIZE = 16

@@ -21,7 +21,7 @@ lint:  ## Lint and format-check with the locked formatter version
 	$(RUN) ruff check . .agents/skills/verify-grpo-decomp/verify
 	$(RUN) ruff format --check . .agents/skills/verify-grpo-decomp/verify
 
-imports:  ## Enforce the one-way harness and study import boundary
+imports:  ## Enforce the harness layers and the one-way harness and study boundary
 	$(RUN) lint-imports --no-cache --no-logo
 
 typecheck:  ## Check source, scripts, tests, and the verify helper (basedpyright strict)

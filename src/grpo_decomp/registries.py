@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 from grpo_decomp.schemas import DatasetRef, ProblemSet
 
 if TYPE_CHECKING:
-    from grpo_decomp.train.provenance import RunProvenance
+    from grpo_decomp.provenance import RunProvenance
 
 #: The placebo reward, provided by the harness (it is the control the method leans on).
 PLACEBO_REWARD = "random"

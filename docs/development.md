@@ -12,7 +12,7 @@ Python 3.13.
 | --- | --- | --- |
 | Artifact format, integrity, publication | `grpo_decomp/eval/completions.py` | `uv run pytest tests/test_completions.py` |
 | Generation metadata and backend lifecycle | `grpo_decomp/eval/generate.py` | `uv run pytest tests/test_generate.py` |
-| Run attempts, config, validation split | `grpo_decomp/train/`, `eval/heldout.py` | `uv run pytest tests/test_launcher.py tests/test_provenance.py tests/test_heldout.py` |
+| Run attempts, config, validation split | `grpo_decomp/train/`, `grpo_decomp/provenance.py`, `eval/heldout.py` | `uv run pytest tests/test_launcher.py tests/test_provenance.py tests/test_heldout.py` |
 | Comparison and replicate identity | `grpo_decomp/report/evidence.py` | `uv run pytest tests/test_comparison_contracts.py` |
 | Report measurements and persisted invariants | `grpo_decomp/report/`, `stats/` | `uv run pytest tests/test_passk_seeds.py tests/test_control_seeds.py tests/test_seeds.py` |
 | Registries and study registration | `grpo_decomp/registries.py`, `llm_grpo_gains/registration.py` | `uv run pytest tests/test_registry.py` |

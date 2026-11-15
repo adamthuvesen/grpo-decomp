@@ -183,6 +183,7 @@ DRIVES = {
     "battery": Drive(
         "grpo-decomp battery grades a committed CompletionSet into pass@k JSON",
         [
+            "src/grpo_decomp/cli.py",
             "src/grpo_decomp/eval/**",
             "src/grpo_decomp/grading.py",
             "src/grpo_decomp/rewards/**",
@@ -194,6 +195,7 @@ DRIVES = {
     "passk-report": Drive(
         "report-passk-seeds renders the multi-seed pass@k report with CI and the <3-seed label",
         [
+            "src/grpo_decomp/cli.py",
             "src/grpo_decomp/eval/**",
             "src/grpo_decomp/report/**",
             "src/grpo_decomp/stats/**",
@@ -208,6 +210,7 @@ DRIVES = {
             "modal_app.py",
             "configs/**",
             "src/grpo_decomp/train/**",
+            "src/grpo_decomp/provenance.py",
             "src/grpo_decomp/jobs.py",
             "src/llm_grpo_gains/registration.py",
         ],

@@ -8,7 +8,7 @@ import pytest
 from completion_set_fixtures import write_completion_set_dir
 from pydantic import ValidationError
 
-from grpo_decomp.eval.cli import main
+from grpo_decomp.cli import main
 from grpo_decomp.eval.completions import CompletionSet, load_completion_set
 from grpo_decomp.report.evidence import anchored_inputs
 from grpo_decomp.report.passk_seeds import PassKMultiSeed, aggregate_passk_seeds

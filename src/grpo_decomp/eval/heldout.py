@@ -9,15 +9,15 @@ from pydantic import Field
 from grpo_decomp.eval.battery import grade
 from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
-from grpo_decomp.provenance import problem_set_digest
-from grpo_decomp.registries import VALIDATION_RECONSTRUCTORS
-from grpo_decomp.schemas import ProblemSet, Record
-from grpo_decomp.train.provenance import (
+from grpo_decomp.provenance import (
     RunProvenance,
     completed_checkpoint,
     load_run_provenance,
+    problem_set_digest,
     resolve_run_dir,
 )
+from grpo_decomp.registries import VALIDATION_RECONSTRUCTORS
+from grpo_decomp.schemas import ProblemSet, Record
 
 
 class HeldoutPoint(Record):

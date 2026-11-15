@@ -29,6 +29,7 @@ dependencies are listed in `tests/test_packaging.py`; dev-only tools go in the `
 | Rule | Enforced by |
 | --- | --- |
 | The harness never imports the study | `pyproject.toml::tool.importlinter`, `tests/test_architecture.py::test_harness_imports_without_a_study_or_gpu_stack` |
+| Each harness module imports only lower layers: `cli`/`jobs` > `report` > `eval`/`train` > `rewards`/`prompts` > `registries` > `stats`/`splits`/`provenance`/`grading` > `schemas` | `pyproject.toml::tool.importlinter`, `Makefile::imports` |
 | A paid Modal launch refuses to run without `--approved` | `modal_app.py::_require_approval`, `tests/test_modal_app.py::test_every_modal_entry_point_requires_approval`, `tests/test_modal_app.py::test_unapproved_launch_refuses_with_the_exact_approved_command` |
 | No new runtime dependency without asking Adam | `tests/test_packaging.py::test_runtime_dependencies_are_the_approved_stack` |
 | TRL and vLLM stay exact `==` pins | `tests/test_packaging.py::test_trl_and_vllm_are_exact_pins`, `uv.lock` |

@@ -17,7 +17,7 @@ from completion_set_fixtures import (
     write_completion_set_dir as _write_cs,
 )
 
-from grpo_decomp.eval.cli import main
+from grpo_decomp.cli import main
 from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.eval.heldout import discover_checkpoints
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
@@ -26,7 +26,7 @@ from grpo_decomp.train.provenance import capture_provenance
 
 #: The real generate submodule (sys.modules), separate from the imported CLI function.
 _GENERATE_MODULE = importlib.import_module("grpo_decomp.eval.generate")
-_CLI_MODULE = importlib.import_module("grpo_decomp.eval.cli")
+_CLI_MODULE = importlib.import_module("grpo_decomp.cli")
 
 
 def _patch_report_sets(monkeypatch, **sets: ProblemSet) -> None:

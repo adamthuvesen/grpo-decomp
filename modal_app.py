@@ -34,10 +34,9 @@ from grpo_decomp.jobs import (
     validate_battery_request,
     validate_passk_request,
 )
-from grpo_decomp.provenance import git_commit, git_is_dirty
+from grpo_decomp.provenance import git_commit, git_is_dirty, resolve_run_dir
 from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, EVAL_SETS
 from grpo_decomp.schemas import ProblemSet, record_json
-from grpo_decomp.train.provenance import resolve_run_dir
 from llm_grpo_gains.registration import register
 
 # Fill the harness registries locally (entrypoint arg handling) and in each Modal container.

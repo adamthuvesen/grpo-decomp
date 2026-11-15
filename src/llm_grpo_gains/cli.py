@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from grpo_decomp.eval import cli
+from grpo_decomp import cli
 from llm_grpo_gains.registration import register
 
 

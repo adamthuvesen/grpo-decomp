@@ -177,7 +177,7 @@ reproduce the published runs, see [docs/runbook.md](docs/runbook.md).
 `--model` / `ArmConfig.base_model` takes any Hugging Face id or local checkpoint path.
 To add a task, write a `register()` that adds your eval set, train dataset, and reward to the
 registries (plus a verifier and validation reconstructor for non-boxed-math tasks), and an
-entry point that calls it before `grpo_decomp.eval.cli.main`.
+entry point that calls it before `grpo_decomp.cli.main`.
 [src/llm_grpo_gains/registration.py](src/llm_grpo_gains/registration.py) is the worked
 example. Step-by-step: [docs/architecture.md](docs/architecture.md#plug-in-your-own-model-and-task).
 

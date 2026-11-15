@@ -7,6 +7,11 @@ from pathlib import Path
 
 from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
+from grpo_decomp.provenance import (
+    completed_checkpoint,
+    load_run_provenance,
+    resolve_run_dir,
+)
 from grpo_decomp.registries import (
     DEFAULT_PROMPT_STRATEGY,
     EVAL_SETS,
@@ -17,11 +22,6 @@ from grpo_decomp.registries import (
 from grpo_decomp.schemas import ProblemSet
 from grpo_decomp.splits import dev_slice
 from grpo_decomp.train.config import load_arm_config
-from grpo_decomp.train.provenance import (
-    completed_checkpoint,
-    load_run_provenance,
-    resolve_run_dir,
-)
 
 
 @dataclass(frozen=True)
