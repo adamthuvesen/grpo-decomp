@@ -339,9 +339,9 @@ def check_figures(root: Path) -> None:
 
     from llm_grpo_gains.figures import render_figures
 
-    # The published PNGs are rendered on macOS, and other platforms antialias text
-    # differently, so pixels are compared exactly only there. Elsewhere every figure
-    # must still render at its published size; `reproduce` checks the numbers exactly.
+    # The published PNGs are rendered on macOS, and other platforms lay out text
+    # differently, so PNGs are compared exactly only there. Elsewhere every figure must
+    # still render; `reproduce` checks the numbers exactly.
     exact_pixels = sys.platform == "darwin"
     with TemporaryDirectory(prefix="grpo-figures-") as temporary:
         output = Path(temporary)
@@ -353,9 +353,13 @@ def check_figures(root: Path) -> None:
                 differences.append(f"missing published figure {relative}")
             elif actual.suffix == ".png":
                 with Image.open(expected) as original, Image.open(actual) as generated:
+                    # Text metrics change the tight bounding box too, so off macOS a PNG
+                    # is only required to render.
+                    if not exact_pixels:
+                        continue
                     if original.size != generated.size:
                         differences.append(f"rendered size differs: {relative}")
-                    elif exact_pixels and original.convert("RGBA").tobytes() != (
+                    elif original.convert("RGBA").tobytes() != (
                         generated.convert("RGBA").tobytes()
                     ):
                         differences.append(f"rendered pixels differ: {relative}")
