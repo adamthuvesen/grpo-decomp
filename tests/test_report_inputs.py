@@ -86,3 +86,6 @@ def test_base_and_correct_seeds_rejects_mismatched_correct_sample_counts(
 def test_seed_label_from_battery_dir() -> None:
     assert seed_label(Path("battery")) == 0
     assert seed_label(Path("battery-seed2")) == 2
+    assert seed_label(Path("battery-countdown")) == 0
+    assert seed_label(Path("battery-countdown-math")) == 0
+    assert seed_label(Path("battery-countdown-seed3")) == 3

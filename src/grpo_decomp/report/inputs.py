@@ -42,9 +42,13 @@ def base_and_correct_seeds(
 
 
 def seed_label(battery_dir: Path) -> int | str:
-    """Recover a seed label from a battery dir name (``battery`` -> 0, ``battery-seed2`` -> 2)."""
+    """Recover a seed label from a battery dir name.
+
+    ``battery`` and task roots such as ``battery-countdown`` hold seed 0;
+    ``battery-seed2`` and ``battery-countdown-seed2`` hold seed 2.
+    """
     name = Path(battery_dir).name
-    if name == "battery":
+    if name == "battery" or (name.startswith("battery-") and "-seed" not in name):
         return 0
     head, _, tail = name.rpartition("-seed")
     return int(tail) if head and tail.isdigit() else name
