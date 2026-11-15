@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -10,10 +13,13 @@ from grpo_decomp.eval.completions import (
     GenerationProvenance,
     ProblemCompletions,
     SamplingConfig,
+    completion_set_json_schema,
     load_completion_set,
     write_completion_set,
 )
 from grpo_decomp.schemas import DatasetRef, Problem
+
+_SCHEMA_PATH = Path(__file__).parents[1] / "docs" / "schemas" / "completion-set.schema.json"
 
 
 def _ref() -> DatasetRef:
@@ -252,3 +258,11 @@ def test_existing_empty_directory_is_not_published_over(tmp_path) -> None:
     with pytest.raises(FileNotFoundError):
         write_completion_set(_completion_set(), path)
     assert list(path.iterdir()) == []
+
+
+def test_committed_json_schema_matches_the_completion_set_models() -> None:
+    committed = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    assert committed == completion_set_json_schema(), (
+        f"{_SCHEMA_PATH.name} drifted from the CompletionSet models; run `make completion-schema`"
+    )

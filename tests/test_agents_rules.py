@@ -44,7 +44,9 @@ def test_enforced_rules_cite_existing_definitions() -> None:
     rows = _rows()
     assert rows, "AGENTS.md ## Enforced Rules has no rows"
     uncited = [rule for rule, refs in rows if not refs]
-    assert not uncited, f"Enforced Rules rows cite no enforcer: {uncited}"
+    assert not uncited, (
+        f"AGENTS.md Enforced Rules rows cite no enforcer: {uncited}. Add a `path::name` cell for each."
+    )
     missing = []
     for _, refs in rows:
         for ref in refs:

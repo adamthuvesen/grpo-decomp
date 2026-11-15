@@ -16,8 +16,10 @@ import sys
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from pydantic import Field, StrictBool, StrictFloat, StrictInt, ValidationError, model_validator
+from pydantic.json_schema import models_json_schema
 
 from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
 from grpo_decomp.provenance import (
@@ -290,3 +292,31 @@ def load_completion_set(in_dir: Path) -> CompletionSet:
     if manifest is not None and manifest.dataset_digest != digest:
         raise ValueError(f"{manifest_path}: dataset content digest mismatch")
     return result
+
+
+def completion_set_json_schema() -> dict[str, Any]:
+    """JSON Schema of each file in a CompletionSet directory, for producers in other repos.
+
+    `docs/schemas/completion-set.schema.json` is this output, committed.
+    """
+    models = (GenerationProvenance, ProblemCompletions, CompletionManifest)
+    _, definitions = models_json_schema(
+        [(model, "validation") for model in models], ref_template="#/$defs/{model}"
+    )
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "CompletionSet",
+        "description": (
+            "A CompletionSet directory. `files` maps each file name to the record that "
+            "the file holds; completions.jsonl holds one record per line. The loader also "
+            "checks what this schema cannot express: every problem has exactly "
+            "`sampling.n` samples, `n_problems` equals the line count, problem ids are "
+            "unique, and the dataset and manifest.json digests match the bytes and problems."
+        ),
+        "files": {
+            PROVENANCE_FILE: {"$ref": "#/$defs/GenerationProvenance"},
+            COMPLETIONS_FILE: {"$ref": "#/$defs/ProblemCompletions"},
+            MANIFEST_FILE: {"$ref": "#/$defs/CompletionManifest"},
+        },
+        **definitions,
+    }

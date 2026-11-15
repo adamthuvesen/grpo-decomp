@@ -31,6 +31,9 @@ from llm_grpo_gains.esme_countdown import (
 from llm_grpo_gains.registration import register
 
 EffectMetric = Literal["valid_rate", "exact_rate", "any_exact"]
+# The reward an Esme arm trained with: none (the base model), the correct reward, or
+# the random placebo. esme-posttrain's `ArmRole` (treatment, control, baseline) names
+# an arm's place in a study design instead; the two do not map onto each other.
 ArmRole = Literal["base", "correct", "random"]
 EFFECT_METRICS: tuple[EffectMetric, ...] = ("valid_rate", "exact_rate", "any_exact")
 SUMMARY_NAME = "sampled_multiseed_summary.corrected.json"

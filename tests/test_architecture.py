@@ -24,7 +24,7 @@ class RejectLoader(importlib.abc.Loader):
         return None
 
     def exec_module(self, module):
-        raise AssertionError(f'harness imported {module.__name__}')
+        raise AssertionError(f'grpo_decomp imported {module.__name__}; import it lazily inside the function that needs it')
 
 class RejectForbidden(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):

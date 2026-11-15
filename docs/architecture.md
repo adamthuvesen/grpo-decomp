@@ -384,7 +384,10 @@ result with Holm-adjusted p-values and marginal intervals. The historical result
 Training and generation are intentionally outside the CPU-only analysis path.
 The public reproducibility surface is the `CompletionSet` boundary: once model
 samples have been written to disk, every grading, aggregation, figure, and docs
-consistency check runs locally without GPU access.
+consistency check runs locally without GPU access. A producer in another repo
+writes to [`docs/schemas/completion-set.schema.json`](schemas/completion-set.schema.json),
+the JSON Schema generated from the `CompletionSet` models. `make completion-schema`
+rewrites it, and `tests/test_completions.py` fails when it drifts from the models.
 
 The published runs used Modal for the GPU jobs and W&B for training curves. The
 private run volume and raw checkpoints are not exposed; the public artifacts are

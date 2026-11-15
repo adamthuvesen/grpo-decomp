@@ -98,7 +98,10 @@ def test_every_owner_still_uses_what_it_owns() -> None:
         for name, owned in OWNERS.items()
         if owned != banned_names_used((ROOT / name).read_text(encoding="utf-8"), banned)
     ]
-    assert not stale, f"OWNERS lists modules these files no longer use or miss: {stale}"
+    assert not stale, (
+        f"OWNERS in tests/test_banned_modules.py lists modules these files no longer use or miss: {stale}. "
+        "Set each entry to the banned modules the file uses now, or remove the entry and its TID251 per-file-ignore."
+    )
 
 
 def test_detector_finds_known_cases() -> None:

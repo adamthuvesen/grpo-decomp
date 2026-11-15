@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := check
 .NOTPARALLEL: check slow
-.PHONY: help install sync-check fix lint imports typecheck test test-integration verify-gpu check slow verify demo figures results-check aggregate study-plan study-validate reproduce-esme
+.PHONY: help install sync-check fix lint imports typecheck test test-integration verify-gpu check slow verify demo figures completion-schema results-check aggregate study-plan study-validate reproduce-esme
 
 RUN := uv run --locked --offline --no-sync
 
@@ -52,6 +52,9 @@ demo:  ## Score committed mini CompletionSets without loading a model
 
 figures:  ## Rewrite the committed figures from published result JSON
 	$(RUN) python scripts/make_figures.py
+
+completion-schema:  ## Rewrite docs/schemas/completion-set.schema.json from the CompletionSet models
+	$(RUN) python scripts/write_completion_schema.py
 
 results-check: reproduce-esme  ## Read-only: reproduce Esme results and compare figures in a temp dir
 	$(RUN) python -m llm_grpo_gains.workflows figures-check

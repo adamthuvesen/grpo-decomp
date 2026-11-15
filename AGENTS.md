@@ -45,6 +45,7 @@ dependencies are listed in `tests/test_packaging.py`; dev-only tools go in the `
 | The installed wheel registers the study and grades a fixture | `tests/test_packaging.py::test_installed_wheel_registers_study_grades_and_loads_packaged_fixture` |
 | `make verify` reports a pass only when its control observes FAIL | `.agents/skills/verify-grpo-decomp/drives.py::control_battery`, `Makefile::verify` |
 | Process, network, paid SDK, and Modal modules are imported only by named owner files, each held to its own modules | `pyproject.toml::tool.ruff.lint.flake8-tidy-imports.banned-api`, `tests/test_banned_modules.py::test_every_file_uses_only_the_banned_modules_it_owns`, `tests/test_banned_modules.py::test_only_named_owners_hold_a_tid251_ignore` |
+| Tests never sleep or time wall-clock work, and every skip or xfail names a reason | `tests/ruff.toml::lint.flake8-tidy-imports.banned-api`, `tests/test_strict_mode.py::test_every_skip_names_a_reason` |
 
 ## Judgment calls
 
