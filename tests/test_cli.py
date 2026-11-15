@@ -17,7 +17,7 @@ from completion_set_fixtures import (
     write_completion_set_dir as _write_cs,
 )
 
-from grpo_decomp.eval.cli import main
+from grpo_decomp.cli import main
 from grpo_decomp.eval.completions import SamplingConfig
 from grpo_decomp.eval.heldout import discover_checkpoints
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
@@ -26,7 +26,7 @@ from grpo_decomp.train.provenance import capture_provenance
 
 #: The real generate submodule (sys.modules), separate from the imported CLI function.
 _GENERATE_MODULE = importlib.import_module("grpo_decomp.eval.generate")
-_CLI_MODULE = importlib.import_module("grpo_decomp.eval.cli")
+_CLI_MODULE = importlib.import_module("grpo_decomp.cli")
 
 
 def _patch_report_sets(monkeypatch, **sets: ProblemSet) -> None:
@@ -67,7 +67,7 @@ def test_report_seeds_rejects_non_greedy_artifact(tmp_path, capsys, monkeypatch)
     assert main(["report-seeds", "--battery-dirs", str(battery)]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "greedy pass@1" in captured.err
+    assert "sampling.temperature" in captured.err
 
 
 def test_report_seeds_unknown_task_set_is_clean_error(tmp_path, capsys) -> None:
@@ -211,7 +211,7 @@ def test_generate_missing_backend_dependency_is_clean_error(tmp_path, capsys, mo
     )
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "missing generation backend dependency" in captured.err
+    assert "missing optional dependency" in captured.err
 
 
 def test_unknown_backend_rejected_by_argparse(tmp_path) -> None:

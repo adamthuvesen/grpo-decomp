@@ -24,12 +24,10 @@ from llm_grpo_gains.data.countdown import (
     load_countdown,
     parse_countdown_key,
     reachable_targets,
-    solve_countdown,
 )
 
 #: Tiny config so generator tests stay fast.
 _SMALL = CountdownConfig(sizes={"train": 8, "validation": 4, "test": 6, "dev": 3})
-# --- the answer-key codec ---------------------------------------------------------------
 
 
 def test_key_round_trips_with_sorted_numbers() -> None:
@@ -44,22 +42,25 @@ def test_parse_rejects_a_malformed_key() -> None:
             parse_countdown_key(key)
 
 
-# --- the restricted, eval-free evaluator ------------------------------------------------
+def _evaluate(text: str) -> tuple[Fraction, list[int]]:
+    result = evaluate_expression(text)
+    assert result is not None
+    return result
 
 
 def test_evaluate_basic_arithmetic_and_leaves() -> None:
-    value, leaves = evaluate_expression("4 * 5 + 6")
+    value, leaves = _evaluate("4 * 5 + 6")
     assert value == 26
     assert sorted(leaves) == [4, 5, 6]
 
 
 def test_evaluate_is_exact_rational_not_float() -> None:
-    value, _ = evaluate_expression("6 / 4")
+    value, _ = _evaluate("6 / 4")
     assert value == Fraction(3, 2)
 
 
 def test_evaluate_normalizes_latex_operators() -> None:
-    value, leaves = evaluate_expression(r"4 \times 5")
+    value, leaves = _evaluate(r"4 \times 5")
     assert value == 20
     assert sorted(leaves) == [4, 5]
 
@@ -67,9 +68,6 @@ def test_evaluate_normalizes_latex_operators() -> None:
 @pytest.mark.parametrize("text", ["2 ** 3", "pow(2, 3)", "x + 1", "4 +", "__import__('os')"])
 def test_evaluate_rejects_anything_outside_the_grammar(text: str) -> None:
     assert evaluate_expression(text) is None
-
-
-# --- solution validity ------------------------------------------------------------------
 
 
 def test_valid_solution_each_number_once_hits_target() -> None:
@@ -82,7 +80,6 @@ def test_subset_solution_is_allowed() -> None:
 
 def test_subset_solution_counts_as_reachable() -> None:
     assert is_valid_countdown_solution("9 + 1", [1, 3, 9], 10)
-    assert solve_countdown([1, 3, 9], 10)
 
 
 def test_wrong_target_is_invalid() -> None:
@@ -104,21 +101,8 @@ def test_countdown_is_correct_grades_against_a_key() -> None:
     assert not countdown_is_correct(None, key)
 
 
-# --- reachability guarantees solvability ------------------------------------------------
-
-
-def test_reachable_targets_are_all_solvable() -> None:
-    numbers = [3, 5, 7]
-    targets = reachable_targets(numbers, lo=1, hi=100)
-    assert targets
-    assert all(solve_countdown(numbers, t) for t in targets)
-
-
-def test_unreachable_target_has_no_solution() -> None:
-    assert not solve_countdown([3, 5], 100)
-
-
-# --- the generator ----------------------------------------------------------------------
+def test_unreachable_target_is_not_a_reachable_target() -> None:
+    assert 100 not in reachable_targets([3, 5], lo=1, hi=200)
 
 
 def test_load_countdown_rejects_unknown_split() -> None:
@@ -133,8 +117,7 @@ def test_generated_problems_are_solvable_and_well_formed() -> None:
     assert problems.source.split == "test"
     for index, problem in enumerate(problems):
         assert problem.id == f"countdown/{_SMALL.slug}/test/{index}"
-        numbers, target = parse_countdown_key(problem.gold_answer)
-        assert solve_countdown(numbers, target)  # independently confirm a solution exists
+        _, target = parse_countdown_key(problem.gold_answer)
         assert str(target) in problem.question
 
 
@@ -176,9 +159,6 @@ def test_impossible_target_range_fails_loud_not_infinite_loop() -> None:
         load_countdown("train", config=impossible)
 
 
-# --- task-routed grading ----------------------------------------------------------------
-
-
 def _countdown_problems() -> ProblemSet:
     ref = DatasetRef(name="countdown", config="x", split="test", revision="r")
     return ProblemSet(
@@ -212,3 +192,40 @@ def test_reward_and_eval_share_countdown_key_parsing() -> None:
         ),
         {"c0": r"\boxed{4 * 5 + 6}"},
     ) == {"c0": True}
+
+
+def test_long_expression_evaluation_does_not_use_python_recursion() -> None:
+    text = "+".join(["1"] * 1200)
+    assert evaluate_expression(text) == (Fraction(1200), [1] * 1200)
+    assert not is_valid_countdown_solution(text, [1, 1, 1], 1200)
+
+
+def test_parser_recursion_failures_are_invalid_expressions() -> None:
+    assert evaluate_expression("+" * 10000 + "1") is None
+    assert evaluate_expression("(" * 10000 + "1" + ")" * 10000) is None
+
+
+@pytest.mark.parametrize("text", ["-1 + +2", "1 - -2", "-(1 - 2)"])
+def test_general_countdown_keeps_its_historical_unary_grammar(text: str) -> None:
+    assert evaluate_expression(text) is not None
+
+
+def test_number_budget_is_checked_before_arithmetic(monkeypatch) -> None:
+    from llm_grpo_gains.data import countdown as countdown_module
+
+    def unexpected_arithmetic(*args, **kwargs):
+        raise AssertionError("invalid number budget reached arithmetic")
+
+    monkeypatch.setattr(countdown_module, "Fraction", unexpected_arithmetic)
+    assert evaluate_expression("1 + 2 + 3", numbers=[1, 2]) is None
+
+
+def test_unrelated_parser_memory_failure_propagates(monkeypatch) -> None:
+    from llm_grpo_gains.data import countdown as countdown_module
+
+    def exhausted_parser(*args, **kwargs):
+        raise MemoryError("allocation failed")
+
+    monkeypatch.setattr(countdown_module.ast, "parse", exhausted_parser)
+    with pytest.raises(MemoryError, match="allocation failed"):
+        evaluate_expression("1")

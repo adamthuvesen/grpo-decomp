@@ -12,14 +12,22 @@ The codebase has **two packages with a one-way boundary**:
 
 The controls are the product; a headline number without its controls is treated as
 worthless. The harness never imports the study. A study, or a new RL task, injects its
-concrete pieces through the registries in `grpo_decomp/registries.py`, discovered at
-startup via a `grpo_decomp.plugins` entry point (`grpo_decomp/plugins.py`). That seam is
+concrete pieces through the mappings in `grpo_decomp/registries.py`. The study's entry
+points (`llm_grpo_gains/cli.py`, `modal_app.py`) call `llm_grpo_gains.registration.register()`,
+which fills them. That seam is
 what lets the harness point at your own model and task without a fork.
+
+Put generic measurement machinery in `grpo_decomp` and anything GSM8K/Countdown-specific in
+`llm_grpo_gains`. A new task-shaped knob is a registry entry in
+`llm_grpo_gains/registration.py`, not an `if task == ...` in the harness. Add extension
+points, not a framework.
 
 ```mermaid
 flowchart LR
     subgraph study["llm_grpo_gains (study)"]
+        CLI["cli.py · modal_app.py"]
         REG["registration.py<br/>register()"]
+        CLI --> REG
         DATA["data/ + rewards/<br/>GSM8K · Countdown"]
         DATA --> REG
     end
@@ -28,17 +36,18 @@ flowchart LR
         ENG["train · generate · battery<br/>stats · report"]
         RG --> ENG
     end
-    REG -->|"grpo_decomp.plugins entry point"| RG
+    REG -->|"fills"| RG
 ```
 
 ---
 
 ## Study Design
 
-Three workflow stages. Training produces models, generation turns models into
-graded answers, and offline analysis turns graded answers into a defensible claim.
-The boundary between generation and analysis is a self-contained artifact
-(`CompletionSet`), so generation runs on a GPU and all analysis runs offline on a CPU.
+Training produces checkpoints for each GRPO arm. `generate` samples a base model
+or trained checkpoint and writes a self-contained `CompletionSet`. The artifact
+contains sampled completions, problems with gold answers, and generation provenance.
+Grading and analysis read it offline on a CPU. Reports compare arms and aggregate
+results across training seeds to support study claims.
 
 The same pipeline runs two tasks. **GSM8K** (grade-school math on the
 `Qwen2.5-Math-1.5B` base) is the primary decomposition. **Countdown** (a generated
@@ -60,9 +69,9 @@ flowchart LR
         M --> G
         G --> CS["CompletionSet<br/>(problems + samples + provenance)"]
     end
-    subgraph p3["Analyze (CPU, offline)"]
+    subgraph p3["Grade and analyze (CPU, offline)"]
         CS --> B["eval/battery<br/>grade, pass@k, chain checks"]
-        CS --> C["stats/compare<br/>delta, bootstrap CI, McNemar"]
+        B -->|"per-problem grades"| C["stats/compare<br/>delta, bootstrap CI, McNemar"]
         B --> REP["report/<br/>seed aggregation"]
         C --> REP
         REP --> RES["results/<br/>multi-seed JSON + figures"]
@@ -83,11 +92,11 @@ they do.
 - **Never claim from one training run.** Results aggregate over seeds; below three
   seeds a result is labelled preliminary.
 - **Determinism where it matters.** Fixed seeds, pinned dataset revisions, and a
-  recorded model/commit/config/dependency fingerprint on every artifact.
+  recorded model/commit/config/dependency fingerprints where available. Legacy gaps stay explicit.
 - **Reject or report silent failures.** Unparseable completions, skipped records, and
   data-quality exclusions are logged or rejected, never quietly dropped.
 - **Strict schemas.** Result types are frozen Pydantic models that reject unknown
-  fields (`schemas.Record`), so a malformed artifact fails at the boundary.
+  fields and non-finite numbers (`schemas.Record`). Report validators reject contradictory dimensions, rates, and derived values.
 
 ---
 
@@ -99,7 +108,6 @@ Harness: `src/grpo_decomp/`
 | ---------------- | ----------------------------------------------------------------------------------------------------------- |
 | `schemas.py`     | The shared frozen types: `DatasetRef`, `Problem`, `ProblemSet`.                                             |
 | `registries.py`  | The plug-in surface: eval sets, train datasets, rewards, verifiers, validation reconstructors, prompt strategies, and task profiles. |
-| `plugins.py`     | Loads study `register()`s from the `grpo_decomp.plugins` entry-point group.                                 |
 | `prompts.py`     | Prompt strategies (`PromptStrategy`); ships the built-in `r1_zero`. Train and eval use the _same_ strategy. |
 | `grading.py`     | Answer extraction policies and math correctness checks.                                                     |
 | `splits.py`      | Deterministic `dev_slice` / `validation_split` over a `ProblemSet`.                                         |
@@ -122,9 +130,10 @@ Study: `src/llm_grpo_gains/` plus repo-root `configs/`, `results/`, `modal_app.p
 | `modal_app.py`     | The cloud runner used for the published GPU jobs.                                           |
 
 The dependency direction is one-way: the study depends on the harness, never the reverse
-(a standalone-import check enforces it). Within the harness, `schemas`/`registries` sit at
-the bottom, `eval`/`train` depend on them, `stats` depends on nothing GPU, and `report`
-sits on top of `stats` and `eval`. Heavy GPU imports (`trl`, `vllm`, `torch`) are lazy:
+(a standalone-import check enforces it). Within the harness, an import-linter layers
+contract holds each module to the layers below it, from top to bottom: `cli` and `jobs`,
+`report`, `eval` and `train`, `rewards` and `prompts`, `registries`, then `stats`,
+`splits`, `provenance`, and `grading`, and `schemas` at the bottom. Heavy GPU imports (`trl`, `vllm`, `torch`) are lazy:
 imported inside the function that needs them, so the analysis path imports on a
 laptop with no CUDA.
 
@@ -145,7 +154,7 @@ Countdown is generated from a fixed seed instead.
 - `gsm8k_platinum`: a relabeled, cleaned GSM8K test (checks label noise).
 - `countdown`: the positive-control task. Procedurally _generated_ (not loaded from
   HuggingFace), so it is uncontaminated by construction. Each problem encodes its
-  `(numbers, target)` key in `gold_answer`, and a restricted AST evaluator (the four
+  `(numbers, target)` key in `gold_answer`, and a bounded iterative AST evaluator (the four
   operators, exact `Fraction` arithmetic, never `eval`) both grades answers and
   guarantees every target is reachable.
 - `splits.py`: `validation_split` (a deterministic held-out subset keyed on seed +
@@ -219,7 +228,19 @@ or the generated Countdown set for the positive control), hold out a validation
 split (GSM8K carves a per-seed split out of train; Countdown ships a dedicated,
 seed-independent one), build the prompt dataset, pick the reward, construct the
 TRL `GRPOTrainer`, train, save the final checkpoint, and tear down the process
-group cleanly. It writes a `RunProvenance` record before training starts.
+group cleanly. Each execution writes a unique `attempts/<id>/` directory beneath the arm/seed directory.
+The attempt owns `provenance.json`, `status.json`, checkpoints, and held-out diagnostics.
+Status transitions from `running` to `completed` or `failed`. Final checkpoint presence
+alone cannot make a new attempt successful. A retry never overwrites another attempt.
+
+`resolve_run_dir` discovers completed attempt records. Exactly one completion resolves
+a run alias. Multiple successful attempts require an explicit attempt path. No shared
+mutable index determines success. This avoids last-write-wins alias corruption on Modal
+Volumes. Readers select an attempt once, then use its immutable identity for all reads.
+Legacy runs remain readable and explicitly lack verified attempt identity.
+
+Validation reconstruction checks the exact recorded problem digest. Legacy curves state
+that the split identity is unverified. Cleanup covers constructor, training, and save failures.
 
 ### How one GRPO step learns
 
@@ -246,7 +267,10 @@ large fraction of each batch, and it is visible in the `frac_reward_zero_std` lo
 ## Evaluation layer
 
 The boundary between generation and analysis is the **`CompletionSet`**: a directory
-holding a `provenance.json` and a `completions.jsonl`. It carries each `Problem`
+holding `provenance.json` and `completions.jsonl`. New directories also carry a versioned
+`manifest.json` with file and dataset digests. The writer stages a complete sibling directory
+and publishes it by rename. Identical retries succeed. Conflicting replacements fail.
+Legacy two-file directories remain readable without fabricated integrity metadata. It carries each `Problem`
 (so the gold answer travels with the answers) plus its sampled completions, so the
 analysis side needs no network and no dataset re-pinning. Generation is the only
 step that loads a model.
@@ -288,11 +312,11 @@ classDiagram
   pass@1, unbiased pass@k, and chain coverage.
 - `passk.py`: the unbiased pass@k estimator.
 - `cot.py` checks whether a chain contains verifiable steps.
-- `cli.py` is the `grpo-decomp` entry point. Seven subcommands: `generate`,
+- `grpo_decomp/cli.py`, above `eval` and `report`, is the `grpo-decomp` entry point. Subcommands include: `generate`,
   `battery`, the multi-seed aggregators `report-seeds` (placebo),
   `report-passk-seeds` (pass@k coverage),
   `report-mechanism` (per-problem migration), `report-control-seeds` (the
-  Holm-corrected GSM8K controls), and `heldout` (the held-out curve).
+  Holm-corrected GSM8K controls), `report-arm-vs-base`, and `heldout` (the held-out curve).
 
 The **held-out curve** (`heldout` / `heldout_arm`) scores every saved checkpoint of
 a finished run on its validation split and writes `heldout.json`. It is a diagnostic for
@@ -311,7 +335,11 @@ The committed claims come from five multi-seed aggregators. Each recomputes its 
 training seed and aggregates over seeds, so uncertainty includes run-to-run variance. Where
 per-problem data is available, the interval is a paired seed × problem bootstrap, which also
 covers problem-sampling noise; otherwise it is a seed-level t interval. Compared artifacts must carry identical dataset metadata, problem
-records, and prompt strategies; misalignment is a clear error. Below three seeds a result
+records, prompt strategies, known rendered-prompt digests, verifiers, and decoding settings.
+Sample counts may differ across roles. Generation seeds may differ. Within each role,
+replicate sample counts and known training protocols must match. Duplicate artifact contents,
+training identities, and seed labels fail before statistics. `report/evidence.py` owns this
+contract for CLI, library, and study callers. Below three seeds a result
 stays preliminary. The placebo comparison is confirmatory; the other panels explain the
 gain and test its controls.
 
@@ -335,13 +363,19 @@ decontamination panels reuse the same aggregators over their own `CompletionSet`
 
 ## Provenance and determinism
 
-Every result artifact records what produced it: base model and revision, reward,
-dataset revision, seed, the full GRPO config, the code commit, whether the working
-tree was dirty, the Python version, and pinned dependency versions (TRL's behavior
-moves between versions, so its version is part of the record). `RunProvenance`
-covers training; `GenerationProvenance` covers evaluation. The same fingerprint is
-what lets a held-out curve, a decomposition, and a seed aggregate all be traced
-back to one commit.
+Training provenance records the effective configuration, code identity, dependency versions,
+validation identity, and attempt. Managed checkpoint generation adds training lineage and
+checkpoint, dataset, and rendered-prompt digests. Backends record the realized device and
+resolved model revision when available.
+
+New reports include input content digests, grading identity, method settings, code identity,
+and limitations. Missing legacy lineage stays missing. Historical aggregate-only JSON cannot
+prove input comparability or recover raw samples. It remains readable, with no invented evidence.
+
+Coverage and reliability migration are descriptive. They do not establish causal mechanisms.
+The mechanism report retains old field names for compatibility and adds lost-reliability and
+never-reliable fractions. Esme's three exploratory comparisons now have a separate corrected
+result with Holm-adjusted p-values and marginal intervals. The historical result remains intact.
 
 ---
 
@@ -350,7 +384,10 @@ back to one commit.
 Training and generation are intentionally outside the CPU-only analysis path.
 The public reproducibility surface is the `CompletionSet` boundary: once model
 samples have been written to disk, every grading, aggregation, figure, and docs
-consistency check runs locally without GPU access.
+consistency check runs locally without GPU access. A producer in another repo
+writes to [`docs/schemas/completion-set.schema.json`](schemas/completion-set.schema.json),
+the JSON Schema generated from the `CompletionSet` models. `make completion-schema`
+rewrites it, and `tests/test_completions.py` fails when it drifts from the models.
 
 The published runs used Modal for the GPU jobs and W&B for training curves. The
 private run volume and raw checkpoints are not exposed; the public artifacts are
@@ -371,6 +408,23 @@ problem ids across compared arms.
 
 ---
 
+## Plug in your own model and task
+
+The harness takes any model (`base_model` / `--model` is a free HF id or path) and any task
+through registries. No fork is required:
+
+1. Write a `register()` that adds entries to `EVAL_SETS`, `TRAIN_DATASETS`,
+   `REWARDS`, `VERIFIERS` (if not boxed-math), and `VALIDATION_RECONSTRUCTORS` (for
+   held-out diagnostics). Optionally add to `PROMPT_STRATEGIES` for a chat-template model;
+   the harness default is `r1_zero`.
+2. Write an entry point that calls it and then `grpo_decomp.cli.main`, as
+   `llm_grpo_gains/cli.py` does.
+3. Point an `ArmConfig` at your `base_model` + your registered `reward`/`dataset`/`prompt_strategy`.
+
+[`llm_grpo_gains/registration.py`](../src/llm_grpo_gains/registration.py) is the worked example.
+
+---
+
 ## Repository layout
 
 ```
@@ -378,20 +432,21 @@ grpo-decomp/
 ├── src/grpo_decomp/             # the harness (task-agnostic)
 │   ├── schemas.py               # frozen shared types
 │   ├── registries.py            # the plug-in surface (datasets, rewards, verifiers, ...)
-│   ├── plugins.py               # entry-point loader for study register()s
 │   ├── prompts.py               # PromptStrategy + the built-in r1_zero
 │   ├── grading.py               # answer extraction + math correctness checks
 │   ├── splits.py                # dev_slice, validation_split
-│   ├── provenance.py            # git + dependency fingerprint
+│   ├── provenance.py            # git + dependency fingerprint, run records and attempts
 │   ├── rewards/                 # get_reward + the random placebo control
-│   ├── train/                   # config, launcher, run provenance
-│   ├── eval/                    # generate, completions, battery, passk, cot, cli
+│   ├── train/                   # config, launcher, run provenance capture
+│   ├── eval/                    # generate, completions, battery, passk, cot
 │   ├── stats/                   # compare, bootstrap, significance (McNemar + Holm)
-│   └── report/                  # render, seeds, passk_seeds, mechanism, control_seeds
+│   ├── report/                  # render, seeds, passk_seeds, mechanism, control_seeds
+│   └── cli.py                   # generate, battery, report and heldout subcommands
 ├── src/llm_grpo_gains/          # the reference study (depends on grpo_decomp)
 │   ├── data/                    # GSM8K + control-set loaders (pinned) + generated Countdown
 │   ├── rewards/                 # correct, countdown (verifiable graders)
-│   └── registration.py          # wires the study into the harness registries
+│   ├── registration.py          # wires the study into the harness registries
+│   └── cli.py                   # the grpo-decomp console script, study registered
 ├── configs/                     # one YAML per (arm, seed)
 ├── results/                     # committed multi-seed JSON, figures, and findings
 ├── modal_app.py                 # cloud runner used for the published GPU jobs
@@ -406,7 +461,19 @@ grpo-decomp/
    `grpo_decomp/rewards/placebo.py`: extraction, the real reward, and the placebo.
 4. `grpo_decomp/train/config.py` and `grpo_decomp/train/launcher.py`: how an arm is configured and run.
 5. `grpo_decomp/eval/completions.py`: the artifact that separates generation from analysis.
-6. `grpo_decomp/eval/cli.py`: how generation, grading, and reports are driven.
+6. `grpo_decomp/cli.py`: how generation, grading, and reports are driven.
 7. `grpo_decomp/stats/compare.py`: paired comparisons with uncertainty and significance.
 8. `grpo_decomp/report/seeds.py` and its siblings (`passk_seeds`, `mechanism`,
    `control_seeds`): how claims survive run-to-run variance.
+
+## Enforcement ownership
+
+`report/evidence.py` owns comparison identity. `provenance.py` owns the run record and
+attempt lookup; `train/provenance.py` writes execution state.
+`eval/completions.py` owns publication and integrity. Registries own study names and defaults.
+Recorded grading identities must resolve before grading.
+
+`llm_grpo_gains/workflows.py` owns study reproduction routes and missing-input reporting.
+`esme_analysis.py` and `figures.py` own reusable study logic under normal type and test coverage.
+Root scripts only adapt command arguments. See [development.md](development.md) for checks
+and the guarantees that require external execution.

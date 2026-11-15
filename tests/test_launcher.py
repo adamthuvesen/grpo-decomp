@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from grpo_decomp.registries import TrainDataset, get_prompt_strategy, register_train_dataset
+from grpo_decomp.registries import TRAIN_DATASETS, TrainDataset, get_prompt_strategy
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 from grpo_decomp.train.config import ArmConfig
 from grpo_decomp.train.launcher import (
@@ -36,7 +36,8 @@ def test_prepare_run_creates_dir_and_writes_provenance(tmp_path) -> None:
     arm = ArmConfig(name="correct", base_model="Qwen/Qwen2.5-Math-1.5B", reward="correct", seed=3)
     run_dir = prepare_run(arm, _problems(), validation_size=256, output_root=tmp_path)
 
-    assert run_dir == tmp_path / "correct-seed3"
+    assert run_dir.parent == tmp_path / "correct-seed3" / "attempts"
+    assert len(run_dir.name) == 32
     provenance = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
     assert provenance["arm"] == "correct"
     assert provenance["reward"] == "correct"
@@ -72,7 +73,7 @@ def test_smoke_overrides_is_a_noop_without_max_steps() -> None:
     assert smoke_overrides(arm, None) is arm
 
 
-def test_load_train_and_validation_uses_registered_dataset() -> None:
+def test_load_train_and_validation_uses_registered_dataset(monkeypatch) -> None:
     # The launcher dispatches on ArmConfig.dataset via the train-dataset registry; how the
     # (train, validation) split is derived is the registered dataset's concern.
     train_ref = DatasetRef(name="dummy", config="x", split="train", revision="r")
@@ -89,7 +90,9 @@ def test_load_train_and_validation_uses_registered_dataset() -> None:
         seen.append(seed)
         return train_set, val_set
 
-    register_train_dataset(TrainDataset(name="__launcher_test__", load=_load))
+    monkeypatch.setitem(
+        TRAIN_DATASETS, "__launcher_test__", TrainDataset(name="__launcher_test__", load=_load)
+    )
     arm = ArmConfig(
         name="cd", base_model="m", reward="correct", dataset="__launcher_test__", seed=7
     )
@@ -105,3 +108,119 @@ def test_load_train_and_validation_rejects_unknown_dataset() -> None:
     )
     with pytest.raises(ValueError, match="unknown dataset"):
         _load_train_and_validation(arm)
+
+
+@pytest.mark.parametrize("max_steps", [0, -1, True])
+def test_smoke_overrides_revalidates_invalid_steps(max_steps) -> None:
+    arm = ArmConfig(name="correct", base_model="m", reward="correct", seed=0)
+    with pytest.raises(ValueError):
+        smoke_overrides(arm, max_steps)
+
+
+def test_prepare_run_rejects_symlink_escape(tmp_path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "correct-seed0").symlink_to(outside, target_is_directory=True)
+    arm = ArmConfig(name="correct", base_model="m", reward="correct", seed=0)
+    with pytest.raises(ValueError, match="escapes output root"):
+        prepare_run(arm, _problems(), validation_size=1, output_root=root)
+    assert list(outside.iterdir()) == []
+
+
+def test_repeated_attempt_preserves_completed_checkpoint(tmp_path) -> None:
+    from grpo_decomp.provenance import completed_checkpoint, load_run_provenance
+    from grpo_decomp.train.provenance import finish_run
+
+    arm = ArmConfig(name="correct", base_model="m", reward="correct", seed=0)
+    first = prepare_run(arm, _problems(), validation_size=1, output_root=tmp_path)
+    first_provenance = (first / "provenance.json").read_bytes()
+    final = first / "checkpoints" / "final"
+    final.mkdir(parents=True)
+    with pytest.raises(ValueError, match="not completed"):
+        completed_checkpoint(first)
+    finish_run(first)
+    second = prepare_run(
+        smoke_overrides(arm, 3), _problems(), validation_size=1, output_root=tmp_path
+    )
+    assert first != second
+    alias = tmp_path / "correct-seed0"
+    assert completed_checkpoint(alias) == final
+    assert load_run_provenance(alias).grpo.max_steps == 500
+    finish_run(second, error="setup failed")
+    assert completed_checkpoint(alias) == final
+    assert (first / "provenance.json").read_bytes() == first_provenance
+
+
+@pytest.mark.parametrize("failure", ["tokenizer", "constructor", "train", "save", None])
+def test_launch_tracks_setup_and_training_failures(tmp_path, monkeypatch, failure) -> None:
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    import grpo_decomp.train.launcher as launcher
+    from grpo_decomp.provenance import completed_checkpoint, load_run_provenance
+
+    cleanup = []
+    monkeypatch.setattr(launcher, "_shutdown_distributed", lambda: cleanup.append(True))
+    monkeypatch.setattr(
+        launcher, "_load_train_and_validation", lambda arm: (_problems(), _problems())
+    )
+
+    class Tokenizer:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            if failure == "tokenizer":
+                raise RuntimeError("tokenizer failed")
+            return SimpleNamespace(pad_token=None, eos_token="eos", padding_side="right")
+
+    class Trainer:
+        def __init__(self, **kwargs):
+            if failure == "constructor":
+                raise RuntimeError("constructor failed")
+
+        def train(self):
+            if failure == "train":
+                raise RuntimeError("train failed")
+
+        def save_model(self, path):
+            Path(path).mkdir(parents=True)
+            if failure == "save":
+                raise RuntimeError("save failed")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        SimpleNamespace(AutoTokenizer=Tokenizer, PreTrainedTokenizerBase=type("TokenBase", (), {})),
+    )
+    monkeypatch.setitem(
+        sys.modules, "trl", SimpleNamespace(GRPOConfig=lambda **kw: kw, GRPOTrainer=Trainer)
+    )
+    arm = ArmConfig(name="correct", base_model="m", reward="correct", seed=0)
+    if failure:
+        with pytest.raises(RuntimeError, match=failure):
+            launcher.launch(arm, output_root=tmp_path, max_steps=2)
+        run = next((tmp_path / "correct-seed0" / "attempts").iterdir())
+        status = json.loads((run / "status.json").read_text())
+        assert status["state"] == "failed"
+        with pytest.raises(ValueError, match="no completed"):
+            completed_checkpoint(tmp_path / "correct-seed0")
+    else:
+        run = launcher.launch(arm, output_root=tmp_path, max_steps=2)
+        assert completed_checkpoint(tmp_path / "correct-seed0") == run / "checkpoints" / "final"
+        assert load_run_provenance(run).validation_identity is not None
+    assert cleanup == [True]
+
+
+@pytest.mark.parametrize("kwargs", [{"smoke_problems": 0}, {"max_steps": 0}])
+def test_invalid_launch_stops_before_dataset_or_output(tmp_path, monkeypatch, kwargs) -> None:
+    import grpo_decomp.train.launcher as launcher
+
+    monkeypatch.setattr(
+        launcher, "_load_train_and_validation", lambda arm: pytest.fail("loaded data")
+    )
+    arm = ArmConfig(name="correct", base_model="m", reward="correct", seed=0)
+    with pytest.raises(ValueError):
+        launcher.launch(arm, output_root=tmp_path, **kwargs)
+    assert list(tmp_path.iterdir()) == []

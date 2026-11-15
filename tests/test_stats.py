@@ -126,7 +126,7 @@ def test_seed_problem_bootstrap_keeps_problem_variance_that_seed_level_t_drops()
 
 def test_seed_problem_bootstrap_rejects_a_flat_vector() -> None:
     with pytest.raises(ValueError, match="matrix"):
-        seed_problem_bootstrap_ci([0.1, 0.2])  # type: ignore[list-item]
+        seed_problem_bootstrap_ci([0.1, 0.2])  # pyright: ignore[reportArgumentType]  # a flat vector is the invalid input under test
 
 
 def test_holm_correction_hand_example_and_order() -> None:
@@ -155,3 +155,11 @@ def test_holm_correction_validates() -> None:
 def test_sign_flip_floor_is_two_over_two_to_the_n() -> None:
     assert sign_flip_p_value([0.9, 0.95, 0.97, 0.96, 0.96, 0.98]) == pytest.approx(2 / 64)
     assert sign_flip_p_value([0.1, -0.1, 0.1, -0.1]) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_sign_flip_rejects_nonfinite_effects(value) -> None:
+    from grpo_decomp.stats.significance import sign_flip_p_value
+
+    with pytest.raises(ValueError, match="finite"):
+        sign_flip_p_value([0.1, value])

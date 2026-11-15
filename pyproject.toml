@@ -7,6 +7,8 @@ name = "grpo-decomp"
 version = "0.1.0"
 description = "Controls-first tool for analyzing what drives GRPO gains."
 readme = "README.md"
+# Python 3.13, not 3.14: the Modal image's locked vllm 0.17.1 pulls numba 0.61, llvmlite 0.44,
+# outlines-core and xgrammar, which have no cp314 wheels (2026-11-06).
 requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [
@@ -56,65 +58,114 @@ eval = [
     "eval-audit @ git+https://github.com/adamthuvesen/eval-audit@6690f493033094a6ced9a749d57a714c383f8a87",
 ]
 dev = [
-    "pytest>=8",
-    "ruff>=0.6",
+    "pytest>=9.1.1",
+    "ruff==0.17.4",
     "pre-commit>=3.8",
     # The Modal launcher CLI (`modal run modal_app.py`). A dev/launch tool, not a
     # runtime dep the GPU image installs — the image bakes only the `train` extra.
     # Pinned to the surface modal_app.py targets (modal.App / string GPU / spawn-by-default).
     "modal==1.5.0",
-    "mypy>=2.2,<3",
+    "basedpyright==1.40.2",
     "types-pyyaml>=6.0.12.20260518",
+    "import-linter>=2.15",
+    "matplotlib==3.11.0",
 ]
 
 [project.scripts]
-grpo-decomp = "grpo_decomp.eval.cli:main"
-
-# The reference study registers its datasets/rewards/task profiles into the harness via
-# this entry point; the harness discovers it at runtime (see grpo_decomp.plugins) without
-# importing the study, keeping the dependency one-way.
-[project.entry-points."grpo_decomp.plugins"]
-gsm8k = "llm_grpo_gains.registration:register"
+grpo-decomp = "llm_grpo_gains.cli:main"
+grpo-study = "llm_grpo_gains.workflows:main"
 
 [tool.ruff]
 line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "N", "PTH", "RUF", "PGH003", "PGH004", "TID251"]
+ignore = ["E501"]
+
+# Whole-module bans. A per-file TID251 ignore lifts every ban for that file, so
+# tests/test_banned_modules.py holds each owner to the modules it owns.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"subprocess".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"pty".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.system".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.popen".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.execv".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.execve".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.execl".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.execlp".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.execvp".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.spawnv".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.spawnve".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.spawnl".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.spawnlp".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"os.spawnvp".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"asyncio.subprocess".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"asyncio.create_subprocess_exec".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"asyncio.create_subprocess_shell".msg = "Run processes only in an owner file, such as src/grpo_decomp/provenance.py for git calls. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"socket".msg = "Do not call the network: read a committed fixture under tests/fixtures instead. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"http.client".msg = "Do not call the network: read a committed fixture under tests/fixtures instead. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"urllib.request".msg = "Do not call the network: read a committed fixture under tests/fixtures instead. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"requests".msg = "Do not call the network: read a committed fixture under tests/fixtures instead. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"httpx".msg = "Do not call the network: read a committed fixture under tests/fixtures instead. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"huggingface_hub".msg = "Do not download from the Hub: load data through the datasets owners in src/llm_grpo_gains/data/. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"datasets".msg = "Load datasets only in src/llm_grpo_gains/data/<set>.py or src/grpo_decomp/train/launcher.py; elsewhere read a committed fixture. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"modal".msg = "Use Modal only in modal_app.py, which gates paid runs behind --approved. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"openai".msg = "Do not call a paid model API: score committed CompletionSets under tests/fixtures instead. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"anthropic".msg = "Do not call a paid model API: score committed CompletionSets under tests/fixtures instead. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+"snowflake".msg = "Do not use a warehouse driver: this repo reads only local data files. To add an owner, list the file in OWNERS in tests/test_banned_modules.py and give it a TID251 per-file-ignore in pyproject.toml."
+
+# Owners of a banned module (see tests/test_banned_modules.py::OWNERS).
+[tool.ruff.lint.per-file-ignores]
+"src/grpo_decomp/provenance.py" = ["TID251"]
+"src/grpo_decomp/train/launcher.py" = ["TID251"]
+"src/llm_grpo_gains/data/gsm8k.py" = ["TID251"]
+"src/llm_grpo_gains/data/gsm8k_platinum.py" = ["TID251"]
+"src/llm_grpo_gains/data/gsm_plus.py" = ["TID251"]
+"src/llm_grpo_gains/data/gsm_symbolic.py" = ["TID251"]
+"src/llm_grpo_gains/workflows.py" = ["TID251"]
+"modal_app.py" = ["TID251"]
+"tests/test_architecture.py" = ["TID251"]
+"tests/test_esme_countdown_decomp.py" = ["TID251"]
+"tests/test_packaging.py" = ["TID251"]
+"tests/test_strict_mode.py" = ["TID251"]
+".agents/skills/verify-grpo-decomp/drives.py" = ["TID251"]
+".agents/skills/verify-grpo-decomp/launch_plan.py" = ["TID251"]
+".agents/skills/verify-grpo-decomp/verify" = ["TID251"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["grpo_decomp", "llm_grpo_gains"]
 
-[tool.mypy]
-python_version = "3.13"
-files = ["src/grpo_decomp", "src/llm_grpo_gains"]
-check_untyped_defs = true
-disallow_untyped_defs = true
-warn_redundant_casts = true
-warn_unreachable = true
-warn_unused_configs = true
-warn_unused_ignores = true
+[tool.basedpyright]
+typeCheckingMode = "strict"
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = "error"
+pythonVersion = "3.13"
+include = ["src/grpo_decomp", "src/llm_grpo_gains", "scripts", "tests", "modal_app.py"]
+exclude = ["**/__pycache__", ".venv", ".verify"]
+venvPath = "."
+venv = ".venv"
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportUnknownLambdaType = false
+reportMissingTypeStubs = false
 
-[[tool.mypy.overrides]]
-module = [
-    "datasets",
-    "eval_audit.*",
-    "math_verify",
-    "scipy.*",
-    "torch.*",
-    "transformers.*",
-    "trl.*",
-    "vllm.*",
-]
-ignore_missing_imports = true
+[[tool.basedpyright.executionEnvironments]]
+root = "tests"
+reportMissingParameterType = false
+reportPrivateUsage = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
-addopts = "-q -m 'not integration'"
+addopts = "-q -m 'not integration and not gpu and not slow'"
+strict_markers = true
 markers = [
+    "slow: offline but too slow for the fast lane; runs in make slow",
     "integration: hits the network / HuggingFace; deselected by default",
+    "gpu: requires explicit local CUDA hardware and generate dependencies",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -123,3 +174,27 @@ packages = ["src/grpo_decomp", "src/llm_grpo_gains"]
 # Required for the eval-audit git dependency (not published to PyPI).
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.importlinter]
+root_packages = ["grpo_decomp", "llm_grpo_gains"]
+
+[[tool.importlinter.contracts]]
+name = "grpo_decomp must not import llm_grpo_gains; move shared code down into grpo_decomp"
+type = "forbidden"
+source_modules = ["grpo_decomp"]
+forbidden_modules = ["llm_grpo_gains"]
+
+[[tool.importlinter.contracts]]
+name = "grpo_decomp modules import only lower layers; move shared code to a lower layer such as schemas"
+type = "layers"
+containers = ["grpo_decomp"]
+exhaustive = true
+layers = [
+    "cli | jobs",
+    "report",
+    "eval | train",
+    "rewards | prompts",
+    "registries",
+    "stats | splits | provenance | grading",
+    "schemas",
+]

@@ -8,6 +8,9 @@ different numbers. Three configs of increasing difficulty: ``main`` (5000),
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any, cast
+
 from datasets import load_dataset
 
 from grpo_decomp.schemas import DatasetRef, ProblemSet
@@ -30,7 +33,9 @@ def load_gsm_symbolic(config: str = "main", *, revision: str = REVISION) -> Prob
         raise ValueError(f"GSM-Symbolic has configs {_CONFIGS}, got {config!r}")
 
     ref = DatasetRef(name=NAME, config=config, split="test", revision=revision)
-    rows = load_dataset(NAME, config, split="test", revision=revision)
+    rows = cast(
+        "Iterable[dict[str, Any]]", load_dataset(NAME, config, split="test", revision=revision)
+    )
     return build_problem_set(
         rows,
         ref=ref,

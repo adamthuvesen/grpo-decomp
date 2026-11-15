@@ -9,26 +9,22 @@ from completion_set_fixtures import problem_set, write_completion_set_dir
 
 from grpo_decomp.eval.completions import load_completion_set
 from grpo_decomp.registries import EVAL_SETS
-from grpo_decomp.report.inputs import (
-    base_and_correct_seeds,
-    seed_label,
-    validate_aligned_artifacts,
-)
+from grpo_decomp.report.evidence import ArmInput, ComparisonInputs
+from grpo_decomp.report.inputs import base_and_correct_seeds, seed_label
 
 
-def test_validate_aligned_artifacts_accepts_matching_numeric_suffix_order(tmp_path) -> None:
+def test_comparison_inputs_accept_matching_numeric_suffix_order(tmp_path) -> None:
     write_completion_set_dir(
         tmp_path / "base__mini", model="base", boxed="4", ids=("p1", "p2", "p10")
     )
     write_completion_set_dir(
         tmp_path / "correct__mini", model="correct", boxed="4", ids=("p1", "p2", "p10")
     )
-    validate_aligned_artifacts(
-        "mini",
-        {
-            "base": load_completion_set(tmp_path / "base__mini"),
-            "correct": load_completion_set(tmp_path / "correct__mini"),
-        },
+    ComparisonInputs(
+        tuple(
+            ArmInput(arm, None, load_completion_set(tmp_path / f"{arm}__mini"))
+            for arm in ("base", "correct")
+        )
     )
 
 
@@ -83,10 +79,13 @@ def test_base_and_correct_seeds_rejects_mismatched_correct_sample_counts(
         temperature=0.7,
     )
 
-    with pytest.raises(ValueError, match=r"share sampling\.n"):
+    with pytest.raises(ValueError, match=r"share n"):
         base_and_correct_seeds(tmp_path, "mini")
 
 
 def test_seed_label_from_battery_dir() -> None:
     assert seed_label(Path("battery")) == 0
     assert seed_label(Path("battery-seed2")) == 2
+    assert seed_label(Path("battery-countdown")) == 0
+    assert seed_label(Path("battery-countdown-math")) == 0
+    assert seed_label(Path("battery-countdown-seed3")) == 3

@@ -8,6 +8,9 @@ never a silent drop, which would quietly corrupt every downstream accuracy numbe
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any, cast
+
 from datasets import load_dataset
 
 from grpo_decomp.schemas import DatasetRef, ProblemSet
@@ -32,7 +35,9 @@ def load_gsm8k(split: str, *, revision: str = REVISION) -> ProblemSet:
         raise ValueError(f"GSM8K has splits {_SPLITS}, got {split!r}")
 
     ref = DatasetRef(name=NAME, config=CONFIG, split=split, revision=revision)
-    rows = load_dataset(NAME, CONFIG, split=split, revision=revision)
+    rows = cast(
+        "Iterable[dict[str, Any]]", load_dataset(NAME, CONFIG, split=split, revision=revision)
+    )
     return build_problem_set(
         rows,
         ref=ref,

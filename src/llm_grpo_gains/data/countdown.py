@@ -15,7 +15,7 @@ This module is the task's single source of truth, shared by three callers:
   output.
 
 Solvability is guaranteed because a target is only chosen if it is reachable from the numbers
-(`reachable_targets`), which also gives `solve_countdown` a witness for tests.
+(`reachable_targets`).
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ import hashlib
 import random
 from collections import Counter
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from fractions import Fraction
 from functools import lru_cache
 from typing import TypeGuard
@@ -32,8 +33,6 @@ from typing import TypeGuard
 from pydantic import Field
 
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet, Record
-
-# --- The canonical answer key (encoded in Problem.gold_answer) --------------------------
 
 #: LaTeX / unicode operators a boxed answer may use, normalized to ASCII before parsing.
 _OPERATOR_ALIASES = {
@@ -76,14 +75,21 @@ def parse_countdown_key(key: str) -> tuple[tuple[int, ...], int]:
     return numbers, target
 
 
-# --- The restricted verifier (used on untrusted model output) ---------------------------
+@dataclass(frozen=True)
+class ExpressionGrammar:
+    """The operator contract used to grade a Countdown variant."""
 
-_ALLOWED_BINOPS = (ast.Add, ast.Sub, ast.Mult, ast.Div)
-_ALLOWED_UNARYOPS = (ast.UAdd, ast.USub)
+    allow_division: bool
+    allow_unary: bool
+    normalize_operators: bool
 
 
-class _InvalidExpressionError(Exception):
-    """The expression uses a token outside the Countdown grammar (or divides by zero)."""
+COUNTDOWN_GRAMMAR = ExpressionGrammar(
+    allow_division=True, allow_unary=True, normalize_operators=True
+)
+ESME_COUNTDOWN_GRAMMAR = ExpressionGrammar(
+    allow_division=False, allow_unary=False, normalize_operators=False
+)
 
 
 def _normalize_expression(text: str) -> str:
@@ -93,71 +99,87 @@ def _normalize_expression(text: str) -> str:
     return text
 
 
-def _eval_node(
-    node: ast.AST, allowed_binops: tuple[type[ast.operator], ...]
-) -> tuple[Fraction, list[int]]:
-    """Evaluate an AST node exactly, returning ``(value, leaf_numbers)``.
-
-    Only numeric literals, ``+ - * /``, unary ±, and parentheses are admitted; anything
-    else (a name, call, attribute, ``**``) raises `_InvalidExpressionError`.
-    """
-    if isinstance(node, ast.BinOp) and isinstance(node.op, allowed_binops):
-        left, left_leaves = _eval_node(node.left, allowed_binops)
-        right, right_leaves = _eval_node(node.right, allowed_binops)
-        leaves = left_leaves + right_leaves
-        if isinstance(node.op, ast.Add):
-            return left + right, leaves
-        if isinstance(node.op, ast.Sub):
-            return left - right, leaves
-        if isinstance(node.op, ast.Mult):
-            return left * right, leaves
-        if right == 0:  # Div
-            raise _InvalidExpressionError("division by zero")
-        return left / right, leaves
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, _ALLOWED_UNARYOPS):
-        value, leaves = _eval_node(node.operand, allowed_binops)
-        return (value if isinstance(node.op, ast.UAdd) else -value), leaves
-    if isinstance(node, ast.Constant) and _is_plain_int(node.value):
-        return Fraction(node.value), [node.value]
-    raise _InvalidExpressionError(f"disallowed node {type(node).__name__}")
-
-
 def _is_plain_int(value: object) -> TypeGuard[int]:
-    """An integer literal, excluding `bool` (an int subclass) so `True` isn't the number 1."""
+    """Exclude bool, an int subclass, from integer literals."""
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def _evaluate_expression(
-    text: str, *, allow_division: bool = True, normalize_operators: bool = True
+def evaluate_expression(
+    text: str,
+    *,
+    grammar: ExpressionGrammar = COUNTDOWN_GRAMMAR,
+    numbers: Sequence[int] | None = None,
 ) -> tuple[Fraction, list[int]] | None:
-    """Exactly evaluate a Countdown expression, or None if it is malformed/disallowed.
+    """Parse once and evaluate exactly, rejecting invalid grammar and unavailable numbers.
 
-    Returns ``(value, leaf_numbers)`` — the rational value and the integer literals used —
-    so a caller can check both the target and the number budget. Never executes the string.
+    The traversal is iterative so long untrusted expressions cannot exhaust Python's
+    evaluator stack. Number budgets are checked before any arithmetic is evaluated.
     """
+    if grammar.normalize_operators:
+        text = _normalize_expression(text)
     try:
-        if normalize_operators:
-            text = _normalize_expression(text)
         tree = ast.parse(text.strip(), mode="eval")
-    except (SyntaxError, ValueError):
+    except (SyntaxError, ValueError, RecursionError):
         return None
-    try:
-        allowed_binops = _ALLOWED_BINOPS if allow_division else (ast.Add, ast.Sub, ast.Mult)
-        return _eval_node(tree.body, allowed_binops)
-    except _InvalidExpressionError:
+    except MemoryError as exc:
+        if "Parser stack overflowed" not in str(exc):
+            raise
         return None
-
-
-def evaluate_expression(text: str) -> tuple[Fraction, list[int]] | None:
-    """Exactly evaluate a general Countdown expression, or None when invalid."""
-    return _evaluate_expression(text)
+    allowed_binops = (
+        (ast.Add, ast.Sub, ast.Mult, ast.Div)
+        if grammar.allow_division
+        else (ast.Add, ast.Sub, ast.Mult)
+    )
+    remaining = Counter(numbers) if numbers is not None else None
+    leaves: list[int] = []
+    nodes: list[ast.AST] = []
+    pending: list[ast.AST] = [tree.body]
+    while pending:
+        node = pending.pop()
+        nodes.append(node)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, allowed_binops):
+            pending.extend((node.right, node.left))
+        elif (
+            isinstance(node, ast.UnaryOp)
+            and grammar.allow_unary
+            and isinstance(node.op, (ast.UAdd, ast.USub))
+        ):
+            pending.append(node.operand)
+        elif isinstance(node, ast.Constant) and _is_plain_int(node.value):
+            if remaining is not None:
+                if remaining[node.value] <= 0:
+                    return None
+                remaining[node.value] -= 1
+            leaves.append(node.value)
+        else:
+            return None
+    values: dict[ast.AST, Fraction] = {}
+    for node in reversed(nodes):
+        if isinstance(node, ast.Constant) and _is_plain_int(node.value):
+            values[node] = Fraction(node.value)
+        elif isinstance(node, ast.UnaryOp):
+            value = values[node.operand]
+            values[node] = value if isinstance(node.op, ast.UAdd) else -value
+        elif isinstance(node, ast.BinOp):
+            left, right = values[node.left], values[node.right]
+            if isinstance(node.op, ast.Add):
+                values[node] = left + right
+            elif isinstance(node.op, ast.Sub):
+                values[node] = left - right
+            elif isinstance(node.op, ast.Mult):
+                values[node] = left * right
+            elif right == 0:
+                return None
+            else:
+                values[node] = left / right
+    return values[tree.body], leaves
 
 
 def is_valid_countdown_solution(text: str, numbers: Sequence[int], target: int) -> bool:
     """True iff `text` is a legal Countdown solution: each source number used at most once,
     only ``+ - * /``, and it evaluates exactly to the target.
     """
-    evaluated = evaluate_expression(text)
+    evaluated = evaluate_expression(text, numbers=numbers)
     if evaluated is None:
         return False
     value, leaves = evaluated
@@ -176,9 +198,6 @@ def countdown_is_correct(extracted: str | None, gold: str) -> bool:
         return False
     numbers, target = parse_countdown_key(gold)
     return is_valid_countdown_solution(extracted, numbers, target)
-
-
-# --- Reachability (guarantees solvability + provides witnesses) -------------------------
 
 
 def _combine(a: Fraction, b: Fraction) -> Iterator[Fraction]:
@@ -221,14 +240,6 @@ def _reachable_integers(numbers: tuple[int, ...]) -> frozenset[int]:
 def reachable_targets(numbers: Sequence[int], *, lo: int, hi: int) -> list[int]:
     """Sorted integer targets in ``[lo, hi]`` reachable from `numbers` (guarantees a solution)."""
     return sorted(t for t in _reachable_integers(tuple(sorted(numbers))) if lo <= t <= hi)
-
-
-def solve_countdown(numbers: Sequence[int], target: int) -> bool:
-    """True iff some legal expression over `numbers` reaches `target` — for tests/guards."""
-    return target in _reachable_integers(tuple(sorted(numbers)))
-
-
-# --- The generator ----------------------------------------------------------------------
 
 
 class CountdownConfig(Record):

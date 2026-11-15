@@ -66,11 +66,17 @@ def render_mechanism(report: MechanismReport) -> str:
         "",
         report.headline(),
         "",
-        f"base already reliable {report.frac_base_already_reliable * 100:.1f}% · "
+        f"retained reliability {report.frac_base_already_reliable * 100:.1f}% · "
         f"migrated {report.frac_migrated_to_reliable * 100:.1f}% · "
-        f"new {report.frac_new_capability * 100:.1f}% · "
+        f"outside base envelope {report.frac_new_capability * 100:.1f}% · "
         f"still hard {report.frac_still_hard * 100:.1f}%",
     ]
+    if report.frac_lost_reliability is not None and report.frac_never_reliable is not None:
+        lines += [
+            "",
+            f"lost reliability {report.frac_lost_reliability * 100:.1f}% · "
+            f"never reliable {report.frac_never_reliable * 100:.1f}%",
+        ]
     return "\n".join(lines) + "\n"
 
 

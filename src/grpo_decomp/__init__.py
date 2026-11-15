@@ -9,8 +9,8 @@ package.
 
 # Side-effect imports register the harness's built-ins on `import grpo_decomp`, without
 # loading any study: the `r1_zero` prompt strategy and the `random` placebo reward.
-import grpo_decomp.prompts
-import grpo_decomp.rewards  # noqa: F401
+import grpo_decomp.prompts  # pyright: ignore[reportUnusedImport]  # imported for its registration side effect
+import grpo_decomp.rewards  # noqa: F401  # pyright: ignore[reportUnusedImport]  # imported for its registration side effect
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
 
 __version__ = "0.1.0"

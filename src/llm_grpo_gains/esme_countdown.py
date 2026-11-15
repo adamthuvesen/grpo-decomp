@@ -20,15 +20,17 @@ extractor recovers the expression before this verifier grades it.
 
 from __future__ import annotations
 
-import ast
 import json
 from collections import Counter
-from fractions import Fraction
 from functools import lru_cache
 from pathlib import Path
 
 from grpo_decomp.schemas import DatasetRef, Problem, ProblemSet
-from llm_grpo_gains.data.countdown import _evaluate_expression, parse_countdown_key
+from llm_grpo_gains.data.countdown import (
+    ESME_COUNTDOWN_GRAMMAR,
+    evaluate_expression,
+    parse_countdown_key,
+)
 
 #: The ``DatasetRef.name`` the emitter stamps and the verifier keys on.
 ESME_COUNTDOWN_SOURCE = "esme-countdown"
@@ -59,28 +61,13 @@ def load_esme_countdown(split: str = "heldout_large") -> ProblemSet:
     return problem_set
 
 
-def _evaluate(text: str) -> tuple[Fraction, list[int]] | None:
-    """Exactly evaluate an Esme Countdown expression, or None if malformed/disallowed.
-
-    Esme's grammar has no unary operators, so ``1 + + 5`` or ``-1 + 5`` is invalid here even
-    though the general Countdown grader accepts unary ±.
-    """
-    try:
-        tree = ast.parse(text.strip(), mode="eval")
-    except SyntaxError:
-        return None
-    if any(isinstance(node, ast.UnaryOp) for node in ast.walk(tree)):
-        return None
-    return _evaluate_expression(text, allow_division=False, normalize_operators=False)
-
-
 def is_valid_esme_countdown_solution(text: str, numbers: tuple[int, ...], target: int) -> bool:
     """True iff `text` is a legal Esme Countdown-Lite solution.
 
     Esme's rules: each supplied number is used **exactly once** (not merely at most once),
     only ``+ - *`` operators, and the expression evaluates to an integer equal to `target`.
     """
-    evaluated = _evaluate(text)
+    evaluated = evaluate_expression(text, grammar=ESME_COUNTDOWN_GRAMMAR, numbers=numbers)
     if evaluated is None:
         return False
     value, leaves = evaluated
@@ -98,23 +85,11 @@ def is_wellformed_esme_countdown(text: str, numbers: tuple[int, ...]) -> bool:
     check dropped. The graded training reward pays a valid expression whether or not it hits
     the target, so this axis shows what that partial credit teaches, apart from exact solving.
     """
-    evaluated = _evaluate(text)
+    evaluated = evaluate_expression(text, grammar=ESME_COUNTDOWN_GRAMMAR, numbers=numbers)
     if evaluated is None:
         return False
     _value, leaves = evaluated
     return Counter(leaves) == Counter(numbers)
-
-
-def esme_countdown_is_wellformed(extracted: str | None, gold: str) -> bool:
-    """`is_wellformed_esme_countdown` on an extracted expression + Esme key (verifier signature).
-
-    Mirrors `esme_countdown_is_correct` but grades well-formedness rather than exact solve,
-    so the same extraction path feeds both the exact-solve and valid-expression axes.
-    """
-    if extracted is None:
-        return False
-    numbers, _target = parse_countdown_key(gold)
-    return is_wellformed_esme_countdown(extracted, numbers)
 
 
 def esme_countdown_is_correct(extracted: str | None, gold: str) -> bool:

@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from collections.abc import Iterable
+from typing import Any, cast
 
 from datasets import load_dataset
 
@@ -57,7 +58,7 @@ def load_gsm_plus(split: str = "test", *, revision: str = REVISION) -> ProblemSe
         raise ValueError(f"GSM-Plus has splits {_SPLITS}, got {split!r}")
 
     ref = DatasetRef(name=NAME, config=None, split=split, revision=revision)
-    rows = load_dataset(NAME, split=split, revision=revision)
+    rows = cast("Iterable[dict[str, Any]]", load_dataset(NAME, split=split, revision=revision))
 
     problems = []
     excluded = 0

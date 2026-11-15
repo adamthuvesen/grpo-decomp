@@ -1,15 +1,12 @@
 """The plug-in surface between the harness and a study.
 
 ``grpo_decomp`` is task-agnostic: it knows how to train a GRPO arm, sample a
-``CompletionSet``, grade it, and decompose the gain — but it does not know what GSM8K
-or Countdown are. A *study* (e.g. ``llm_grpo_gains``) or a new RL task fills these
-registries with its concrete datasets, rewards, verifiers, prompt strategies, and task
-profiles. Registration happens either by importing this module and calling the
-``register_*`` functions directly, or — for the CLI and Modal entrypoints — via a
-``grpo_decomp.plugins`` entry point loaded at startup (see :mod:`grpo_decomp.plugins`).
+``CompletionSet``, grade it, and decompose the gain, but it does not know what GSM8K
+or Countdown are. A study (e.g. ``llm_grpo_gains``) fills these mappings with its
+datasets, rewards, verifiers, prompt strategies, and task profiles when its registration
+module is imported (see :mod:`llm_grpo_gains.registration`).
 
-The dependency is one-way: the harness never imports a study. That is what lets the
-owner point this stack at their own model + task without forking it.
+The dependency is one-way: the harness never imports a study.
 """
 
 from __future__ import annotations
@@ -21,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 from grpo_decomp.schemas import DatasetRef, ProblemSet
 
 if TYPE_CHECKING:
-    from grpo_decomp.train.provenance import RunProvenance
+    from grpo_decomp.provenance import RunProvenance
 
 #: The placebo reward, provided by the harness (it is the control the method leans on).
 PLACEBO_REWARD = "random"
@@ -29,8 +26,6 @@ PLACEBO_REWARD = "random"
 #: The harness's default prompt strategy (registered in :mod:`grpo_decomp.prompts`).
 DEFAULT_PROMPT_STRATEGY = "r1_zero"
 
-
-# --- types ---------------------------------------------------------------------------
 
 #: A reward: generated ``completions`` + forwarded dataset columns -> one score each.
 RewardFn = Callable[..., list[float]]
@@ -85,8 +80,6 @@ class EvalTaskProfile:
     passk_multiseed_root: str
 
 
-# --- the registries ------------------------------------------------------------------
-
 EVAL_SETS: dict[str, EvalSetLoader] = {}
 TRAIN_DATASETS: dict[str, TrainDataset] = {}
 REWARDS: dict[str, RewardFactory] = {}
@@ -96,56 +89,32 @@ PROMPT_STRATEGIES: dict[str, PromptStrategy] = {}
 TASKS: dict[str, EvalTaskProfile] = {}
 #: ``eval-set slug -> human label`` for the controlled report rows.
 PROBES: dict[str, str] = {}
+#: The study's default ``"task"`` and ``"training dataset"`` names.
+DEFAULTS: dict[str, str] = {}
 
 
-# --- registration --------------------------------------------------------------------
+def add_new[T](registry: dict[str, T], entries: dict[str, T]) -> None:
+    """Add `entries`, refusing any name already registered (the placebo `random` included)."""
+    taken = sorted(entries.keys() & registry.keys())
+    if taken:
+        raise ValueError(f"already registered: {taken}")
+    registry.update(entries)
 
 
-def register_eval_set(name: str, loader: EvalSetLoader) -> None:
-    """Register a named eval set (a ``generate --set`` target)."""
-    EVAL_SETS[name] = loader
+def default_task() -> str | None:
+    """Return the study's explicitly selected task, or None without a study default."""
+    return DEFAULTS.get("task")
 
 
-def register_train_dataset(dataset: TrainDataset) -> None:
-    """Register a training dataset (an ``ArmConfig.dataset`` value)."""
-    TRAIN_DATASETS[dataset.name] = dataset
+def default_task_set() -> str | None:
+    """Return the study's default eval set, or None without a registered default."""
+    name = DEFAULTS.get("task")
+    return get_task_profile(name).task_set if name is not None else None
 
 
-def register_reward(name: str, factory: RewardFactory) -> None:
-    """Register a reward factory (an ``ArmConfig.reward`` value)."""
-    REWARDS[name] = factory
-
-
-def register_verifier(source_name: str, verifier: Verifier) -> None:
-    """Register a grading verifier for a dataset, keyed on ``DatasetRef.name``.
-
-    Datasets without an override are graded by the harness default (math-verify equality
-    on the boxed answer), so most math tasks register nothing here.
-    """
-    VERIFIERS[source_name] = verifier
-
-
-def register_validation_reconstructor(source_name: str, fn: ValidationReconstructor) -> None:
-    """Register how to rebuild a run's held-out split, keyed on ``DatasetRef.name``."""
-    VALIDATION_RECONSTRUCTORS[source_name] = fn
-
-
-def register_prompt_strategy(strategy: PromptStrategy) -> None:
-    """Register a prompt strategy (an ``ArmConfig.prompt_strategy`` / ``--prompt-strategy``)."""
-    PROMPT_STRATEGIES[strategy.name] = strategy
-
-
-def register_task(name: str, profile: EvalTaskProfile) -> None:
-    """Register an eval/Modal task profile."""
-    TASKS[name] = profile
-
-
-def register_control_set(slug: str, probe: str) -> None:
-    """Register a control eval set and its human-readable probe label."""
-    PROBES[slug] = probe
-
-
-# --- lookup --------------------------------------------------------------------------
+def default_train_dataset() -> str | None:
+    """Return the study's default training dataset, or None without a registered default."""
+    return DEFAULTS.get("training dataset")
 
 
 def get_prompt_strategy(name: str) -> PromptStrategy:
@@ -166,15 +135,24 @@ def get_task_profile(name: str) -> EvalTaskProfile:
         raise ValueError(f"eval task must be one of {tuple(sorted(TASKS))}, got {name!r}") from exc
 
 
-def verifier_for(source: DatasetRef) -> Verifier:
-    """Select the grading verifier for a dataset: a registered override, else the default.
-
-    The default is math-verify exact equality on the boxed answer (the harness's answer
-    contract); a task with a different notion of correctness registers its own verifier.
-    """
-    if source.name in VERIFIERS:
+def verifier_for(source: DatasetRef, *, name: str | None = None) -> Verifier:
+    """Resolve an explicit grader, or retain legacy source-name and boxed-math grading."""
+    if name is not None and name != "boxed-math":
+        try:
+            return VERIFIERS[name]
+        except KeyError as exc:
+            raise ValueError(f"unknown verifier {name!r} for dataset {source.name!r}") from exc
+    if name is None and source.name in VERIFIERS:
         return VERIFIERS[source.name]
-    # Lazy import keeps this module free of the eval layer at import time.
     from grpo_decomp.grading import is_correct
 
     return is_correct
+
+
+def verifier_identity(source: DatasetRef, *, name: str | None = None) -> str:
+    """Return the resolved grader key and callable identity for analysis provenance."""
+    verifier = verifier_for(source, name=name)
+    key = name if name is not None else source.name if source.name in VERIFIERS else "boxed-math"
+    module = getattr(verifier, "__module__", type(verifier).__module__)
+    qualified_name = getattr(verifier, "__qualname__", type(verifier).__qualname__)
+    return f"{key}:{module}.{qualified_name}"

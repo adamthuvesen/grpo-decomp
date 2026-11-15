@@ -1,61 +1,72 @@
 .DEFAULT_GOAL := check
-.PHONY: install fmt lint typecheck test test-integration check demo results aggregate test-docs reproduce-esme
+.NOTPARALLEL: check slow
+.PHONY: help install sync-check fix lint imports typecheck test test-integration verify-gpu check slow verify demo figures completion-schema results-check aggregate study-plan study-validate reproduce-esme
 
-install:  ## Sync the dev environment (incl. the CPU eval/stats layer)
-	uv sync --extra dev --extra eval
+RUN := uv run --locked --offline --no-sync
 
-fmt:  ## Auto-format and apply safe lint fixes
-	uv run ruff format .
-	uv run ruff check --fix .
+help:  ## List supported developer and study commands
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-lint:  ## Lint and format-check (no changes)
-	uv run ruff check .
-	uv run ruff format --check .
+install:  ## Install the locked CPU development and analysis environment
+	uv sync --locked --extra dev --extra eval
 
-typecheck:  ## Check source-package type annotations
-	uv run mypy
+sync-check:  ## Verify the locked CPU environment without network access
+	uv sync --locked --offline --extra dev --extra eval
 
-test:  ## Run unit tests (network tests deselected)
-	uv run pytest
+fix:  ## Auto-format and apply safe lint fixes
+	$(RUN) ruff check --fix . .agents/skills/verify-grpo-decomp/verify
+	$(RUN) ruff format . .agents/skills/verify-grpo-decomp/verify
 
-test-integration:  ## Run network/HuggingFace integration tests
-	uv run pytest -m integration
+lint:  ## Lint and format-check with the locked formatter version
+	$(RUN) ruff check . .agents/skills/verify-grpo-decomp/verify
+	$(RUN) ruff format --check . .agents/skills/verify-grpo-decomp/verify
 
-check: lint typecheck test test-docs  ## Local gate: lint + types + unit tests + docs consistency
+imports:  ## Enforce the harness layers and the one-way harness and study boundary
+	$(RUN) lint-imports --no-cache --no-logo
 
-test-docs:  ## docs <-> JSON consistency for committed headline numbers
-	uv run pytest tests/test_docs_consistency.py -q
+typecheck:  ## Check source, scripts, tests, and the verify helper (basedpyright strict)
+	$(RUN) basedpyright
+	$(RUN) basedpyright --project .agents/skills/verify-grpo-decomp
 
-demo:  ## Score committed mini CompletionSets; no model load, GPU, or network
-	@printf 'base fixture:\n'
-	uv run grpo-decomp battery --completions tests/fixtures/mini/base__mini --k 1
-	@printf '\ncorrect fixture:\n'
-	uv run grpo-decomp battery --completions tests/fixtures/mini/correct-seed0__mini --k 1
+test:  ## Run the fast offline CPU tests
+	$(RUN) pytest
 
-results:  ## Regenerate the committed figures from JSON, then verify docs <-> JSON consistency
-	uv run --with matplotlib python scripts/make_figures.py
-	uv run pytest tests/test_docs_consistency.py -q
+test-integration:  ## Run network and real transformers tests, with required dependencies
+	@$(RUN) python -c "import importlib.util, sys; missing = [name for name in ('torch', 'transformers') if importlib.util.find_spec(name) is None]; sys.exit('Missing integration dependencies: ' + ', '.join(missing) + '. Run uv sync --locked --extra dev --extra eval --extra generate') if missing else None"
+	$(RUN) pytest -m 'integration and not gpu'
 
-aggregate:  ## Re-derive the committed JSON from local completions (needs runs/ pulled; see docs/runbook)
-	uv run grpo-decomp report-passk-seeds  --completions-dir runs/passk-multiseed           --task-set gsm8k-test     --out results/pass8-multiseed.json
-	uv run grpo-decomp report-passk-seeds  --completions-dir runs/passk-multiseed-countdown --task-set countdown-test  --out results/countdown/pass8-multiseed.json
-	uv run grpo-decomp report-passk-seeds  --completions-dir runs/passk-multiseed           --task-set gsm-symbolic    --out results/decontam/pass8-symbolic.json
-	uv run grpo-decomp report-passk-seeds  --completions-dir runs/passk-multiseed           --task-set gsm8k-platinum  --out results/decontam/pass8-platinum.json
-	uv run grpo-decomp report-mechanism    --completions-dir runs/passk-multiseed           --task-set gsm8k-test     --out results/mechanism.json
-	uv run grpo-decomp report-mechanism    --completions-dir runs/passk-multiseed-countdown --task-set countdown-test  --out results/countdown/mechanism.json
-	uv run grpo-decomp report-control-seeds --battery-dirs runs/battery runs/battery-seed1 runs/battery-seed2 runs/battery-seed3 runs/battery-seed4 runs/battery-seed5 --out results/decomposition-multiseed.json
-	uv run grpo-decomp report-passk-seeds  --completions-dir runs/passk-multiseed-countdown-math --task-set countdown-test --out results/countdown-math/pass8-multiseed.json
-	uv run grpo-decomp report-mechanism    --completions-dir runs/passk-multiseed-countdown-math --task-set countdown-test --out results/countdown-math/mechanism.json
-	uv run grpo-decomp report-arm-vs-base  --battery-dirs runs/offpolicy/battery runs/offpolicy/battery-seed1 runs/offpolicy/battery-seed2 --arm random --task-set gsm8k-test --out results/offpolicy-placebo.json
+verify-gpu:  ## Run real local vLLM generation, fail when GPU prerequisites are absent
+	$(RUN) pytest tests/integration/test_gpu.py -m gpu
 
-ESME_COMPLETIONS := results/esme-countdown/completions
-ESME_SEEDS := 214 215 216 217 218 219
+check: sync-check lint imports typecheck test  ## Fast offline gate, the first CI job
 
-reproduce-esme:  ## Recompute the Esme result from committed completions; fail if it differs from the committed JSON
-	@out=$$(mktemp -d) && \
-	uv run python scripts/esme_sampled_decomp.py \
-		$(foreach s,$(ESME_SEEDS),--seed $(s)=$(ESME_COMPLETIONS)/seed$(s)) \
-		--base-completions-dir $(ESME_COMPLETIONS)/base__esme-countdown \
-		--out $$out > /dev/null && \
-	diff -u results/esme-countdown/sampled_multiseed_summary.json $$out/sampled_multiseed_summary.json && \
-	echo "reproduce-esme: recomputed summary matches results/esme-countdown/sampled_multiseed_summary.json"
+slow: check results-check  ## Full offline gate: fast lane, result reproduction, installed wheel
+	$(RUN) pytest -m slow
+
+verify:  ## Drive the real CLI and Modal launcher on CPU (ARGS=all|list|control|<drive>)
+	@$(RUN) python .agents/skills/verify-grpo-decomp/verify $(ARGS)
+
+demo:  ## Score committed mini CompletionSets without loading a model
+	$(RUN) grpo-decomp battery --completions tests/fixtures/mini/base__mini --k 1
+	$(RUN) grpo-decomp battery --completions tests/fixtures/mini/correct-seed0__mini --k 1
+
+figures:  ## Rewrite the committed figures from published result JSON
+	$(RUN) python scripts/make_figures.py
+
+completion-schema:  ## Rewrite docs/schemas/completion-set.schema.json from the CompletionSet models
+	$(RUN) python scripts/write_completion_schema.py
+
+results-check: reproduce-esme  ## Read-only: reproduce Esme results and compare figures in a temp dir
+	$(RUN) python -m llm_grpo_gains.workflows figures-check
+
+study-plan:  ## Show every study route, seed axis, output, and reproduction level
+	$(RUN) grpo-study plan
+
+study-validate:  ## Report all missing or invalid study reproduction inputs
+	$(RUN) grpo-study validate
+
+aggregate:  ## Rebuild external-completion aggregates from the study manifest
+	$(RUN) grpo-study aggregate
+
+reproduce-esme:  ## Reproduce the legacy Esme result exactly without changing published files
+	$(RUN) grpo-study reproduce --workflow esme --workflow esme-corrected

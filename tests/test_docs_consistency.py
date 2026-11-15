@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -27,7 +28,7 @@ _ARROW = "→"
 _TIMES = "\u00d7"  # multiplication sign
 
 
-def _load(rel: str) -> dict:
+def _load(rel: str) -> dict[str, Any]:
     return json.loads((_ROOT / rel).read_text())
 
 
@@ -49,7 +50,6 @@ def _pct(x: float, *, sign: bool = False, dp: int = 1) -> str:
     return f"{x * 100:+.{dp}f}" if sign else f"{x * 100:.{dp}f}"
 
 
-# --- committed artifacts: the single source of truth ------------------------
 _GP = _load("results/pass8-multiseed.json")  # GSM8K pass@8 panel (6 seeds)
 _CP8 = _load("results/countdown/pass8-multiseed.json")  # Countdown pass@8 (3 seeds)
 _GPL = _load("results/seed-placebo-comparison.json")  # GSM8K placebo (6 seeds)
@@ -66,7 +66,7 @@ _CDM = _load("results/countdown-math/pass8-multiseed.json")  # same-base Countdo
 _MECH_CDM = _load("results/countdown-math/mechanism.json")
 
 
-def _summary_control_comparison(needle: str) -> dict:
+def _summary_control_comparison(needle: str) -> dict[str, Any]:
     """The decomposition `comparison` whose control name contains `needle`."""
     for row in _SUM["rows"]:
         if needle in row["control"]:
@@ -74,7 +74,7 @@ def _summary_control_comparison(needle: str) -> dict:
     raise KeyError(needle)
 
 
-def _multiseed_control_row(control: str) -> dict:
+def _multiseed_control_row(control: str) -> dict[str, Any]:
     """The 6-seed control row for exactly `control` (decomposition-multiseed.json)."""
     for row in _DECOMP["rows"]:
         if row["control"] == control:
@@ -323,46 +323,20 @@ _CLAIMS: list[tuple[str, str, str]] = [
         _README,
         f"base {_pct(_CP8['base_passk'])}% {_ARROW} correct {_pct(_CP8['mean_correct_passk'])}%",
     ),
-    # -- Esme step-240 result (esme-countdown/sampled_multiseed_summary.json) --
-    *(
-        (
-            f"esme.{claim}-{metric}",
-            doc,
-            f"{_pct(_ESME_EFFECTS[metric]['mean_delta'], sign=True)} pp, 95% CI "
-            f"[{_pct(_ESME_EFFECTS[metric]['ci_low'], sign=True)}, "
-            f"{_pct(_ESME_EFFECTS[metric]['ci_high'], sign=True)}]",
-        )
-        for claim, doc, metrics in (
-            ("readme", _README, ("valid_rate",)),
-            ("result", _FIND_E, ("valid_rate", "exact_rate", "any_exact")),
-        )
-        for metric in metrics
+    # The Esme result page is generated and checked as a complete artifact below.
+    (
+        "esme.readme-valid_rate",
+        _README,
+        f"{_pct(_ESME_EFFECTS['valid_rate']['mean_delta'], sign=True)} pp, 95% CI "
+        f"[{_pct(_ESME_EFFECTS['valid_rate']['ci_low'], sign=True)}, "
+        f"{_pct(_ESME_EFFECTS['valid_rate']['ci_high'], sign=True)}]",
     ),
     (
-        "esme.result-valid-rates",
-        _FIND_E,
-        f"{_pct(_ESME['arms']['correct']['valid_rate'])}% vs "
-        f"{_pct(_ESME['arms']['random']['valid_rate'])}%",
-    ),
-    *(
-        (
-            f"esme.{claim}-sum-template",
-            doc,
-            f"{_pct(_ESME['arms']['correct']['sum_template_rate'])}% of real-reward samples",
-        )
-        for claim, doc in (("readme", _README), ("result", _FIND_E))
+        "esme.readme-sum-template",
+        _README,
+        f"{_pct(_ESME['arms']['correct']['sum_template_rate'])}% of real-reward samples",
     ),
     ("esme.readme-sum-tasks", _README, f"solves the {_ESME['n_sum_target_problems']} tasks whose"),
-    (
-        "esme.result-sum-tasks",
-        _FIND_E,
-        f"solves the {_ESME['n_sum_target_problems']} held-out tasks whose",
-    ),
-    (
-        "esme.result-sign-flip",
-        _FIND_E,
-        f"p = {_ESME_EFFECTS['valid_rate']['sign_flip_p']:.3f} is the smallest p",
-    ),
     # -- Pre-registered follow-ups (offpolicy-placebo.json, countdown-math/) --
     *(
         (
@@ -478,3 +452,12 @@ def test_doc_number_traces_to_json(claim_id: str, doc: str, expected: str) -> No
         "Either the prose drifted from its artifact, or the artifact was regenerated "
         "without updating the doc."
     )
+
+
+def test_esme_report_is_generated_from_corrected_evidence() -> None:
+    from llm_grpo_gains.esme_analysis import SampledDecomposition, render_report
+
+    summary = SampledDecomposition.model_validate_json(
+        (_ROOT / "results/esme-countdown/sampled_multiseed_summary.corrected.json").read_text()
+    )
+    assert (_ROOT / _FIND_E).read_text() == render_report(summary)

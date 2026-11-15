@@ -6,10 +6,11 @@ bootstrap CI and a paired significance test, never a bare point estimate.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 
 import numpy as np
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from grpo_decomp.schemas import Record
 from grpo_decomp.stats.bootstrap import PAIRED_BOOTSTRAP_SEED, paired_bootstrap_ci
@@ -21,15 +22,25 @@ class Comparison(Record):
 
     label_a: str
     label_b: str
-    n: int
-    accuracy_a: float
-    accuracy_b: float
+    n: int = Field(gt=0, strict=True)
+    accuracy_a: float = Field(ge=0, le=1, strict=True)
+    accuracy_b: float = Field(ge=0, le=1, strict=True)
     delta: float = Field(description="acc_b - acc_a (risk difference / effect size).")
     ci_low: float
     ci_high: float
-    p_value: float
-    n_discordant: int
+    p_value: float = Field(ge=0, le=1, strict=True)
+    n_discordant: int = Field(ge=0, strict=True)
     test: str = Field(description="'exact-binomial' or 'chi2'.")
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Comparison:
+        if not math.isclose(self.delta, self.accuracy_b - self.accuracy_a, abs_tol=1e-12):
+            raise ValueError("delta must equal accuracy_b - accuracy_a")
+        if self.ci_low > self.ci_high:
+            raise ValueError("ci_low must not exceed ci_high")
+        if self.n_discordant > self.n:
+            raise ValueError("n_discordant must not exceed n")
+        return self
 
     def headline(self) -> str:
         """The report's atomic claim, e.g. 'rl beats base by 5.2% (95% CI [...]; ...)'."""

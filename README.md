@@ -147,8 +147,8 @@ Only training and generation need a model backend. Once a `CompletionSet` exists
 analysis is deterministic: no GPU, network, or Hugging Face access.
 
 The harness stays task-agnostic through registries in `grpo_decomp/registries.py`. The
-study registers its datasets, rewards, verifiers, and prompt strategies through the
-`grpo_decomp.plugins` entry point. Published runs used Modal for training/generation
+study fills them with its datasets, rewards, verifiers, and task profiles when its
+entry points call `llm_grpo_gains.registration.register()`. Published runs used Modal for training/generation
 and W&B for curves. The public repo ships the derived result JSON and figures, not the
 run volumes or checkpoints. Module map and data flow: [docs/architecture.md](docs/architecture.md).
 
@@ -156,11 +156,10 @@ run volumes or checkpoints. Module map and data flow: [docs/architecture.md](doc
 
 ```bash
 make install   # CPU env: data, rewards, eval, stats, reports, tests
-make check     # Ruff + mypy + unit tests + docs consistency
-make results   # rebuild committed figures from JSON, then docs <-> JSON check
 make demo      # score two tiny committed CompletionSets; no model load
-make reproduce-esme  # recompute the Esme result from its raw completions; diff vs committed JSON
 ```
+
+Checks, figures, and reproduction commands: [AGENTS.md](AGENTS.md#commands) or `make help`.
 
 Generation and training need a model backend; everything else runs on CPU:
 
@@ -176,11 +175,11 @@ reproduce the published runs, see [docs/runbook.md](docs/runbook.md).
 ## Plug In Your Own Model And Task
 
 `--model` / `ArmConfig.base_model` takes any Hugging Face id or local checkpoint path.
-To add a task, write a `register()` that registers your eval set, train dataset, and
-reward (plus a verifier and validation reconstructor for non-boxed-math tasks), then
-declare it under the `grpo_decomp.plugins` entry point.
+To add a task, write a `register()` that adds your eval set, train dataset, and reward to the
+registries (plus a verifier and validation reconstructor for non-boxed-math tasks), and an
+entry point that calls it before `grpo_decomp.cli.main`.
 [src/llm_grpo_gains/registration.py](src/llm_grpo_gains/registration.py) is the worked
-example.
+example. Step-by-step: [docs/architecture.md](docs/architecture.md#plug-in-your-own-model-and-task).
 
 ## Study Rules
 
@@ -214,3 +213,9 @@ Python 3.13+ · `uv` · Pydantic · TRL GRPO · transformers · vLLM · Modal ·
 ## License
 
 MIT
+
+Developer navigation and verification limits are documented in
+[docs/development.md](docs/development.md). Use `make help` for focused commands.
+Study reproduction routes and missing raw inputs are listed by `uv run grpo-study plan`.
+The historical Esme JSON remains unchanged. Its corrected exploratory analysis is recorded
+separately in `results/esme-countdown/sampled_multiseed_summary.corrected.json`.

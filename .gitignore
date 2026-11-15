@@ -54,3 +54,6 @@ provenance.json
 /notes/
 /operator-notes/
 /scratch/
+
+# verify-grpo-decomp evidence
+/.verify/

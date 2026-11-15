@@ -57,6 +57,8 @@ def sign_flip_p_value(seed_effects: Sequence[float]) -> float:
     values = np.asarray(seed_effects, dtype=float)
     if values.size == 0:
         raise ValueError("no seed effects")
+    if values.ndim != 1 or not np.isfinite(values).all():
+        raise ValueError("seed effects must be a finite one-dimensional vector")
     if values.size > _MAX_SIGN_FLIP_SEEDS:
         raise ValueError(f"exact sign flip supports at most {_MAX_SIGN_FLIP_SEEDS} seeds")
     signs = np.array(list(itertools.product((1.0, -1.0), repeat=values.size)))

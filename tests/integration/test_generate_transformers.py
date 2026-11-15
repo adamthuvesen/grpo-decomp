@@ -8,8 +8,11 @@ pytestmark = pytest.mark.integration
 
 
 def test_transformers_backend_end_to_end(tmp_path) -> None:
-    pytest.importorskip("torch")
-    pytest.importorskip("transformers")
+    import torch  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
+    import transformers  # pyright: ignore[reportMissingImports]  # GPU libraries are absent from the CPU environment
+
+    assert torch.__version__
+    assert transformers.__version__
 
     from grpo_decomp.eval.battery import run_battery
     from grpo_decomp.eval.completions import SamplingConfig

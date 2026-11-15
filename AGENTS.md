@@ -1,74 +1,75 @@
 # AGENTS.md: grpo-decomp + llm_grpo_gains
 
-This repo has **two packages and one boundary**:
+Two packages, one-way boundary: the `grpo_decomp` harness never imports the `llm_grpo_gains` study.
+Read [docs/architecture.md](docs/architecture.md) for what goes where before you add code.
 
-- **`grpo_decomp`** (`src/grpo_decomp/`): the harness, a controls-first method for
-  decomposing a GRPO benchmark gain into real reasoning vs. contamination, formatting, and
-  elicitation. Task- and model-agnostic; knows nothing about GSM8K or Countdown. Tasks plug
-  in through the registries in `grpo_decomp/registries.py`.
-- **`llm_grpo_gains`** (`src/llm_grpo_gains/`): the reference study that exercises the
-  harness: GSM8K (primary) plus a generated Countdown positive control. It supplies datasets,
-  the `correct`/`countdown` rewards, configs, results, and a `registration.py` that wires
-  itself into the harness via a `grpo_decomp.plugins` entry point.
-
-The result is only as trustworthy as the controls. "Most of this gain was elicitation"
-beats a confident, uncontrolled "RL works."
-
-**Keep the boundary one-way.** The harness must never import the study (verified by a
-standalone-import smoke). Put generic measurement machinery in `grpo_decomp`; put anything
-GSM8K/Countdown-specific in `llm_grpo_gains`. The harness is a narrow measurement harness.
-Add extension points (registry entries), not a framework.
-User-level guidance (tone, principles, git etiquette) lives in the user's agent defaults
-and is _not_ duplicated here.
-
-## Quickstart
+## Commands
 
 ```bash
+make fix            # auto-format + safe lint fixes
 make install        # CPU env: data, rewards, eval, stats, reports
-make check          # Ruff + mypy + unit tests + docs consistency
+make check          # fast offline gate: lock, lint, imports, types, fast tests (first CI job)
+make slow           # check + result reproduction + installed-wheel smoke (CI matrix)
 make demo           # score committed mini CompletionSets; no model load
-make results        # rebuild figures from results/*.json + docs<->JSON consistency check
+make help           # focused checks and study commands
 
-modal run --detach modal_app.py --arm configs/correct.yaml  # train one arm on an A100 (see docs/runbook.md)
+modal run --detach modal_app.py --arm configs/correct.yaml  # paid A100: only after Adam approves
 grpo-decomp battery --completions runs/base__dev --k 1      # grade a CompletionSet (CPU)
-grpo-decomp report-passk-seeds --completions-dir runs/passk-multiseed --task-set gsm8k-test
 ```
 
-Only `generate` (and training) needs a model/GPU; grading and reports run on CPU.
+Only `generate` and training need a model or GPU. Grading and reports run on CPU.
 
-## Conventions
+Prove changes with `make verify` (`verify-grpo-decomp` skill at `.agents/skills/verify-grpo-decomp/`).
 
-- Start from repo truth: read `README.md`, [`docs/architecture.md`](docs/architecture.md), `pyproject.toml`, and nearby tests before inventing patterns.
-- Prefer the smallest coherent change; if a doc disagrees with code, fix the doc in the same change.
-- **Controls before gains.** Never report a gain without its controls, a confidence interval, and a paired significance test.
-- **The reward curve is not evidence.** Only held-out eval, completion length, and entropy are; treat a rising reward with suspicion.
-- **Never claim from one run.** Aggregate over seeds; below three seeds, label preliminary.
-- Determinism: fixed seeds, pinned dataset revisions, recorded model/commit/config/dependency hashes on every artifact.
-- **Pin TRL.** Its GRPO defaults move between versions; re-check config at build time. Same for vLLM (`==0.17.1`, TRL 1.0.0's supported max).
-- No new runtime deps without asking. Stack is TRL + transformers + vLLM + datasets (train) and `eval-audit` (stats); no broad RL/agent frameworks.
-- Python 3.13+, `uv`, ruff (line length 100), strict Pydantic for result schemas. `CLAUDE.md` is a symlink to this file.
-- **Respect the boundary.** Harness code imports only `grpo_decomp.*`; study code may import both. A new GSM8K/Countdown-shaped knob is a registry entry in `llm_grpo_gains/registration.py`, not an `if task == ...` in the harness.
+## Enforced Rules
 
-The rationale behind these rules (why the reward curve lies, why seeds, why strict schemas)
-lives in [`docs/architecture.md`](docs/architecture.md#design-rules-that-shaped-the-code).
+Ruff, basedpyright, and the Python version are configured in `pyproject.toml`. Approved runtime
+dependencies are listed in `tests/test_packaging.py`; dev-only tools go in the `dev` extra.
 
-## Plug In Your Own Model + Task
+| Rule | Enforced by |
+| --- | --- |
+| The harness never imports the study | `pyproject.toml::tool.importlinter`, `tests/test_architecture.py::test_harness_imports_without_a_study_or_gpu_stack` |
+| Each harness module imports only lower layers: `cli`/`jobs` > `report` > `eval`/`train` > `rewards`/`prompts` > `registries` > `stats`/`splits`/`provenance`/`grading` > `schemas` | `pyproject.toml::tool.importlinter`, `Makefile::imports` |
+| A paid Modal launch refuses to run without `--approved` | `modal_app.py::_require_approval`, `tests/test_modal_app.py::test_every_modal_entry_point_requires_approval`, `tests/test_modal_app.py::test_unapproved_launch_refuses_with_the_exact_approved_command` |
+| No new runtime dependency without asking Adam | `tests/test_packaging.py::test_runtime_dependencies_are_the_approved_stack` |
+| TRL and vLLM stay exact `==` pins | `tests/test_packaging.py::test_trl_and_vllm_are_exact_pins`, `uv.lock` |
+| Fewer than three seeds is labeled preliminary | `src/grpo_decomp/report/status.py::MIN_HEADLINE_SEEDS`, `tests/test_passk_seeds.py::test_below_min_seeds_is_preliminary` |
+| Result schemas reject unknown fields | `tests/test_schemas.py::test_problem_rejects_unknown_fields` |
+| Artifacts record version and content hashes | `tests/test_completions.py::test_manifest_records_version_and_content_hashes` |
+| Publication is atomic and never replaces a conflicting artifact | `tests/test_completions.py::test_conflicting_existing_artifact_is_never_replaced`, `tests/test_completions.py::test_failed_staged_write_cleans_up_and_does_not_publish` |
+| Legacy CompletionSets stay readable | `tests/test_completions.py::test_legacy_artifact_load_and_retry_preserve_all_bytes` |
+| A retry is never a new training seed | `tests/test_comparison_contracts.py::test_retry_is_not_a_new_training_seed` |
+| Multiple completed attempts need explicit selection | `tests/test_provenance.py::test_multiple_successful_attempts_require_explicit_selection` |
+| Historical result JSON stays byte-identical | `tests/test_esme_analysis.py::test_committed_legacy_summary_is_byte_identical`, `Makefile::reproduce-esme` |
+| Documented numbers match committed results | `tests/test_docs_consistency.py` |
+| The installed wheel registers the study and grades a fixture | `tests/test_packaging.py::test_installed_wheel_registers_study_grades_and_loads_packaged_fixture` |
+| `make verify` reports a pass only when its control observes FAIL | `.agents/skills/verify-grpo-decomp/drives.py::control_battery`, `Makefile::verify` |
+| Process, network, paid SDK, and Modal modules are imported only by named owner files, each held to its own modules | `pyproject.toml::tool.ruff.lint.flake8-tidy-imports.banned-api`, `tests/test_banned_modules.py::test_every_file_uses_only_the_banned_modules_it_owns`, `tests/test_banned_modules.py::test_only_named_owners_hold_a_tid251_ignore` |
+| Tests never sleep or time wall-clock work, and every skip or xfail names a reason | `tests/ruff.toml::lint.flake8-tidy-imports.banned-api`, `tests/test_strict_mode.py::test_every_skip_names_a_reason` |
 
-The harness already takes any model (`base_model` / `--model` is a free HF id or path) and
-any task through registries. No fork is required:
+## Judgment calls
 
-1. Write a `register()` that calls `register_eval_set`, `register_train_dataset`,
-   `register_reward`, `register_verifier` (if not boxed-math), and
-   `register_validation_reconstructor` (for held-out diagnostics). Optionally
-   `register_prompt_strategy` for a chat-template model; the harness default is `r1_zero`.
-2. Declare it under the `grpo_decomp.plugins` entry-point group so the CLI/Modal discover it.
-3. Point an `ArmConfig` at your `base_model` + your registered `reward`/`dataset`/`prompt_strategy`.
+- **Controls before gains.** Never report a gain without its controls, a confidence
+  interval, and a paired significance test.
+- **The reward curve is not evidence.** Only held-out eval, completion length, and entropy
+  are. Treat a rising reward with suspicion.
+- **Never claim from one run.** Aggregate over seeds.
+- Re-check TRL's GRPO defaults whenever you bump the TRL pin. vLLM must stay inside the
+  range that TRL version supports.
+- No broad RL or agent frameworks. The stack is TRL + transformers + vLLM + datasets
+  (train) and `eval-audit` (stats).
+- Published aggregate-only results cannot recover missing raw evidence or lineage. Record
+  corrections in separate versioned results.
+- If a doc disagrees with code, fix the doc in the same change.
 
-`llm_grpo_gains/registration.py` is the worked example.
+The rationale lives in
+[`docs/architecture.md`](docs/architecture.md#design-rules-that-shaped-the-code).
 
-## Read the docs first
+## Pointers
 
-| Topic                                                | Doc                                          |
-| ---------------------------------------------------- | -------------------------------------------- |
+| Topic | Doc |
+| --- | --- |
 | Architecture, data flow, module map, Modal execution | [docs/architecture.md](docs/architecture.md) |
-| Training a GRPO arm on Modal, reproducing results    | [docs/runbook.md](docs/runbook.md)           |
+| Plug in your own model and task | [docs/architecture.md](docs/architecture.md#plug-in-your-own-model-and-task) |
+| Which module owns a change, and its focused check | [docs/development.md](docs/development.md) |
+| Training a GRPO arm on Modal, reproducing results | [docs/runbook.md](docs/runbook.md) |

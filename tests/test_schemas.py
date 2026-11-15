@@ -14,18 +14,18 @@ def _ref() -> DatasetRef:
 
 def test_problem_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError):
-        Problem(id="x", question="q", gold_answer="1", surprise="nope")  # type: ignore[call-arg]
+        Problem(id="x", question="q", gold_answer="1", surprise="nope")  # pyright: ignore[reportCallIssue]  # unknown field on purpose
 
 
 def test_problem_is_frozen() -> None:
     problem = Problem(id="x", question="q", gold_answer="1")
     with pytest.raises(ValidationError):
-        problem.gold_answer = "2"  # type: ignore[misc]
+        problem.gold_answer = "2"
 
 
 def test_dataset_ref_requires_all_fields() -> None:
     with pytest.raises(ValidationError):
-        DatasetRef(name="openai/gsm8k", split="test", revision="abc123")  # type: ignore[call-arg]
+        DatasetRef(name="openai/gsm8k", split="test", revision="abc123")  # pyright: ignore[reportCallIssue]  # missing field on purpose
 
 
 def test_dataset_ref_allows_null_config() -> None:
@@ -40,3 +40,17 @@ def test_problem_set_is_sequence_like() -> None:
     assert len(problem_set) == 3
     assert problem_set[1].id == "1"
     assert [p.id for p in problem_set] == ["0", "1", "2"]
+
+
+def test_problem_set_rejects_duplicate_ids() -> None:
+    problem = Problem(id="same", question="q", gold_answer="1")
+    with pytest.raises(ValidationError, match="duplicate problem ids"):
+        ProblemSet(source=_ref(), problems=(problem, problem))
+
+
+def test_legacy_json_arrays_still_load_as_tuples() -> None:
+    problem_set = ProblemSet.model_validate_json(
+        '{"source":{"name":"d","config":null,"split":"test","revision":"r"},'
+        '"problems":[{"id":"1","question":"q","gold_answer":"1"}]}'
+    )
+    assert isinstance(problem_set.problems, tuple)

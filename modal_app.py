@@ -1,8 +1,11 @@
 """Modal app: run a grpo-decomp GRPO arm on a single A100.
 
-    modal run modal_app.py --arm configs/correct.yaml          # launch a run
-    modal run modal_app.py --arm configs/correct.yaml --smoke-problems 8   # short check
+    modal run --detach modal_app.py --arm configs/correct.yaml   # launch a run
+    modal run modal_app.py --no-spawn --arm configs/correct.yaml --smoke-problems 8
     modal shell modal_app.py                                    # inspect the image
+
+Every run spends money on an A100, so each entry point refuses to start without `--approved`.
+Add the flag only after Adam approves; the refusal prints the exact approved command.
 
 A 1.5B model fits comfortably on one A100 80GB with colocated vLLM. Checkpoints and
 provenance persist to a Modal Volume; training curves go to Weights & Biases.
@@ -14,28 +17,42 @@ WANDB_API_KEY=...`). CUDA, torch, vLLM, and TRL versions must remain compatible.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import inspect
+import shlex
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import modal
 
+import grpo_decomp
 from grpo_decomp.eval.completions import SamplingConfig
-from grpo_decomp.plugins import load_plugins
-from grpo_decomp.prompts import EVAL_MAX_NEW_TOKENS
-from grpo_decomp.provenance import git_commit, git_is_dirty
-from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, EVAL_SETS, get_task_profile
+from grpo_decomp.jobs import (
+    CompletionJob,
+    plan_battery,
+    plan_passk,
+    validate_battery_request,
+    validate_passk_request,
+)
+from grpo_decomp.provenance import git_commit, git_is_dirty, resolve_run_dir
+from grpo_decomp.registries import DEFAULT_PROMPT_STRATEGY, EVAL_SETS
 from grpo_decomp.schemas import ProblemSet, record_json
-from grpo_decomp.train.provenance import load_run_provenance
+from llm_grpo_gains.registration import register
 
-# Populate the harness registries with the study's eval sets and task profiles, both
-# locally (entrypoint arg handling) and inside each Modal container (module import).
-load_plugins()
+# Fill the harness registries locally (entrypoint arg handling) and in each Modal container.
+register()
 
 APP_NAME = "grpo-decomp"
 CUDA_IMAGE = "nvidia/cuda:12.4.1-devel-ubuntu22.04"
 RUNS_DIR = "/runs"
 # Where the project tree is mounted inside the image (arbitrary; kept off the volume).
 REMOTE_ROOT = "/root/grpo-decomp"
+# parents[2] is the project root locally and REMOTE_ROOT in the image (editable install).
+LOCAL_PYTHON = (
+    (Path(grpo_decomp.__file__).resolve().parents[2] / ".python-version")
+    .read_text(encoding="utf-8")
+    .strip()
+)
 
 app = modal.App(APP_NAME)
 
@@ -60,9 +77,9 @@ _IGNORE = [
 # train extra's pinned deps without the project itself; the project is linked
 # separately with --no-deps once the full source is present.
 image = (
-    modal.Image.from_registry(CUDA_IMAGE, add_python="3.13")
+    modal.Image.from_registry(CUDA_IMAGE, add_python=LOCAL_PYTHON)
     .apt_install("git")
-    .pip_install("uv")
+    .pip_install("uv==0.13.5")
     .add_local_file(
         Path(__file__).parent / "pyproject.toml", f"{REMOTE_ROOT}/pyproject.toml", copy=True
     )
@@ -79,25 +96,25 @@ image = (
 
 runs = modal.Volume.from_name("assay-runs", create_if_missing=True)
 
+LAUNCH_APPROVAL_FLAG = "--approved"
+# A direct `modal run modal_app.py::<function>` skips the entrypoint, so remote functions gate too.
+_DIRECT_CALL_COMMAND = f"modal run --detach modal_app.py <same arguments> {LAUNCH_APPROVAL_FLAG}"
 
-@dataclass(frozen=True)
-class _CompletionJob:
-    arm: str
-    model_ref: str
-    model_revision: str | None
-    set_name: str
-    config: SamplingConfig
-    problems: ProblemSet | None = None
-    # The prompt strategy this arm trained on; eval MUST match it or the decomposition
-    # compares a model against an off-distribution prompt.
-    prompt_strategy: str = DEFAULT_PROMPT_STRATEGY
+
+def _require_approval(approved: bool, command: str) -> None:
+    if not approved:
+        raise SystemExit(
+            "Refusing to launch: this Modal GPU run spends money. "
+            "Stop and ask Adam to approve it.\n"
+            f"Once approved, run: {command}"
+        )
 
 
 def _generate_completion_set_to_volume(
     *,
     model_ref: str,
-    problems,
-    config,
+    problems: ProblemSet,
+    config: SamplingConfig,
     out_dir: Path,
     commit: str | None,
     dirty: bool | None,
@@ -123,12 +140,18 @@ def _generate_completion_set_to_volume(
 
 
 def _run_completion_jobs(
-    jobs: list[_CompletionJob],
+    jobs: list[CompletionJob],
     *,
     out_root: Path,
     commit: str | None,
     dirty: bool | None,
 ) -> None:
+    for job in jobs:
+        out = out_root / f"{job.arm}__{job.set_name}"
+        if not out.resolve().is_relative_to(out_root.resolve()):
+            raise ValueError(f"completion output escapes root: {out}")
+        if out.exists():
+            raise ValueError(f"completion output already exists: {out}")
     for job in jobs:
         problems = job.problems if job.problems is not None else EVAL_SETS[job.set_name]()
         out = _generate_completion_set_to_volume(
@@ -161,27 +184,36 @@ def train_arm(
     max_steps: int | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
+    arm_config_json: str | None = None,
+    approved: bool = False,
 ) -> str:
     """Run one arm on the GPU; persist checkpoints + provenance to the Volume.
 
     `commit`/`dirty` are computed by the local entrypoint (the container has no .git)
     and recorded in provenance so a GPU run is traceable to the code that produced it.
     """
+    _require_approval(approved, _DIRECT_CALL_COMMAND)
     from pathlib import Path
 
-    from grpo_decomp.train.config import load_arm_config
+    from grpo_decomp.train.config import ArmConfig, load_arm_config
     from grpo_decomp.train.launcher import launch
 
-    arm = load_arm_config(Path(arm_yaml))
-    run_dir = launch(
-        arm,
-        output_root=Path(RUNS_DIR),
-        smoke_problems=smoke_problems,
-        max_steps=max_steps,
-        commit=commit,
-        dirty=dirty,
+    arm = (
+        ArmConfig.model_validate_json(arm_config_json)
+        if arm_config_json is not None
+        else load_arm_config(Path(arm_yaml))
     )
-    runs.commit()
+    try:
+        run_dir = launch(
+            arm,
+            output_root=Path(RUNS_DIR),
+            smoke_problems=smoke_problems,
+            max_steps=max_steps,
+            commit=commit,
+            dirty=dirty,
+        )
+    finally:
+        runs.commit()
     return str(run_dir)
 
 
@@ -191,15 +223,16 @@ def train_arm(
     volumes={RUNS_DIR: runs},
     timeout=6 * 60 * 60,
 )
-def heldout_arm(arm_yaml: str) -> str:
+def heldout_arm(arm_yaml: str, approved: bool = False) -> str:
     """Held-out accuracy curve over a finished arm's checkpoints (check this, not reward)."""
+    _require_approval(approved, _DIRECT_CALL_COMMAND)
     from pathlib import Path
 
     from grpo_decomp.eval.heldout import run_heldout_curve
     from grpo_decomp.train.config import load_arm_config
 
     arm = load_arm_config(Path(arm_yaml))
-    run_dir = Path(RUNS_DIR) / f"{arm.name}-seed{arm.seed}"
+    run_dir = resolve_run_dir(Path(RUNS_DIR) / f"{arm.name}-seed{arm.seed}")
     curve = run_heldout_curve(run_dir, backend="vllm")
     out = run_dir / "heldout.json"
     out.write_text(record_json(curve), encoding="utf-8")
@@ -216,9 +249,10 @@ def heldout_arm(arm_yaml: str) -> str:
 def eval_matrix(
     seed: int = 0,
     scope: str = "full",
-    task: str = "gsm8k",
+    task: str | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
+    approved: bool = False,
 ) -> str:
     """Generate decomposition completions for one seed; pass@1 greedy.
 
@@ -233,60 +267,8 @@ def eval_matrix(
     `commit`/`dirty` come from the local entrypoint (no .git in the image) so each
     artifact is traceable to its code.
     """
-    from pathlib import Path
-
-    from grpo_decomp.train.config import load_arm_config
-
-    profile = get_task_profile(task)
-    base = load_arm_config(Path(profile.base_config))
-
-    def trained_checkpoint(role: str) -> tuple[str, str]:
-        run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}{role}-seed{seed}"
-        prov = load_run_provenance(run_dir)
-        return str(run_dir / "checkpoints" / "final"), prov.prompt_strategy
-
-    base_row = ("base", base.base_model, base.base_model_revision, base.prompt_strategy)
-
-    def trained_row(role: str) -> tuple[str, str, None, str]:
-        checkpoint, strategy = trained_checkpoint(role)
-        return role, checkpoint, None, strategy
-
-    if scope == "full":
-        matrix = [
-            (*base_row, [profile.task_set, *profile.control_sets]),
-            (*trained_row("correct"), [profile.task_set, *profile.control_sets]),
-            (*trained_row("random"), [profile.task_set]),
-        ]
-    elif scope == "placebo":
-        matrix = [
-            (*trained_row("correct"), [profile.task_set]),
-            (*trained_row("random"), [profile.task_set]),
-        ]
-    elif scope == "random-vs-base":
-        matrix = [(*trained_row("random"), [profile.task_set])]
-        if seed == 0:
-            matrix.insert(0, (*base_row, [profile.task_set]))
-    elif scope == "controls":
-        if not profile.control_sets:
-            raise ValueError(f"scope 'controls' needs control sets; task {task!r} has none")
-        matrix = [(*trained_row("correct"), list(profile.control_sets))]
-    else:
-        raise ValueError(
-            f"scope must be 'full', 'placebo', 'random-vs-base', or 'controls', got {scope!r}"
-        )
-
-    config = SamplingConfig(
-        temperature=0.0, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=1, seed=0
-    )
-    out_root = Path(RUNS_DIR) / (
-        profile.battery_root if seed == 0 else f"{profile.battery_root}-seed{seed}"
-    )
-
-    jobs = [
-        _CompletionJob(arm, model_ref, revision, set_name, config, prompt_strategy=strategy)
-        for arm, model_ref, revision, strategy, set_names in matrix
-        for set_name in set_names
-    ]
+    _require_approval(approved, _DIRECT_CALL_COMMAND)
+    out_root, jobs = plan_battery(Path(RUNS_DIR), seed=seed, scope=scope, task=task)
     _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
 
@@ -298,7 +280,7 @@ def eval_matrix(
     timeout=6 * 60 * 60,
 )
 def passk_multiseed(
-    task: str = "gsm8k",
+    task: str | None = None,
     n_base: int = 16,
     n_correct: int = 8,
     correct_seeds: str = "0,1,2,3,4,5",
@@ -306,6 +288,7 @@ def passk_multiseed(
     limit: int | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
+    approved: bool = False,
 ) -> str:
     """Multi-seed pass@k coverage panel: base anchor once + each correct training seed.
 
@@ -322,66 +305,31 @@ def passk_multiseed(
     control can be matched to the task set's size. The set suffix keeps control panels
     disjoint from the task-set cells in one dir.
     """
-    from pathlib import Path
-
-    from grpo_decomp.splits import dev_slice
-    from grpo_decomp.train.config import load_arm_config
-
-    profile = get_task_profile(task)
-    eval_set = set_name or profile.task_set
-    if eval_set not in EVAL_SETS:
-        raise ValueError(f"unknown set {eval_set!r}; known sets are {tuple(sorted(EVAL_SETS))}")
-    if limit is not None and limit < 1:
-        raise ValueError(f"limit must be >= 1, got {limit}")
-    seeds = [int(s) for s in correct_seeds.split(",") if s.strip() != ""]
-    if not seeds:
-        raise ValueError(f"no correct seeds parsed from {correct_seeds!r}")
-    base = load_arm_config(Path(profile.base_config))
-
-    def trained_checkpoint(seed: int) -> tuple[str, str]:
-        run_dir = Path(RUNS_DIR) / f"{profile.run_prefix}correct-seed{seed}"
-        prov = load_run_provenance(run_dir)
-        return str(run_dir / "checkpoints" / "final"), prov.prompt_strategy
-
-    out_root = Path(RUNS_DIR) / profile.passk_multiseed_root
-    problems = EVAL_SETS[eval_set]()
-    if limit is not None:
-        problems = dev_slice(problems, n=limit, seed=0)
-
-    def sampled_config(n: int) -> SamplingConfig:
-        return SamplingConfig(
-            temperature=0.7, top_p=1.0, max_new_tokens=EVAL_MAX_NEW_TOKENS, n=n, seed=0
-        )
-
-    def correct_job(seed: int) -> _CompletionJob:
-        checkpoint, strategy = trained_checkpoint(seed)
-        return _CompletionJob(
-            f"correct-seed{seed}",
-            checkpoint,
-            None,
-            eval_set,
-            sampled_config(n_correct),
-            problems,
-            prompt_strategy=strategy,
-        )
-
-    jobs = [
-        _CompletionJob(
-            "base",
-            base.base_model,
-            base.base_model_revision,
-            eval_set,
-            sampled_config(n_base),
-            problems,
-            prompt_strategy=base.prompt_strategy,
-        ),
-        *(correct_job(seed) for seed in seeds),
-    ]
+    _require_approval(approved, _DIRECT_CALL_COMMAND)
+    out_root, jobs = plan_passk(
+        Path(RUNS_DIR),
+        task=task,
+        n_base=n_base,
+        n_correct=n_correct,
+        correct_seeds=correct_seeds,
+        set_name=set_name,
+        limit=limit,
+    )
     _run_completion_jobs(jobs, out_root=out_root, commit=commit, dirty=dirty)
     return str(out_root)
 
 
+_ENTRYPOINT_SIGNATURES: dict[str, inspect.Signature] = {}
+
+
+def _keep_signature[F: Callable[..., object]](fn: F) -> F:
+    # The real modal.App.local_entrypoint wraps the function in an object without its signature.
+    _ENTRYPOINT_SIGNATURES[fn.__name__] = inspect.signature(fn)
+    return fn
+
+
 @app.local_entrypoint()
+@_keep_signature
 def main(
     arm: str = "configs/correct.yaml",
     command: str = "train",
@@ -389,26 +337,30 @@ def main(
     max_steps: int | None = None,
     seed: int = 0,
     scope: str = "full",
-    task: str = "gsm8k",
+    task: str | None = None,
     n_base: int = 16,
     n_correct: int = 8,
     correct_seeds: str = "0,1,2,3,4,5",
     set_name: str | None = None,
     limit: int | None = None,
     spawn: bool = True,
+    approved: bool = False,
 ) -> None:
     """Train an arm, score its held-out curve, or generate eval completions.
 
     Every command this entrypoint dispatches is a long GPU run whose output is written to
     the `assay-runs` Volume, not the inline return value. `spawn` defaults to true so the
     function starts server-side and the entrypoint returns its FunctionCall id without
-    blocking. Pair the default with `--detach`:
+    blocking. Pair the default with `--detach`. Launches refuse without `--approved`:
 
     full train:  modal run --detach modal_app.py --arm configs/correct.yaml
-    held-out:    modal run --detach modal_app.py --arm configs/correct.yaml --command heldout
-    battery:     modal run --detach modal_app.py --command battery               # seed 0, full
-    placebo:     modal run --detach modal_app.py --command battery --seed 1 --scope placebo
-    controls:    modal run --detach modal_app.py --command battery --scope controls --seed 1
+    held-out:    modal run --detach modal_app.py --arm configs/correct.yaml \\
+                   --command heldout
+    battery:     modal run --detach modal_app.py --command battery  # seed 0, full
+    placebo:     modal run --detach modal_app.py --command battery --seed 1 \\
+                   --scope placebo
+    controls:    modal run --detach modal_app.py --command battery --seed 1 \\
+                   --scope controls
     passk-seeds: modal run --detach modal_app.py --command passk-multiseed
     escalated:   ...same, plus --n-base 32 --n-correct 16 (or --task countdown)
     decontam:    ...same, plus --set-name gsm-symbolic --limit 1319 (or --set-name gsm8k-platinum)
@@ -432,12 +384,34 @@ def main(
     """
     # Computed here (locally) because the image ignores .git, so the container can't
     # read git - pass the real commit/dirty into provenance.
+    launch_args = dict(locals())
+    from grpo_decomp.train.config import load_arm_config
+    from grpo_decomp.train.launcher import preflight_arm
+
+    arm_config_json = ""
+    kwargs: dict[str, Any]
+    if command == "train":
+        arm_config_json = preflight_arm(
+            load_arm_config(Path(arm)), smoke_problems=smoke_problems, max_steps=max_steps
+        ).model_dump_json()
+    elif command == "heldout":
+        load_arm_config(Path(arm))
+    elif command == "battery":
+        validate_battery_request(task, scope, seed)
+    elif command == "passk-multiseed":
+        validate_passk_request(task, n_base, n_correct, correct_seeds, set_name, limit)
+    else:
+        raise ValueError(
+            f"command must be 'train', 'heldout', 'battery', or 'passk-multiseed', got {command!r}"
+        )
+    _require_approval(approved, _approved_command(launch_args))
     commit, dirty = git_commit(), git_is_dirty()
     if command == "train":
         fn, kwargs = (
             train_arm,
             {
                 "arm_yaml": arm,
+                "arm_config_json": arm_config_json,
                 "smoke_problems": smoke_problems,
                 "max_steps": max_steps,
                 "commit": commit,
@@ -471,11 +445,8 @@ def main(
                 "dirty": dirty,
             },
         )
-    else:
-        raise ValueError(
-            f"command must be 'train', 'heldout', 'battery', or 'passk-multiseed', got {command!r}"
-        )
 
+    kwargs["approved"] = True
     if spawn:
         # Fire-and-return so the work survives a client disconnect (use with --detach).
         # The deliverable lands on the Volume, not here; print the monitor hints.
@@ -485,3 +456,17 @@ def main(
     else:
         result = fn.remote(**kwargs)
         print(f"{command} complete: {result}")
+
+
+def _approved_command(launch_args: dict[str, object]) -> str:
+    defaults = _ENTRYPOINT_SIGNATURES["main"].parameters
+    parts = ["modal run", "--detach" if launch_args["spawn"] else "", "modal_app.py"]
+    for name, value in launch_args.items():
+        if name == "approved" or value == defaults[name].default:
+            continue
+        flag = name.replace("_", "-")
+        if isinstance(value, bool):
+            parts.append(f"--{flag}" if value else f"--no-{flag}")
+        else:
+            parts.append(f"--{flag} {shlex.quote(str(value))}")
+    return " ".join(part for part in [*parts, LAUNCH_APPROVAL_FLAG] if part)
